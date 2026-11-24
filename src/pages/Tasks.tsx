@@ -12,7 +12,7 @@ import { byUrgency, isOpen } from "../lib/taskUi";
 import type { Task } from "../lib/types";
 
 const PRIOS = [{ value: "all", label: "Any priority" }, { value: "critical", label: "Critical" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }];
-const SELECT = "inset h-10 rounded-full bg-transparent px-4 text-[13px] outline-none";
+const SELECT = "inset h-11 w-full min-w-0 rounded-full bg-transparent px-3 text-[13px] outline-none md:h-10 md:w-auto md:px-4";
 
 export default function Tasks() {
   const { tasks, today, weekStart, loading, error, completeTask, reopenTask } = useData();
@@ -42,9 +42,9 @@ export default function Tasks() {
   return (
     <div>
       <PageHeader crumb="TASKS" title={h === "done" ? "Completed" : only ? HORIZON_LABELS[only] : "Tasks"} subtitle={`${shown.length} ${h === "done" ? "completed in the last 14 days" : "open"}${module !== "all" ? ` · ${MODULES_META[module as keyof typeof MODULES_META]?.label ?? module}` : ""}`} />
-      <Panel className="p-4 md:p-5">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <form role="search" onSubmit={(e) => e.preventDefault()} className="inset flex h-10 min-w-[180px] flex-1 items-center gap-2 rounded-full px-3.5">
+      <Panel className="p-4 max-md:![background:none] max-md:!p-0 max-md:!shadow-none md:p-5">
+        <div className="mb-3 grid grid-cols-3 items-center gap-2 md:mb-4 md:flex md:flex-wrap">
+          <form role="search" onSubmit={(e) => e.preventDefault()} className="inset col-span-3 flex h-11 min-w-[180px] flex-1 items-center gap-2 rounded-full px-3.5 md:col-span-1 md:h-10">
             <Search size={14} className="text-muted" aria-hidden />
             <input value={q} onChange={(e) => set("q", e.target.value)} aria-label="Search tasks" placeholder="Search tasks" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted" />
           </form>
@@ -56,7 +56,7 @@ export default function Tasks() {
           <select aria-label="Status" className={SELECT} value={status} onChange={(e) => set("status", e.target.value)}>
             <option value="all">Any status</option><option value="pending">To do</option><option value="in_progress">In progress</option><option value="waiting">Waiting</option>
           </select>
-          <Btn variant="primary" icon={Plus} onClick={() => setEditing({})}>New task</Btn>
+          <Btn variant="primary" icon={Plus} onClick={() => setEditing({})} className="max-md:!hidden">New task</Btn>
         </div>
         {loading ? <Empty>Loading…</Empty> : error && tasks.length === 0 ? <Empty>{error}</Empty> : h === "done" ? (
           shown.length ? <ul>{shown.map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={(x) => setEditing({ task: x })} />)}</ul> : <Empty>Nothing completed recently.</Empty>

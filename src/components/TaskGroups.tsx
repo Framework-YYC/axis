@@ -23,7 +23,7 @@ export function TaskGroups({ tasks, today, weekStart, onToggle, onOpen, showModu
         const shut = closed.has(h);
         return (
           <section key={h} aria-label={HORIZON_LABELS[h]}>
-            <button onClick={() => setClosed((s) => { const n = new Set(s); if (n.has(h)) n.delete(h); else n.add(h); return n; })} aria-expanded={!shut} className="mb-1 flex w-full items-center justify-between gap-3 py-1 text-left">
+            <button onClick={() => setClosed((s) => { const n = new Set(s); if (n.has(h)) n.delete(h); else n.add(h); return n; })} aria-expanded={!shut} className="mb-1 flex min-h-11 w-full items-center justify-between gap-3 py-1 text-left">
               <span className="flex items-center gap-2.5">
                 <span className={cx("text-[14px] font-medium tracking-tight", h === "overdue" && "text-red")}>{HORIZON_LABELS[h]}</span>
                 <span className={cx("mono num grid h-5 min-w-5 place-items-center rounded-full px-1.5", h === "overdue" ? "bg-red/15 !text-red" : "bg-[var(--card-dim)]")}>{groups[h].length}</span>

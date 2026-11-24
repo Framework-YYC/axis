@@ -1,9 +1,11 @@
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { dateStrip } from "../../shared/overview";
 import { addDays } from "../../shared/rotation";
 import { rotationTicks } from "../../shared/viz";
 import { EventEditor, TaskEditor } from "../components/editors";
+import { ModuleIcon } from "../components/mobile";
 import { EventRow } from "../components/records";
 import { TaskLine } from "../components/TaskLine";
 import { SegBar } from "../components/charts";
@@ -34,10 +36,11 @@ export default function Calendar() {
   const label = view === "month" ? pretty(`${focus.slice(0, 7)}-01`, { month: "long", year: "numeric" }) : view === "week" ? `${pretty(days[0], { day: "numeric", month: "short" })} – ${pretty(days[6], { day: "numeric", month: "short" })}` : pretty(focus, { weekday: "long", day: "numeric", month: "long" });
   const move = (dir: number) => setFocus((f) => (view === "month" ? addDays(`${f.slice(0, 7)}-15`, dir * 30).slice(0, 7) + "-01" : addDays(f, dir * step)));
   const rotTicks = rotationTicks(today, rot);
+  const nextEvents = events.filter((e) => e.status === "scheduled" && e.date > focus).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
 
   return (
     <div>
-      <PageHeader crumb="CALENDAR" title="Calendar" subtitle={label} controls={<Segmented label="View" value={view} onChange={(v) => { const n = new URLSearchParams(sp); n.set("view", v); setSp(n, { replace: true }); }} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} />} />
+      <PageHeader crumb="CALENDAR" title="Calendar" subtitle={label} controls={<div className="max-md:hidden"><Segmented label="View" value={view} onChange={(v) => { const n = new URLSearchParams(sp); n.set("view", v); setSp(n, { replace: true }); }} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} /></div>} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Btn variant="soft" icon={ChevronLeft} label="Previous" onClick={() => move(-1)} />
         <Btn variant="soft" onClick={() => setFocus(today)}>Today</Btn>
@@ -46,6 +49,37 @@ export default function Calendar() {
         <Btn variant="primary" icon={Plus} onClick={() => setEdit({ date: focus })}>New event</Btn>
       </div>
 
+      <div className="md:hidden">
+        <div className={view === "month" ? "hidden" : "block"}>
+          <div role="listbox" aria-label="Pick a day" className="no-scrollbar -mx-3 flex snap-x gap-2 overflow-x-auto px-3 pb-1">
+            {dateStrip(today).map((d) => {
+              const n = evOn(d).length, k = taskOn(d).length, on = d === focus;
+              return (
+                <button key={d} role="option" aria-selected={on} onClick={() => setFocus(d)} aria-label={`${pretty(d, { weekday: "long", day: "numeric", month: "long" })}: ${n} events, ${k} tasks`} className={cx("hit flex h-[72px] w-[52px] shrink-0 snap-start flex-col items-center justify-center gap-0.5 rounded-[18px]", on ? "bg-[var(--pill-bg)] text-[var(--pill-ink)]" : d === today ? "flat" : "bg-transparent")}>
+                  <span className="mono !text-[9.5px]" style={{ color: on ? "inherit" : undefined }}>{pretty(d, { weekday: "short" })}</span>
+                  <span className="num text-[19px] font-light leading-none">{parse(d).getDate()}</span>
+                  <span className="mt-0.5 flex h-1.5 gap-0.5" aria-hidden>{n > 0 && <i className="size-1.5 rounded-full bg-current" />}{k > 0 && <i className="size-1.5 rounded-[2px] border border-current" />}</span>
+                </button>
+              );
+            })}
+          </div>
+          <section aria-label="Agenda" className="mt-3">
+            <h2 className="mb-1 px-1 text-[15px] font-medium tracking-tight">{focus === today ? "Today" : pretty(focus, { weekday: "long", day: "numeric", month: "long" })}</h2>
+            {evOn(focus).length + taskOn(focus).length === 0 ? (
+              <p className="flat p-4 text-[13.5px] text-muted">Nothing scheduled.{nextEvents.length > 0 ? " Next up:" : ""}</p>
+            ) : (
+              <ul className="flat px-3 py-1">
+                {evOn(focus).map((e) => <EventRow key={e.id} e={e} onOpen={(x) => setEdit({ event: x })} />)}
+                {taskOn(focus).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={(x) => setEdit({ task: x })} />)}
+              </ul>
+            )}
+            {evOn(focus).length + taskOn(focus).length === 0 && nextEvents.length > 0 && (
+              <ul className="flat mt-2 px-3 py-1">{nextEvents.map((e) => <li key={e.id} className="flex items-center gap-3 py-2.5 text-[13.5px]"><ModuleIcon id={e.module} size={24} /><button className="min-w-0 flex-1 truncate text-left" onClick={() => setFocus(e.date)}>{e.title}</button><span className="num text-[12px] text-muted">{pretty(e.date, { weekday: "short", day: "numeric" })}</span></li>)}</ul>
+            )}
+          </section>
+        </div>
+      </div>
+      <div className={view === "month" ? "" : "max-md:hidden"}>
       {view === "day" ? (
         <div className="grid gap-3 xl:grid-cols-2">
           <Widget title="Events" count={evOn(focus).length}>{evOn(focus).length ? <ul>{evOn(focus).map((e) => <EventRow key={e.id} e={e} onOpen={(x) => setEdit({ event: x })} />)}</ul> : <Empty>No events.</Empty>}</Widget>
@@ -73,6 +107,7 @@ export default function Calendar() {
         </Panel>
       )}
 
+      </div>
       <Widget title="Work rotation" tag={`${rot.onDays} on · ${rot.offDays} off`} className="mt-3"><SegBar ticks={rotTicks} label="Work rotation, next weeks" height={18} /></Widget>
       {edit && "task" in edit && <TaskEditor task={edit.task} onClose={() => setEdit(null)} />}
       {edit && !("task" in edit) && <EventEditor event={edit.event} defaultDate={edit.date} onClose={() => setEdit(null)} />}

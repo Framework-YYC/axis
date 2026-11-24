@@ -218,7 +218,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   return (
-    <div className="safe-t mx-auto flex w-full max-w-[1800px] gap-3 p-3 pb-28 md:gap-4 md:p-4 md:pb-4 lg:p-5">
+    <div className="safe-t mx-auto flex w-full max-w-[1800px] gap-3 p-3 pb-[calc(7.75rem+env(safe-area-inset-bottom))] md:gap-4 md:p-4 md:pb-4 lg:p-5">
       <Rail />
       <SecondaryPanel searchRef={searchRef} />
       <main className="min-w-0 flex-1 rounded-[28px] md:min-h-[calc(100dvh-2rem)] md:bg-[var(--sheet)] md:p-5 md:shadow-[var(--sh-sheet)] lg:min-h-[calc(100dvh-2.5rem)] lg:p-7">

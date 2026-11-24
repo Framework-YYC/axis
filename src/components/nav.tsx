@@ -1,4 +1,5 @@
-import { Briefcase, CalendarDays, CheckSquare, HardHat, HeartPulse, LayoutDashboard, type LucideIcon, Settings, Sun, Target, Wallet } from "lucide-react";
+import { CalendarDays, CheckSquare, LayoutDashboard, type LucideIcon, Settings, Target } from "lucide-react";
+import { ASSISTANT_ICONS } from "../lib/moduleStyle";
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, horizonOf } from "../../shared/horizons";
@@ -7,7 +8,7 @@ import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
 
 export interface Module { to: string; label: string; crumb: string; icon: LucideIcon; assistant?: ModuleId }
-export const ASSISTANT_ICONS: Record<ModuleId, LucideIcon> = { daily: Sun, health: HeartPulse, financial: Wallet, framework: Briefcase, progressive: HardHat };
+export { ASSISTANT_ICONS } from "../lib/moduleStyle";
 
 const assistantNav = (id: ModuleId): Module => ({ to: `/m/${id}`, label: MODULES_META[id].label, crumb: MODULES_META[id].label.toUpperCase(), icon: ASSISTANT_ICONS[id], assistant: id });
 /** Overview, Tasks, the five assistant modules, Calendar, Goals & Habits, Settings. */

@@ -5,7 +5,8 @@ import { MODULE_IDS, MODULES_META } from "../../shared/modules";
 import { addDays } from "../../shared/rotation";
 import { horizonOf } from "../../shared/horizons";
 import { EventEditor, GoalEditor, HabitEditor, TaskEditor } from "../components/editors";
-import { ASSISTANT_ICONS } from "../components/nav";
+import { MobileOverview } from "../components/MobileOverview";
+import { ASSISTANT_ICONS } from "../lib/moduleStyle";
 import { EventRow, GoalCard, HabitRow } from "../components/records";
 import { TaskLine } from "../components/TaskLine";
 import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
@@ -37,7 +38,9 @@ export default function Overview() {
   const empty = !loading && tasks.length + goals.length + habits.length + events.length === 0;
 
   return (
-    <div>
+    <>
+    <div className="md:hidden"><MobileOverview onOpenTask={openTask} onAddTask={() => setEdit({ kind: "task" })} /></div>
+    <div className="hidden md:block">
       <PageHeader crumb="OVERVIEW" title="Overview" subtitle={`${pretty(today, { weekday: "long", day: "numeric", month: "long" })} · all five modules`} />
       {source !== "live" && <p role="alert" className="panel-dim mb-4 p-3.5 text-[13px]">{error}</p>}
       {error && source === "live" && <p role="alert" className="panel-dim mb-4 p-3.5 text-[13px] text-red">{error}</p>}
@@ -139,10 +142,11 @@ export default function Overview() {
         )}
       </Widget>
 
+    </div>
       {edit?.kind === "task" && <TaskEditor task={edit.task} onClose={() => setEdit(null)} />}
       {edit?.kind === "goal" && <GoalEditor goal={edit.goal} onClose={() => setEdit(null)} />}
       {edit?.kind === "habit" && <HabitEditor habit={edit.habit} onClose={() => setEdit(null)} />}
       {edit?.kind === "event" && <EventEditor event={edit.event} onClose={() => setEdit(null)} />}
-    </div>
+    </>
   );
 }

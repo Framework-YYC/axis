@@ -8,6 +8,7 @@ import { pretty } from "../lib/dates";
 import { useData } from "../lib/data";
 import type { CalEvent, Goal, Habit } from "../lib/types";
 import { SegBar } from "./charts";
+import { ModuleIcon, ProvenanceMark, SyntheticMark } from "./mobile";
 import { Btn, isUnverified, Status, Tag, UnverifiedTag } from "./ui";
 
 export const ModuleTag = ({ id }: { id: string }) => <span className="tag">{MODULES_META[id as keyof typeof MODULES_META]?.label ?? id}</span>;
@@ -42,7 +43,7 @@ export function GoalCard({ g, onEdit, showModule = true }: { g: Goal; onEdit: (g
         <div className="flex shrink-0 items-center gap-2">
           {g.status !== "active" && <Status tone={g.status === "achieved" ? "lime" : "idle"}>{g.status}</Status>}
           <span className="num text-[20px] font-light tracking-tight">{Math.round(g.progress)}%</span>
-          <button onClick={() => onEdit(g)} aria-label={`Edit ${g.title}`} className="inset grid size-8 place-items-center rounded-full"><Pencil size={13} /></button>
+          <button onClick={() => onEdit(g)} aria-label={`Edit ${g.title}`} className="inset grid size-11 place-items-center rounded-full md:size-8"><Pencil size={13} /></button>
         </div>
       </div>
       <SegBar ticks={fillTicks(30, g.progress, 100)} label={`${g.title}: ${Math.round(g.progress)}%`} height={14} className="mt-3" />
@@ -51,7 +52,7 @@ export function GoalCard({ g, onEdit, showModule = true }: { g: Goal; onEdit: (g
         <ul className="mt-3 space-y-1.5">
           {g.milestones.map((m) => (
             <li key={m.id} className="flex items-center gap-2.5 text-[13px]">
-              <button aria-pressed={m.done} aria-label={`${m.done ? "Reopen" : "Complete"} milestone ${m.title}`} onClick={() => void mutate(() => post(`/milestones/${m.id}`, { done: !m.done }))} className={cx("grid size-5 shrink-0 place-items-center rounded-full", m.done ? "bg-ink text-[var(--card-a)]" : "inset text-transparent")}><Check size={11} strokeWidth={3} /></button>
+              <button aria-pressed={m.done} aria-label={`${m.done ? "Reopen" : "Complete"} milestone ${m.title}`} onClick={() => void mutate(() => post(`/milestones/${m.id}`, { done: !m.done }))} className="hit -my-3 grid shrink-0 place-items-center"><span className={cx("grid size-5 place-items-center rounded-full", m.done ? "bg-ink text-[var(--card-a)]" : "inset text-transparent")}><Check size={11} strokeWidth={3} /></span></button>
               <span className={cx("min-w-0 flex-1 truncate", m.done && "text-muted line-through")}>{m.title}</span>
               {m.targetDate && <span className="mono">{pretty(m.targetDate, { day: "numeric", month: "short" })}</span>}
             </li>
@@ -61,8 +62,8 @@ export function GoalCard({ g, onEdit, showModule = true }: { g: Goal; onEdit: (g
       {g.status === "active" && (
         <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
           <label className="sr-only" htmlFor={`gp-${g.id}`}>{numeric ? "New current value" : "Progress percent"}</label>
-          <input id={`gp-${g.id}`} inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} placeholder={numeric ? `New value${g.unit ? ` (${g.unit})` : ""}` : "Progress 0-100"} className="inset h-9 min-w-0 flex-1 rounded-full bg-transparent px-3.5 text-[13px] outline-none placeholder:text-muted" />
-          <Btn type="submit" variant="soft" icon={Plus} className="!min-h-9 !px-3.5 !text-[12.5px]">Log progress</Btn>
+          <input id={`gp-${g.id}`} inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} placeholder={numeric ? `New value${g.unit ? ` (${g.unit})` : ""}` : "Progress 0-100"} className="inset h-11 min-w-0 flex-1 rounded-full bg-transparent px-3.5 text-[13px] outline-none placeholder:text-muted md:h-9" />
+          <Btn type="submit" variant="soft" icon={Plus} className="!min-h-11 !px-3.5 !text-[12.5px] md:!min-h-9">Log progress</Btn>
         </form>
       )}
     </li>
@@ -111,8 +112,8 @@ export function HabitRow({ h, onEdit, showModule = true }: { h: Habit; onEdit: (
       {quant && (
         <form className="flex gap-2 pl-12 sm:max-w-[260px]" onSubmit={(e) => { e.preventDefault(); const n = Number(val); if (Number.isFinite(n) && val.trim() !== "") { setVal(""); void logHabit(h.id, n); } }}>
           <label className="sr-only" htmlFor={`hl-${h.id}`}>Amount to log{h.unit ? ` in ${h.unit}` : ""}</label>
-          <input id={`hl-${h.id}`} inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} placeholder={h.unit ?? "amount"} className="inset h-9 min-w-0 flex-1 rounded-full bg-transparent px-3.5 text-[13px] outline-none placeholder:text-muted" />
-          <Btn type="submit" variant="soft" className="!min-h-9 !px-3.5 !text-[12.5px]">Log</Btn>
+          <input id={`hl-${h.id}`} inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} placeholder={h.unit ?? "amount"} className="inset h-11 min-w-0 flex-1 rounded-full bg-transparent px-3.5 text-[13px] outline-none placeholder:text-muted md:h-9" />
+          <Btn type="submit" variant="soft" className="!min-h-11 !px-3.5 !text-[12.5px] md:!min-h-9">Log</Btn>
         </form>
       )}
     </li>
@@ -120,15 +121,19 @@ export function HabitRow({ h, onEdit, showModule = true }: { h: Habit; onEdit: (
 }
 
 export function EventRow({ e, onOpen, showModule = true }: { e: CalEvent; onOpen: (e: CalEvent) => void; showModule?: boolean }) {
+  const time = e.startTime ? `${e.startTime}${e.endTime ? `–${e.endTime}` : ""}` : "All day";
   return (
-    <li className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0">
-      <span className="mono num w-[74px] shrink-0">{e.startTime ? `${e.startTime}${e.endTime ? `–${e.endTime}` : ""}` : "All day"}</span>
-      <button onClick={() => onOpen(e)} className="min-w-0 flex-1 text-left">
-        <p className="truncate text-[13.5px]">{e.title}</p>
-        <p className="mono mt-0.5 truncate !normal-case !tracking-normal">{[showModule ? MODULES_META[e.module].label : null, e.location].filter(Boolean).join(" · ")}</p>
+    <li className="flex items-center gap-3 py-0.5 md:border-t md:border-line md:py-2.5 md:first:border-t-0 md:first:pt-0">
+      <ModuleIcon id={e.module} size={28} className="md:hidden" />
+      <span className="mono num hidden w-[74px] shrink-0 md:inline">{time}</span>
+      <button onClick={() => onOpen(e)} className="hit min-w-0 flex-1 py-1 text-left">
+        <p className="break-words text-[14px] leading-snug [overflow-wrap:anywhere] line-clamp-2 md:truncate md:text-[13.5px]">{e.title}</p>
+        <p className="mt-0.5 truncate text-[12px] text-muted md:hidden">{[time, e.location].filter(Boolean).join(" · ")}</p>
+        <p className="mono mt-0.5 hidden truncate !normal-case !tracking-normal md:block">{[showModule ? MODULES_META[e.module].label : null, e.location].filter(Boolean).join(" · ")}</p>
       </button>
-      {isUnverified(e.source) && <UnverifiedTag />}
-      {e.demo && <DemoMark />}
+      {isUnverified(e.source) && <ProvenanceMark />}
+      {e.demo && <span className="md:hidden"><SyntheticMark /></span>}
+      {e.demo && <span className="hidden md:inline-flex"><DemoMark /></span>}
     </li>
   );
 }

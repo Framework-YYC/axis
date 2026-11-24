@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "ui:check": "node scripts/ui-check.cjs",
     "deploy:staging": "npm run build && wrangler deploy --env staging",
     "db:migrate:local": "wrangler d1 migrations apply AXIS_DB --local"
   },

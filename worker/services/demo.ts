@@ -60,6 +60,36 @@ export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; go
   await T("progressive", "3", { title: "Update three-week lookahead (synthetic)", dueDate: d(0), recurrence: { freq: "weekly", interval: 1 } });
   await G("progressive", "1", { title: "Zero recordable incidents (synthetic)", manualProgress: 60, targetDate: d(180) });
   await H("progressive", "1", { title: "Site walk-through on rotation days (synthetic)", rotationMode: "on" }, [1, 2, 3, 4, 5, 6]);
+
+  // A fuller synthetic set that resembles a populated dashboard: many goals, a spread of due dates, mixed priorities and habits.
+  const more: Array<[ModuleId, string, string, number | null, string?]> = [
+    ["daily", "Order anniversary flowers", "high", 0], ["daily", "Correct bank contact information", "medium", 0], ["daily", "Schedule car winter tires", "medium", 3], ["daily", "Return library books", "low", 2],
+    ["daily", "Renew home insurance quote", "medium", 6], ["daily", "Plan family dinner", "low", 5], ["daily", "Pick up dry cleaning", "low", -1], ["daily", "Update emergency contacts", "medium", 9],
+    ["health", "Schedule annual physical", "medium", 4], ["health", "Refill vitamin D", "low", 1], ["health", "Meal prep for the week", "medium", 0], ["health", "Mobility routine review", "low", 8],
+    ["financial", "Submit expense report", "high", 0], ["financial", "Review credit card statement", "medium", 2], ["financial", "Move savings transfer", "medium", 5], ["financial", "Gather tax receipts", "low", 21], ["financial", "Check mortgage renewal options", "medium", 14],
+    ["framework", "Draft onboarding checklist", "medium", 0], ["framework", "Review analytics dashboard", "low", 3], ["framework", "Invoice milestone two", "high", 1], ["framework", "Write release notes", "medium", 4], ["framework", "Reply to partnership email", "high", -1], ["framework", "Plan quarterly roadmap", "medium", 11],
+    ["progressive", "Follow up on first-aid training", "medium", 0], ["progressive", "Review subcontractor insurance certificates", "high", 2], ["progressive", "Update procurement log", "medium", 1], ["progressive", "Book site inspection", "medium", 6], ["progressive", "Confirm crane delivery window", "high", 3], ["progressive", "Collect weekly safety observations", "low", 7],
+  ];
+  let k = 0;
+  for (const [m, title, priority, off] of more) await T(m, `x${++k}`, { title: `${title} (synthetic)`, priority, ...(off === null ? {} : { dueDate: d(off) }) });
+  const goalsMore: Array<[ModuleId, string, Record<string, unknown>]> = [
+    ["daily", "Declutter the garage", { manualProgress: 35, targetDate: d(45) }], ["daily", "Read twelve books this year", { kind: "numeric", startValue: 0, targetValue: 12, currentValue: 7, unit: "books", targetDate: d(37) }], ["daily", "Plan summer trip", { manualProgress: 20, targetDate: d(150) }], ["daily", "Organise digital photos", { manualProgress: 55, targetDate: d(400) }],
+    ["health", "Run a 10 km race", { kind: "numeric", startValue: 3, targetValue: 10, currentValue: 6.5, unit: "km", targetDate: d(110) }], ["health", "Sleep seven hours on average", { manualProgress: 70, targetDate: d(60) }], ["health", "Hit the protein target daily", { manualProgress: 45, targetDate: d(30) }], ["health", "Complete physio programme", { manualProgress: 80, targetDate: d(20) }],
+    ["financial", "Pay off the credit line", { kind: "numeric", startValue: 9000, targetValue: 0, currentValue: 4200, unit: "CAD", targetDate: d(240) }], ["financial", "Build a three-month buffer", { kind: "numeric", startValue: 0, targetValue: 15000, currentValue: 6800, unit: "CAD", targetDate: d(300) }], ["financial", "Automate monthly bills", { manualProgress: 60, targetDate: d(40) }],
+    ["framework", "Sign five pilot clients", { kind: "numeric", startValue: 0, targetValue: 5, currentValue: 2, unit: "clients", targetDate: d(120) }], ["framework", "Publish the brand guide", { manualProgress: 65, targetDate: d(25) }], ["framework", "Reach 1,000 newsletter readers", { kind: "numeric", startValue: 120, targetValue: 1000, currentValue: 410, unit: "readers", targetDate: d(500) }],
+    ["progressive", "Close out the lookahead backlog", { manualProgress: 40, targetDate: d(35) }], ["progressive", "Complete HSE certification", { manualProgress: 25, targetDate: d(200) }],
+  ];
+  let gk = 100;
+  for (const [m, title, o] of goalsMore) await G(m, `x${++gk}`, { title: `${title} (synthetic)`, ...o });
+  await H("daily", "2", { title: "Evening reset (synthetic)" }, [1, 2, 3, 4, 5, 6]);
+  await H("health", "3", { title: "Walk 8,000 steps (synthetic)", targetValue: 8000, unit: "steps" }, [1, 2, 4, 5], 8000);
+  await H("framework", "2", { title: "Deep work block (synthetic)", daysOfWeek: [1, 2, 3, 4, 5] }, [1, 2, 3]);
+  await E("daily", "2", { title: "Parent-teacher call (synthetic)", date: d(0), startTime: "16:00", endTime: "16:30" });
+  await E("framework", "2", { title: "Client check-in (synthetic)", date: d(0), startTime: "11:00", endTime: "11:45" });
+  await E("progressive", "2", { title: "Site safety meeting (synthetic)", date: d(1), startTime: "07:00", endTime: "07:30" });
+  await E("financial", "2", { title: "Advisor review (synthetic)", date: d(3), startTime: "13:00", endTime: "14:00" });
+  await E("health", "2", { title: "Physio appointment (synthetic)", date: d(4), startTime: "09:30", endTime: "10:15" });
+  await E("framework", "3", { title: "Quarterly planning (synthetic)", date: d(6) });
   for (const m of MODULE_IDS) void m;
   return ok(n);
 }

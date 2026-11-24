@@ -14,6 +14,7 @@ cp .dev.vars.example .dev.vars
 npm run build && npm run db:migrate:local && npm run dev:worker   # full app on http://localhost:8787 (local D1)
 npm test                    # unit + integration + security + acceptance tests
 npm run typecheck
+npm run ui:check            # responsive layout check (needs Playwright and a local Worker with synthetic data)
 ```
 Local sign-in is a loopback-only development identity; deployed environments require Cloudflare Access.
 

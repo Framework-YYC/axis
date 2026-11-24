@@ -2,7 +2,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { MODULE_IDS, MODULES_META } from "../../shared/modules";
 import { GoalEditor, HabitEditor } from "../components/editors";
-import { GoalCard, HabitRow } from "../components/records";
+import { GoalList, HabitList } from "../components/compact";
 import { Btn, Empty, PageHeader, Segmented, Widget } from "../components/ui";
 import { useData } from "../lib/data";
 import type { Goal, Habit } from "../lib/types";
@@ -23,11 +23,11 @@ export default function GoalsHabits() {
         <Segmented label="Term" value={term} onChange={setTerm} options={[{ value: "all", label: "Any term" }, { value: "short", label: "Short" }, { value: "medium", label: "Medium" }, { value: "long", label: "Long" }]} />
       </div>
       <div className="grid gap-3 xl:grid-cols-2">
-        <Widget id="goals" title="Goals" count={g.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ goal: undefined })}>New goal</Btn>}>
-          {loading ? <Empty>Loading…</Empty> : g.length === 0 ? <Empty>No goals match.</Empty> : <ul className="space-y-3">{g.map((x) => <GoalCard key={x.id} g={x} onEdit={(y) => setEdit({ goal: y })} />)}</ul>}
+        <Widget bare id="goals" title="Goals" count={g.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ goal: undefined })}>New goal</Btn>}>
+          {loading ? <Empty>Loading…</Empty> : g.length === 0 ? <Empty>No goals match.</Empty> : <GoalList goals={g} onEdit={(y) => setEdit({ goal: y })} />}
         </Widget>
-        <Widget id="habits" title="Habits" count={h.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ habit: undefined })}>New habit</Btn>}>
-          {loading ? <Empty>Loading…</Empty> : h.length === 0 ? <Empty>No habits match.</Empty> : <ul>{h.map((x) => <HabitRow key={x.id} h={x} onEdit={(y) => setEdit({ habit: y })} />)}</ul>}
+        <Widget bare id="habits" title="Habits" count={h.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ habit: undefined })}>New habit</Btn>}>
+          {loading ? <Empty>Loading…</Empty> : h.length === 0 ? <Empty>No habits match.</Empty> : <HabitList habits={h} onEdit={(y) => setEdit({ habit: y })} />}
         </Widget>
       </div>
       {edit && "goal" in edit && <GoalEditor goal={edit.goal} defaultModule={mod === "all" ? undefined : (mod as Goal["module"])} onClose={() => setEdit(null)} />}

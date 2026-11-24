@@ -16,9 +16,10 @@ export function CountBadge({ n }: { n: number }) {
   return <span className="grid h-5 min-w-5 place-items-center rounded-full bg-lime px-1.5 text-[11px] font-semibold text-lime-ink num">{n}</span>;
 }
 
-export function Widget({ title, count, tag, action, children, className, id }: { title: string; count?: number; tag?: string; action?: ReactNode; children: ReactNode; className?: string; id?: string }) {
+/** `bare` drops the card chrome on phones, so a list inside it is the only surface. */
+export function Widget({ title, count, tag, action, children, className, id, bare }: { title: string; count?: number; tag?: string; action?: ReactNode; children: ReactNode; className?: string; id?: string; bare?: boolean }) {
   return (
-    <Panel id={id} className={cx("flex min-w-0 flex-col p-4 md:p-5", className)}>
+    <Panel id={id} className={cx("flex min-w-0 flex-col p-4 md:p-5", bare && "max-md:![background:none] max-md:!px-0 max-md:!py-0 max-md:!shadow-none", className)}>
       <header className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="truncate text-[15px] font-medium tracking-tight">{title}</h2>
@@ -35,7 +36,7 @@ export function Widget({ title, count, tag, action, children, className, id }: {
 /** Dashed outline link-button, e.g. "Open calendar →". */
 export function LinkBtn({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="btn btn-dash !min-h-8 !px-3 !text-[12px]">
+    <Link to={to} className="btn btn-dash !min-h-11 !px-3 !text-[12px] md:!min-h-8">
       {children}
       <ArrowRight size={13} aria-hidden />
     </Link>
@@ -58,12 +59,12 @@ export function HeaderActions({ compact }: { compact?: boolean }) {
   const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < today).length;
   return (
     <div className="flex items-center gap-2">
-      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft relative !min-h-10 !w-10 !px-0">
+      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft relative !min-h-11 !w-11 !px-0 md:!min-h-10 md:!w-10">
         <Bell size={16} aria-hidden />
         {attention > 0 && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-red ring-2 ring-[var(--card-a)]" />}
       </Link>
       {compact ? (
-        <Link to="/tasks?add=1" aria-label="New task" className="btn btn-primary !min-h-10 !w-10 !px-0"><Plus size={18} aria-hidden /></Link>
+        <Link to="/tasks?add=1" aria-label="New task" className="btn btn-primary !min-h-11 !w-11 !px-0 md:!min-h-10 md:!w-10"><Plus size={18} aria-hidden /></Link>
       ) : (
         <Link to="/tasks?add=1" className="btn btn-primary"><Plus size={15} aria-hidden />New task</Link>
       )}

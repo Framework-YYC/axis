@@ -8,7 +8,7 @@ import { fillTicks } from "../../shared/viz";
 import { EventEditor, GoalEditor, HabitEditor, TaskEditor } from "../components/editors";
 import { SegBar, Spark } from "../components/charts";
 import { MODULE_TABS } from "../components/nav";
-import { GoalCard, HabitRow } from "../components/records";
+import { GoalList, HabitList } from "../components/compact";
 import { TaskGroups } from "../components/TaskGroups";
 import { TaskLine } from "../components/TaskLine";
 import { Btn, Empty, PageHeader, StatLine, Status, Tabs, Widget } from "../components/ui";
@@ -70,31 +70,31 @@ function Module({ id }: { id: ModuleId }) {
             <Widget title="Next tasks" count={open.length}>
               {open.length === 0 ? <Empty>No open tasks in this module.</Empty> : <ul>{[...open].sort((a, b) => (a.dueDate ?? "9").localeCompare(b.dueDate ?? "9") || byUrgency(a, b)).slice(0, 8).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={openTask} showModule={false} />)}</ul>}
             </Widget>
-            <Widget title="Upcoming events">{me.length ? <ul>{me.map((e) => <li key={e.id} className="flex items-center gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0"><span className="mono w-[74px] shrink-0">{pretty(e.date, { weekday: "short", day: "numeric" })}</span><button className="min-w-0 flex-1 truncate text-left" onClick={() => setEdit({ kind: "event", event: e })}>{e.title}</button><span className="mono">{e.startTime ?? "All day"}</span></li>)}</ul> : <Empty>No upcoming events.</Empty>}</Widget>
+            <Widget title="Upcoming events">{me.length ? <ul>{me.map((e) => <li key={e.id} className="flex items-center gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0"><span className="mono w-[74px] shrink-0">{pretty(e.date, { weekday: "short", day: "numeric" })}</span><button className="hit min-w-0 flex-1 truncate text-left" onClick={() => setEdit({ kind: "event", event: e })}>{e.title}</button><span className="mono">{e.startTime ?? "All day"}</span></li>)}</ul> : <Empty>No upcoming events.</Empty>}</Widget>
           </div>
           <div className="space-y-3">
-            <Widget title="Goals" count={mg.filter((g) => g.status === "active").length}>{mg.length ? <ul className="space-y-2.5">{mg.slice(0, 4).map((g) => <GoalCard key={g.id} g={g} showModule={false} onEdit={(x) => setEdit({ kind: "goal", goal: x })} />)}</ul> : <Empty>No goals yet.</Empty>}</Widget>
-            <Widget title="Habits today">{mh.length ? <ul>{mh.slice(0, 5).map((h) => <HabitRow key={h.id} h={h} showModule={false} onEdit={(x) => setEdit({ kind: "habit", habit: x })} />)}</ul> : <Empty>No habits yet.</Empty>}</Widget>
+            <Widget title="Goals" count={mg.filter((g) => g.status === "active").length}>{mg.length ? <GoalList goals={mg.slice(0, 4)} grouped={false} onEdit={(x) => setEdit({ kind: "goal", goal: x })} /> : <Empty>No goals yet.</Empty>}</Widget>
+            <Widget title="Habits today">{mh.length ? <HabitList habits={mh.slice(0, 5)} onEdit={(x) => setEdit({ kind: "habit", habit: x })} /> : <Empty>No habits yet.</Empty>}</Widget>
           </div>
         </div>
       )}
 
       {tab === "tasks" && (
-        <Widget title="Tasks" count={open.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "task" })}>New task</Btn>}>
+        <Widget bare title="Tasks" count={open.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "task" })}>New task</Btn>}>
           <TaskGroups tasks={[...open].sort(byUrgency)} today={today} weekStart={weekStart} onToggle={toggle} onOpen={openTask} showModule={false} />
           {done.length > 0 && <details className="mt-5"><summary className="mono cursor-pointer">Completed ({done.length})</summary><ul className="mt-2">{done.slice(0, 15).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={openTask} showModule={false} />)}</ul></details>}
         </Widget>
       )}
 
       {tab === "goals" && (
-        <Widget title="Goals" count={mg.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "goal" })}>New goal</Btn>}>
-          {mg.length === 0 ? <Empty>No goals in this module.</Empty> : <ul className="grid gap-3 lg:grid-cols-2">{mg.map((g) => <GoalCard key={g.id} g={g} showModule={false} onEdit={(x) => setEdit({ kind: "goal", goal: x })} />)}</ul>}
+        <Widget bare title="Goals" count={mg.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "goal" })}>New goal</Btn>}>
+          {mg.length === 0 ? <Empty>No goals in this module.</Empty> : <GoalList goals={mg} grouped={false} onEdit={(x) => setEdit({ kind: "goal", goal: x })} />}
         </Widget>
       )}
 
       {tab === "habits" && (
-        <Widget title="Habits" count={mh.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "habit" })}>New habit</Btn>}>
-          {mh.length === 0 ? <Empty>No habits in this module.</Empty> : <ul>{mh.map((h) => <HabitRow key={h.id} h={h} showModule={false} onEdit={(x) => setEdit({ kind: "habit", habit: x })} />)}</ul>}
+        <Widget bare title="Habits" count={mh.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "habit" })}>New habit</Btn>}>
+          {mh.length === 0 ? <Empty>No habits in this module.</Empty> : <HabitList habits={mh} onEdit={(x) => setEdit({ kind: "habit", habit: x })} />}
         </Widget>
       )}
 

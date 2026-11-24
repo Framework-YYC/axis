@@ -137,3 +137,28 @@ describe("modules", () => {
     expect(assistantLabel("financial")).toBe("ChatGPT: Financial assistant");
   });
 });
+
+import { barHeights, dateStrip, focusStats, ringArc, weekBars } from "../shared/overview";
+describe("mobile overview maths", () => {
+  const T = "2026-11-24";
+  const t = (status: string, dueDate: string | null, completedAt: string | null = null, archivedAt: string | null = null) => ({ status, dueDate, completedAt, archivedAt });
+  it("focus: remaining counts due today and overdue; completed counts today only; archived ignored", () => {
+    const f = focusStats([t("pending", T), t("pending", "2026-11-22"), t("in_progress", T), t("pending", "2026-11-25"), t("pending", null), t("completed", T, "2026-11-24T09:00:00Z"), t("completed", T, "2026-11-23T09:00:00Z"), t("pending", T, null, "2026-11-20")], T);
+    expect(f).toEqual({ remaining: 3, completed: 1, overdue: 1, pct: 25 });
+    expect(focusStats([], T)).toEqual({ remaining: 0, completed: 0, overdue: 0, pct: 0 });
+    expect(focusStats([t("completed", T, "2026-11-24T01:00:00Z")], T).pct).toBe(100);
+  });
+  it("ring arc clamps and adds up to the circumference", () => {
+    const a = ringArc(25, 40); expect(a.dash + a.gap).toBeCloseTo(a.circumference); expect(a.dash).toBeCloseTo(a.circumference / 4);
+    expect(ringArc(150, 10).gap).toBeCloseTo(0); expect(ringArc(-5, 10).dash).toBe(0);
+  });
+  it("week bars count open tasks per day and bar heights never collapse", () => {
+    const bars = weekBars([t("pending", T), t("pending", T), t("pending", "2026-11-26"), t("completed", "2026-11-25", "2026-11-25T00:00:00Z")], T, 4);
+    expect(bars.map((b) => b.count)).toEqual([2, 0, 1, 0]);
+    const h = barHeights(bars.map((b) => b.count)); expect(h[0]).toBe(100); expect(h[1]).toBe(12); expect(h[2]).toBeGreaterThan(h[1]);
+    expect(barHeights([0, 0])).toEqual([12, 12]);
+  });
+  it("date strip starts two days back and includes today", () => {
+    const s = dateStrip(T); expect(s[0]).toBe("2026-11-22"); expect(s[2]).toBe(T); expect(s).toHaveLength(15);
+  });
+});
