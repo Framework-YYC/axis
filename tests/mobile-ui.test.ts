@@ -138,10 +138,10 @@ describe("design system", () => {
     expect(components).not.toMatch(/linear-gradient|radial-gradient/);
     expect(css.match(/--m-[a-z]+:/g)?.length).toBe(10); // five module accents x light and dark
   });
-  it("task rows use a compact provenance icon; the detail view keeps the full warning", () => {
+  it("task rows use a compact provenance icon; the detail sheet shows a plain \"Filed via\" line (the warning text was removed deliberately)", () => {
     const row = read("src/components/TaskLine.tsx");
     expect(row).toContain("ProvenanceMark"); expect(row).not.toContain("UNVERIFIED SOURCE");
-    expect(read("src/components/editors.tsx")).toContain("self-declared and not verified");
+    expect(read("src/components/editors.tsx")).toContain("Filed via"); expect(read("src/components/editors.tsx")).not.toContain("self-declared and not verified");
   });
   it("the Tasks screen combines module and time filters and keeps secondary filters in a menu", () => {
     const t = read("src/components/TasksView.tsx");
@@ -212,5 +212,22 @@ describe("task rows are minimal: no source references, Datum is a display name o
     expect(m.MODULES_META.progressive.assistant).toBe("Progressive"); expect(m.MODULE_IDS).toContain("progressive");
     expect(m.shownActor("ChatGPT: Progressive assistant")).toBe("ChatGPT: Datum assistant"); expect(m.shownActor("ChatGPT: Daily assistant")).toBe("ChatGPT: Daily assistant"); expect(m.shownActor("Owner")).toBe("Owner");
     expect(m.assistantNameOf("progressive")).toBe("Datum"); expect(m.assistantNameOf("someone")).toBe("someone");
+  });
+});
+
+describe("no raw integration identifiers in the normal interface", () => {
+  it("the task sheet, lists and audit views use plain words, not references, operation names or 'unverified source'", () => {
+    const ed = read("src/components/editors.tsx");
+    expect(ed).not.toMatch(/Unverified source|source\??\.ref|Reference:|ref \$\{/); expect(ed).not.toContain("actorLabel}");
+    for (const f of ["src/components/mobile.tsx", "src/components/ui.tsx", "src/components/records.tsx", "src/pages/Settings.tsx", "src/pages/ModulePage.tsx"]) expect(read(f), f).not.toMatch(/UNVERIFIED SOURCE|nverified source|\{r\.op\}|\{a\.action\}/);
+    expect(read("src/pages/ModulePage.tsx")).toContain("actionLabel(a.action)"); expect(read("src/pages/Settings.tsx")).toContain("requestLabel(r.op)");
+  });
+  it("humanize turns stored identifiers into words and keeps 'via Datum'", async () => {
+    const h = await import("../src/lib/humanize");
+    expect(h.actionLabel("task.create")).toBe("Task created"); expect(h.actionLabel("task.complete")).toBe("Task completed"); expect(h.actionLabel("goal.progress")).toBe("Goal progress recorded");
+    expect(h.actionLabel("denied:create_task")).toBe("Blocked: task created"); expect(h.actionLabel("read:get_daily_summary")).not.toMatch(/[._:]\w+_/);
+    expect(h.requestLabel("task.create_many")).toBe("Several tasks created"); expect(h.requestLabel("briefing.refresh")).toBe("Briefing refreshed");
+    expect(h.byLine("ChatGPT: Progressive assistant")).toBe("via Datum"); expect(h.byLine("ChatGPT: Daily assistant")).toBe("via Daily"); expect(h.byLine("Owner")).toBe("by you"); expect(h.byLine("Owner", "inbox")).toBe("by you");
+    expect(h.whoName("ChatGPT: Progressive assistant")).toBe("Datum"); expect(h.eventLabel("completed")).toBe("Completed");
   });
 });

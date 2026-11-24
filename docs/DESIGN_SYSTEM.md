@@ -112,3 +112,5 @@ The product is **Orbis by Framework** ("Your world. One system."). The brand pac
 
 ### Task rows
 A row shows the title (two lines at most), an optional one-line detail (recurrence, topic, delivery arrival) and a due chip. Source references, assistant ids and other provenance strings are never shown in rows; they live on the record and in the task detail sheet. The metadata line is drawn only when it has content (module icon, repeat mark, unverified-source mark, synthetic mark). The Work assistant is shown as Datum (`assistantShortName`, `assistantName`, `shownActor` in `shared/modules.ts`); the stored label stays `ChatGPT: Progressive assistant`.
+
+No raw integration identifiers are shown anywhere in the normal interface: operation names, actor labels, request ids and source references are translated with `src/lib/humanize.ts` (`actionLabel`, `requestLabel`, `byLine`, `whoName`, `eventLabel`) and the Datum display mapping in `shared/modules.ts`. The task detail sheet shows "Filed via <assistant>" and a readable history; the stored source metadata is untouched.

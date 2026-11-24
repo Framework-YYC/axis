@@ -1,7 +1,8 @@
 import { Check, X } from "lucide-react";
 import { useState } from "react";
 import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
-import { assistantDisplayLabel, assistantName, shownActor } from "../../shared/modules";
+import { assistantName, assistantShortName } from "../../shared/modules";
+import { actionLabel, byLine, requestLabel, whoName } from "../lib/humanize";
 import { Field, Select, TextInput } from "../components/forms";
 import { EnvCard } from "../components/EnvSwitch";
 import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
@@ -79,7 +80,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           {approvals.length === 0 ? <Empty>Nothing waiting for you.</Empty> : (
             <ul>{approvals.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-3 border-t border-line py-3 first:border-t-0 first:pt-0">
-                <div className="min-w-0 flex-1"><p className="text-[13.5px]">{a.summary}</p><p className="mono mt-0.5 !normal-case !tracking-normal">Requested by {a.requestedBy} · {a.createdAt.slice(0, 16).replace("T", " ")}</p></div>
+                <div className="min-w-0 flex-1"><p className="text-[13.5px]">{a.summary}</p><p className="mono mt-0.5 !normal-case !tracking-normal">Requested by {whoName(a.requestedBy)} · {a.createdAt.slice(0, 16).replace("T", " ")}</p></div>
                 <Btn variant="primary" icon={Check} onClick={() => void decide(a.id, true)}>Approve</Btn>
                 <Btn variant="soft" icon={X} onClick={() => void decide(a.id, false)}>Decline</Btn>
               </li>
@@ -93,7 +94,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
               const mine = inbox.filter((r) => r.assistant === m);
               return (
                 <li key={m} className="flex items-center justify-between gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0 first:pt-0">
-                  <span>{assistantDisplayLabel(m)}</span>
+                  <span>{assistantShortName(m)}{assistantShortName(m) !== MODULES_META[m].label ? <span className="text-muted"> · {MODULES_META[m].label}</span> : null}</span>
                   <span className="mono">{mine.length ? `${mine.length} recent request${mine.length > 1 ? "s" : ""} · last ${mine[0].createdAt.slice(5, 16).replace("T", " ")}` : "No requests yet"}</span>
                 </li>
               );
@@ -121,7 +122,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           {integrations.data && integrations.data.integrations.length > 0 && (
             <ul className="mt-3">{integrations.data.integrations.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0">
-                <span className="min-w-0 truncate">{i.name} <span className="text-muted">· {i.modules ? i.modules.join(", ") : "all modules"} · {i.scopes.some((x) => x.endsWith(":write")) ? "read and write" : "read only"}{i.lastUsedAt ? ` · used ${i.lastUsedAt.slice(0, 10)}` : ""}</span></span>
+                <span className="min-w-0 truncate">{i.name} <span className="text-muted">· {i.modules ? i.modules.map((m) => (m in MODULES_META ? MODULES_META[m as ModuleId].label : m)).join(", ") : "all modules"} · {i.scopes.some((x) => x.endsWith(":write")) ? "read and write" : "read only"}{i.lastUsedAt ? ` · used ${i.lastUsedAt.slice(0, 10)}` : ""}</span></span>
                 {i.revokedAt ? <Status tone="idle">Revoked</Status> : <Btn variant="soft" onClick={() => void revoke(i.id)}>Revoke</Btn>}
               </li>
             ))}</ul>
@@ -132,11 +133,11 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           <div className="grid gap-6 md:grid-cols-2">
             <div>
               <p className="mono mb-2">Inbox</p>
-              {inbox.length === 0 ? <Empty>No requests yet.</Empty> : <ul>{inbox.slice(0, 12).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{assistantName(r.assistant)} · {r.op}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
+              {inbox.length === 0 ? <Empty>No requests yet.</Empty> : <ul>{inbox.slice(0, 12).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{assistantName(r.assistant)} · {requestLabel(r.op)}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
             </div>
             <div>
               <p className="mono mb-2">Audit trail</p>
-              {activity.length === 0 ? <Empty>No activity.</Empty> : <ul>{activity.slice(0, 12).map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{a.action} <span className="text-muted">· {shownActor(a.actor)}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
+              {activity.length === 0 ? <Empty>No activity.</Empty> : <ul>{activity.slice(0, 12).map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{actionLabel(a.action)} <span className="text-muted">· {byLine(a.actor, a.via)}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
             </div>
           </div>
         </Widget>

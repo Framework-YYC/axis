@@ -9,7 +9,7 @@ import { useData } from "../lib/data";
 import type { CalEvent, Goal, Habit } from "../lib/types";
 import { SegBar } from "./charts";
 import { ModuleIcon, ProvenanceMark, SyntheticMark } from "./mobile";
-import { Btn, isUnverified, Status, Tag, UnverifiedTag } from "./ui";
+import { Btn, isUnverified, Status, Tag } from "./ui";
 
 export const ModuleTag = ({ id }: { id: string }) => <span className="tag">{MODULES_META[id as keyof typeof MODULES_META]?.label ?? id}</span>;
 export const DemoMark = () => <span className="tag !h-[18px] !px-1.5 !text-[9px]" title="Synthetic demonstration record">SYNTHETIC</span>;
@@ -36,7 +36,7 @@ export function GoalCard({ g, onEdit, showModule = true }: { g: Goal; onEdit: (g
             {showModule && <span>{MODULES_META[g.module].label}</span>}
             {g.term && <span>{TERM_LABEL[g.term]}{g.termSource === "set" ? "" : " (from date)"}</span>}
             {g.targetDate && <span>target {pretty(g.targetDate, { day: "numeric", month: "short", year: "numeric" })}</span>}
-            {isUnverified(g.source) && <UnverifiedTag />}
+            {isUnverified(g.source) && <ProvenanceMark />}
             {g.demo && <DemoMark />}
           </p>
         </div>
@@ -97,7 +97,7 @@ export function HabitRow({ h, onEdit, showModule = true }: { h: Habit; onEdit: (
             {showModule && <span className="uppercase tracking-[0.07em]">{MODULES_META[h.module].label}</span>}
             <span>{scheduleText(h)}</span>
             {h.rotationMode !== "any" && <Repeat size={11} aria-label="Rotation-aware" />}
-            {isUnverified(h.source) && <UnverifiedTag />}
+            {isUnverified(h.source) && <ProvenanceMark />}
             {h.demo && <DemoMark />}
           </p>
         </div>

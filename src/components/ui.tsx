@@ -153,9 +153,6 @@ export function Tag({ children }: { children: ReactNode }) {
 }
 
 /** Records an assistant filed through the inbox: the assistant's identity is self-declared, so the owner is told. */
-export function UnverifiedTag() {
-  return <span className="tag !h-[18px] !px-1.5 !text-[9px]" title="Filed by an assistant through the inbox. Which assistant is self-declared, not verified.">UNVERIFIED SOURCE</span>;
-}
 export const isUnverified = (s: { kind: string }) => s.kind === "assistant";
 
 /** Every screen that shows made-up data says so. */

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { assistantNameOf, MODULE_IDS, MODULES_META, shownActor, type ModuleId } from "../../shared/modules";
+import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
+import { assistantNameOf, byLine, eventLabel } from "../lib/humanize";
 import { api, patch, post } from "../lib/api";
 import { useData } from "../lib/data";
 import { useApi } from "../lib/useApi";
@@ -80,16 +81,10 @@ export function TaskEditor({ task, defaults, onClose }: { task?: Task; defaults?
       </div>
       {task && (
         <div className="mt-5">
-          {task.source.kind === "assistant" && (
-            <div role="note" className="panel-dim mb-3 p-3.5 text-[13px]">
-              <p className="font-medium">Unverified source</p>
-              <p className="mt-1 text-muted">Filed by an assistant through the inbox. It says it is the {assistantNameOf(task.source.assistant ?? "")} assistant, but that identity is self-declared and not verified. Check it before relying on it.{task.source.ref ? ` Reference: ${task.source.ref}.` : ""}</p>
-            </div>
-          )}
-          <p className="mono mb-2">Source and history</p>
-          <p className="mono mb-2 !normal-case !tracking-normal">{task.source.kind === "assistant" ? `Filed through the inbox by "${shownActor(task.createdBy)}"` : task.source.assistant ? `Created by the ${assistantNameOf(task.source.assistant ?? "")} assistant` : `Created by ${task.createdBy}`}{task.source.kind !== "assistant" && task.source.ref ? ` · ref ${task.source.ref}` : ""}{task.completedAt ? ` · completed ${task.completedAt.slice(0, 10)}` : ""}</p>
+          <p className="mono mb-2">History</p>
+          <p className="mono mb-2 !normal-case !tracking-normal">{task.source.kind === "assistant" ? `Filed via ${assistantNameOf(task.source.assistant ?? "") || "an assistant"}` : task.source.assistant ? `Created via ${assistantNameOf(task.source.assistant)}` : task.createdBy === "Owner" ? "Added by you" : `Added by ${task.createdBy}`}{task.completedAt ? ` · completed ${task.completedAt.slice(0, 10)}` : ""}</p>
           <ul className="space-y-1 text-[12.5px]">
-            {(hist.data?.events ?? []).slice(-8).reverse().map((e, i) => <li key={i} className="flex justify-between gap-3"><span>{e.event} · {shownActor(e.actorLabel)}</span><span className="mono">{e.at.slice(0, 16).replace("T", " ")}</span></li>)}
+            {(hist.data?.events ?? []).slice(-8).reverse().map((e, i) => <li key={i} className="flex justify-between gap-3"><span>{eventLabel(e.event)} · {byLine(e.actorLabel)}</span><span className="mono">{e.at.slice(0, 16).replace("T", " ")}</span></li>)}
           </ul>
         </div>
       )}

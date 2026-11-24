@@ -34,7 +34,7 @@ export function Ring({ value, size = 96, stroke = 9, color = "var(--g-sage)", la
 
 /** Compact provenance: one icon instead of repeated text. The full warning lives in the task detail view. */
 export function ProvenanceMark({ className }: { className?: string }) {
-  return <Bot size={12} strokeWidth={2} role="img" aria-label="Filed by an assistant, unverified source" className={cx("shrink-0 text-faint", className)} />;
+  return <Bot size={12} strokeWidth={2} role="img" aria-label="Filed by an assistant" className={cx("shrink-0 text-faint", className)} />;
 }
 export function SyntheticMark() {
   return <FlaskConical size={12} strokeWidth={2} role="img" aria-label="Synthetic demonstration record" className="shrink-0 text-faint" />;

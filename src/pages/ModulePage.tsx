@@ -2,7 +2,8 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, horizonOf } from "../../shared/horizons";
-import { assistantName, isModule, MODULES_META, shownActor, type ModuleId } from "../../shared/modules";
+import { assistantName, isModule, MODULES_META, type ModuleId } from "../../shared/modules";
+import { actionLabel, byLine, requestLabel } from "../lib/humanize";
 import { addDays } from "../../shared/rotation";
 import { fillTicks } from "../../shared/viz";
 import { EventEditor, GoalEditor, HabitEditor, TaskEditor } from "../components/editors";
@@ -119,10 +120,10 @@ function Module({ id }: { id: ModuleId }) {
       {tab === "activity" && (
         <div className="grid gap-3 @[960px]:grid-cols-2">
           <Widget title="Activity history" tag="Audited changes">
-            {activity.loading ? <Empty>Loading…</Empty> : rows.length === 0 ? <Empty>No activity yet.</Empty> : <ul>{rows.map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{a.action} <span className="text-muted">· {shownActor(a.actor)}{a.via ? ` via ${a.via}` : ""}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
+            {activity.loading ? <Empty>Loading…</Empty> : rows.length === 0 ? <Empty>No activity yet.</Empty> : <ul>{rows.map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{actionLabel(a.action)} <span className="text-muted">· {byLine(a.actor, a.via)}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
           </Widget>
           <Widget title="Assistant requests" tag="Via the inbox">
-            {mine.length === 0 ? <Empty>No requests from the {assistantName(id)} assistant yet.</Empty> : <ul>{mine.slice(0, 15).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{r.op}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
+            {mine.length === 0 ? <Empty>No requests from the {assistantName(id)} assistant yet.</Empty> : <ul>{mine.slice(0, 15).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{requestLabel(r.op)}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
           </Widget>
         </div>
       )}
