@@ -125,7 +125,8 @@ export function MobileOverview({ onOpenTask, onAddTask }: { onOpenTask: (t: Task
           <Ring value={avg} size={56} stroke={6} label={`Average goal progress ${avg} percent`}><Target size={16} aria-hidden /></Ring>
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-medium">Goals <span className="text-muted">· {activeGoals.length} active</span></p>
-            <p className="mt-0.5 truncate text-[12.5px] text-muted">{nextGoal ? `Next target: ${nextGoal.title} · ${pretty(nextGoal.targetDate!, { day: "numeric", month: "short" })}` : `Average progress ${avg}%`}</p>
+            <p className="mt-0.5 break-words text-[12.5px] leading-snug text-muted [overflow-wrap:anywhere] line-clamp-2">{nextGoal ? `Next: ${nextGoal.title}` : `Average progress ${avg}%`}</p>
+            {nextGoal && <p className="num mt-0.5 text-[12px] font-medium">Target {pretty(nextGoal.targetDate!, { day: "numeric", month: "short" })}</p>}
           </div>
           <ChevronRight size={18} className="text-faint" aria-hidden />
         </Link>

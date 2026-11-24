@@ -44,6 +44,8 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 - **Remaining blocker: no verified ChatGPT transport for scoped-token writes.** Custom MCP write access on ChatGPT Plus is unsupported by anything found, and OAuth 2.1 (required by ChatGPT for custom MCP) is not built. See docs/CHATGPT_INTEGRATION.md.
 - Not yet in place: rate limiting on the bypassed `/api/v1` and `/mcp` paths (a zone rule, owner decision) and GitHub `production` environment protections (owner, in GitHub).
 
+- **Environment switcher (2026-11-24):** navigation only, built from a two-host allow-list (`shared/environments.ts`), no credentials, storage or data sent; the destination enforces its own Cloudflare Access sign-in, and the two environments share no database, token or session. The link uses `rel=noopener noreferrer` and the Worker already sends `Referrer-Policy: no-referrer`.
+
 ## Staging provisioning status (2026-11-24)
 Done: dedicated D1 `axis-staging` (additive migrations applied), Worker `axis-staging` on `axis-staging.frameworktools.ca`, Access application (owner-only) plus a path-only bypass for `/api/v1` and `/mcp`, `OWNER_EMAIL` secret. The full build (with static assets) is deployed by the `Deploy staging` workflow, which passed its unauthenticated smoke test. See docs/STAGING_DEPLOYMENT.md.
 

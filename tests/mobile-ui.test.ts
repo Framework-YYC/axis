@@ -39,4 +39,21 @@ describe("mobile interface guards", () => {
     const css = read("src/styles/index.css");
     for (const m of ["daily", "health", "financial", "framework", "progressive"]) expect(css.match(new RegExp(`--m-${m}:`, "g"))?.length).toBe(2);
   });
+  it("the goals caption wraps instead of truncating on small phones", () => {
+    const o = read("src/components/MobileOverview.tsx");
+    expect(o).toContain("line-clamp-2");
+    expect(o).not.toMatch(/truncate[^\n]*nextGoal/);
+  });
+  it("the environment switcher is navigation only, to the two approved hosts, in every layout", () => {
+    const e = read("src/components/EnvSwitch.tsx");
+    expect(e).toContain("switchUrl(");
+    expect(e).not.toMatch(/localStorage|sessionStorage|document\.cookie|fetch\(|XMLHttpRequest|Authorization|token/i); // nothing is read, stored or sent
+    expect(e).toContain('rel="noopener noreferrer"');
+    const shell = read("src/components/Shell.tsx");
+    expect(shell).toContain('sheet === "more" && <div className="mt-5"><EnvCard />'); // phone More tab, below identity and theme
+    expect(shell).toContain("<EnvCard compact />"); // desktop sidebar
+    expect(shell).toContain("<EnvRailButton />"); // iPad rail
+    expect(shell).toContain("<StagingTag />"); // beside the Axis branding
+    expect(shell).toMatch(/sticky top-4 z-30/); // the rail's popover must sit above the page sheet
+  });
 });

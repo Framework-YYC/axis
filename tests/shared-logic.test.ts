@@ -162,3 +162,28 @@ describe("mobile overview maths", () => {
     const s = dateStrip(T); expect(s[0]).toBe("2026-11-22"); expect(s[2]).toBe(T); expect(s).toHaveLength(15);
   });
 });
+
+import { ENVIRONMENTS, envOfHost, isApprovedUrl, otherEnv, safePath, switchUrl } from "../shared/environments";
+describe("environment switching", () => {
+  it("knows exactly two approved hosts and loopback; everything else is unknown", () => {
+    expect(envOfHost("axis.frameworktools.ca")).toBe("production");
+    expect(envOfHost("AXIS-STAGING.frameworktools.ca")).toBe("staging");
+    expect(envOfHost("localhost")).toBe("development");
+    for (const h of ["evil.example", "axis.frameworktools.ca.evil.example", "frameworktools.ca", "nexus.frameworktools.ca", "axis-staging.frameworktools.ca.", ""]) expect(envOfHost(h)).toBeNull();
+    expect(otherEnv("production")).toBe("staging"); expect(otherEnv("staging")).toBe("production");
+  });
+  it("preserves the page across environments and nothing else", () => {
+    expect(switchUrl("staging", { pathname: "/m/health", search: "?tab=habits", hash: "#x" })).toBe("https://axis-staging.frameworktools.ca/m/health?tab=habits#x");
+    expect(switchUrl("production", { pathname: "/tasks", search: "?h=overdue" })).toBe("https://axis.frameworktools.ca/tasks?h=overdue");
+    expect(switchUrl("production", { pathname: "/" })).toBe("https://axis.frameworktools.ca/");
+  });
+  it("rejects open-redirect and injection shapes in the path, query and hash", () => {
+    for (const p of ["//evil.example/x", "https://evil.example", "/\\evil.example", "evil", "/a\nb", ""]) expect(safePath(p)).toBe("/");
+    expect(switchUrl("staging", { pathname: "//evil.example", search: "x=1", hash: "y" })).toBe("https://axis-staging.frameworktools.ca/");
+    expect(isApprovedUrl(switchUrl("staging", { pathname: "/\\\\evil.example" }))).toBe(true); // collapses to "/" on the approved host
+  });
+  it("only the two exact https origins are approved", () => {
+    expect(isApprovedUrl(`https://${ENVIRONMENTS.production.host}/x`)).toBe(true);
+    for (const u of ["http://axis.frameworktools.ca/", "https://axis.frameworktools.ca:8443/", "https://user@axis.frameworktools.ca/", "https://axis.frameworktools.ca.evil.example/", "javascript:alert(1)", "https://evil.example/"]) expect(isApprovedUrl(u)).toBe(false);
+  });
+});

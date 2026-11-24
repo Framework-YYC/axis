@@ -6,6 +6,7 @@ import { useData } from "../lib/data";
 import { useTheme, type ThemeMode } from "../lib/theme";
 import { ASSISTANT_NAV, MODULES, moduleOf, useIsActive, useNavModel, type NavGroup } from "./nav";
 import { Btn } from "./ui";
+import { EnvCard, EnvRailButton, StagingTag, useEnvironment } from "./EnvSwitch";
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 
@@ -47,11 +48,16 @@ function ThemeButton({ className }: { className?: string }) {
   );
 }
 
+function RailStagingDot() {
+  const { env } = useEnvironment();
+  return env === "staging" ? <i aria-hidden className="absolute -right-1 -top-1 size-2.5 rounded-full ring-2 ring-[var(--rail)]" style={{ background: "var(--amber)" }} /> : null;
+}
+
 function Rail() {
   return (
-    <aside aria-label="Primary" className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
+    <aside aria-label="Primary" className="sticky top-4 z-30 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
       <div className="flex flex-col items-center gap-0.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 shadow-[0_22px_34px_-16px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.04)]">
-        <Link to="/" aria-label="Axis home" className="mb-1.5"><LogoMark size={36} /></Link>
+        <Link to="/" aria-label="Axis home" className="relative mb-1.5"><LogoMark size={36} /><RailStagingDot /></Link>
         {MODULES.map((m) => (
           <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-10 place-items-center rounded-[13px] transition-colors", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
             {({ isActive }) => (
@@ -65,6 +71,7 @@ function Rail() {
       </div>
       <div className="hidden min-h-0 flex-1 tall:flex"><DayScale /></div>
       <div className="flex-1 tall:hidden" />
+      <EnvRailButton />
       <ThemeButton className="h-12 w-full rounded-[18px] bg-[var(--rail)] text-white shadow-[0_14px_24px_-12px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12)]" />
     </aside>
   );
@@ -121,7 +128,7 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
       <div className="raised flex items-center gap-2.5 rounded-[14px] p-2">
         <LogoMark size={34} />
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-medium leading-tight">Axis</p>
+          <p className="flex items-center gap-1.5 text-[14px] font-medium leading-tight">Axis<StagingTag /></p>
           <p className="mono truncate !text-[9.5px]">By Framework</p>
         </div>
         <ChevronsUpDown size={14} className="text-faint" aria-hidden />
@@ -134,6 +141,7 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
       <nav className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
         {groups.map((g, gi) => <NavGroupView key={g.label} group={g} gi={gi} />)}
       </nav>
+      <div className="mb-2.5"><EnvCard compact /></div>
       <Identity />
     </aside>
   );
@@ -186,6 +194,7 @@ function Dock() {
               ))}
             </ul>
             {sheet === "more" && <div className="mt-4 flex items-center justify-between gap-3"><Identity compact /><ThemeSwitch /></div>}
+            {sheet === "more" && <div className="mt-5"><EnvCard /></div>}
             <p className="sr-only">{me.label}</p>
           </div>
         </div>
@@ -198,6 +207,12 @@ function ThemeSwitch() {
   const { mode, cycle } = useTheme();
   const Icon = THEME_ICON[mode as ThemeMode];
   return <Btn onClick={cycle} icon={Icon} variant="soft" label={`Appearance: ${mode}`}><span className="capitalize">{mode}</span></Btn>;
+}
+
+function PhoneStagingRow() {
+  const { env } = useEnvironment();
+  if (env !== "staging") return null;
+  return <div className="mb-1 flex items-center gap-2 px-1 md:hidden"><LogoMark size={22} /><span className="mono !text-[10px]">Axis</span><StagingTag /></div>;
 }
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -228,6 +243,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <Btn variant="primary" onClick={() => location.reload()}>Reload</Btn>
           </div>
         )}
+        <PhoneStagingRow />
         {children}
       </main>
       <Dock />
