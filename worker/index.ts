@@ -47,7 +47,7 @@ export default {
       if (!viaBearer && !sameOriginWrite(request)) return finalize(json({ success: false, error: { code: "forbidden", message: "Cross-origin or non-JSON write" } }, 403), pathname);
       const ctx: Ctx = { db: env.AXIS_DB, actor, requestId: crypto.randomUUID(), now: () => new Date() };
       // The owner's app polls the task list; applying any waiting assistant requests first keeps it current between cron runs.
-      if (!viaBearer && request.method === "GET" && pathname === "/api/v1/tasks" && exec) exec.waitUntil(processInbox(env.AXIS_DB).then(() => undefined).catch(() => undefined));
+      if (!viaBearer && env.ENVIRONMENT !== "production" && request.method === "GET" && pathname === "/api/v1/tasks" && exec) exec.waitUntil(processInbox(env.AXIS_DB).then(() => undefined).catch(() => undefined));
       try {
         const res = isMcp ? await handleMcp(request, env, ctx) : await handleApi(request, env, ctx);
         res.headers.set("X-Request-Id", ctx.requestId);
@@ -65,6 +65,7 @@ export default {
 
   /** Every minute: apply pending assistant requests through the service layer and keep stored briefings current. */
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (env.ENVIRONMENT === "production") return; // production has no assistant inbox and no Cron Trigger; assistants use scoped REST/MCP tokens
     ctx.waitUntil(maintenance(env.AXIS_DB).then((r) => { if (r.processed) console.log(JSON.stringify({ event: "inbox_processed", count: r.processed })); }).catch(() => console.error(JSON.stringify({ event: "maintenance_failed" }))));
   },
 } satisfies ExportedHandler<Env>;

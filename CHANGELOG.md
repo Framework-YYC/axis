@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **Production.** `axis.frameworktools.ca` on its own Worker (`axis-production`), D1 database and Access applications; empty, no demonstration data, no cron, SQL inbox closed. Manual "Deploy production" workflow (typed confirmation, `main` only, `production` environment). Settings > Connections creates per-assistant, per-module, expiring, revocable tokens. Docs: PRODUCTION_DEPLOYMENT.md, PRODUCTION_ASSISTANT_PROMPTS.md.
 - **Assistant-centred architecture.** Five modules (Daily, Health, Financial, Framework, Progressive) each with overview, tasks, goals, habits, briefing, activity history and metrics. New navigation (Overview, Tasks, five modules, Calendar, Goals & Habits, Settings) and a command-centre Overview.
 - One central task table: module, priority, status, due date and optional time, scheduled date, recurrence, source assistant and reference, goal, notes, history. Nine exclusive time horizons computed from the due date, today and the owner's time zone (never stored). Recurring tasks create the next occurrence once.
 - Goals (numeric and qualitative, short/medium/long, milestones, progress history) and habits (quantities, streaks, work-rotation aware) with persistence; live calendar; settings for time zone, week start, units, currency, work rotation.

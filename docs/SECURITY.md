@@ -35,6 +35,14 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 - **Demo data** is flagged (`demo = 1`), titled "(synthetic)", labelled in the UI, and removable by the owner in one action. Axis starts empty.
 - Untrusted input: task text, notes, `sourceRef` and email-derived text are stored and rendered as inert text.
 
+## Production (2026-11-24)
+- Separate Worker, D1 database, hostname and Access applications from staging; production starts empty and receives no staging data.
+- **Assistant integration in production is REST/MCP only, with scoped tokens.** The owner creates one connection per assistant in Settings: limited to one module, read-only or read/write, expiring (default 30 days), revocable at once, stored as a hash. The assistant's identity and module come from the token, never from its own claims. Verified by tests and by a live run (see CHANGELOG).
+- The SQL-fed `assistant_inbox` is **closed** in production by a trigger (`scripts/production-hardening.sql`, applied by the deploy workflow); no cron exists; demonstration data and the inbox runner are refused by the API.
+- **Remaining blocker (owner decision): ChatGPT's Cloudflare connector is account-wide and can run unrestricted SQL against `axis-production`.** The write-guard triggers stop accidents but not a deliberate full-SQL caller. Until the connector is scoped to exclude `axis-production` (or Axis moves to its own Cloudflare account), real data in production is exposed to any ChatGPT project that has that connector. The assistant prompts are shipped with sync OFF for this reason.
+- **Remaining blocker: no verified ChatGPT transport for scoped-token writes.** Custom MCP write access on ChatGPT Plus is unsupported by anything found, and OAuth 2.1 (required by ChatGPT for custom MCP) is not built. See docs/CHATGPT_INTEGRATION.md.
+- Not yet in place: rate limiting on the bypassed `/api/v1` and `/mcp` paths (a zone rule, owner decision) and GitHub `production` environment protections (owner, in GitHub).
+
 ## Staging provisioning status (2026-11-24)
 Done: dedicated D1 `axis-staging` (additive migrations applied), Worker `axis-staging` on `axis-staging.frameworktools.ca`, Access application (owner-only) plus a path-only bypass for `/api/v1` and `/mcp`, `OWNER_EMAIL` secret. The full build (with static assets) is deployed by the `Deploy staging` workflow, which passed its unauthenticated smoke test. See docs/STAGING_DEPLOYMENT.md.
 

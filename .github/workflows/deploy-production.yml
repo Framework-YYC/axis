@@ -1,0 +1,95 @@
+# Deploys the PRODUCTION Worker (axis-production, https://axis.frameworktools.ca). Manual only, and only with the owner's explicit approval for the release.
+#
+# Public-repository rules this file enforces:
+#  - Trigger is workflow_dispatch only. Never push, `pull_request` or `pull_request_target`, so nothing deploys by accident and fork code never gets credentials.
+#  - The job runs only for this repository and only from refs/heads/main, and only if the typed confirmation is exactly "deploy production".
+#  - Credentials live ONLY in the GitHub environment `production` (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID; organization-level secrets are inherited).
+#    Add the owner as a required reviewer on that environment (Settings > Environments > production) and restrict its deployment branches to `main`.
+#  - Production gets the same tested build as staging. The commit must already be on `staging` and have passed CI there.
+#  - Migrations are additive and are checked by the tests; they run against the production database only.
+#  - Read-only repository token, no persisted git credentials, lifecycle scripts disabled, actions pinned to commit SHAs.
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy production" to confirm the owner approved this release'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Confirm release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: github.repository == 'Framework-YYC/axis' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Require typed confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "deploy production" ]; then echo "::error::Confirmation text did not match."; exit 1; fi
+
+  test:
+    name: Tests
+    needs: guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    name: Migrate and deploy production
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Require deploy credentials
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Environment 'production' is missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Apply additive D1 migrations (production database only)
+        run: npx wrangler d1 migrations apply AXIS_DB --remote --env production
+      - name: Close the SQL write path (production hardening, idempotent)
+        run: npx wrangler d1 execute AXIS_DB --remote --env production --file scripts/production-hardening.sql
+      - name: Deploy Worker and static assets (production environment only)
+        run: npx wrangler deploy --env production
+      - name: Smoke test, nothing may be publicly readable
+        run: |
+          for path in / /api/v1/me /api/v1/tasks /api/v1/health /mcp /assets/index.js; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://axis.frameworktools.ca$path" || echo 000)
+            echo "GET $path -> $code"
+            if [ "$code" = "200" ]; then echo "::error::$path is readable without authentication"; exit 1; fi
+          done

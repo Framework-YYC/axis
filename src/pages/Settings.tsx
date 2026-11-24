@@ -1,6 +1,6 @@
 import { Check, X } from "lucide-react";
 import { useState } from "react";
-import { MODULES_META } from "../../shared/modules";
+import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
 import { assistantLabel } from "../../shared/modules";
 import { Field, Select, TextInput } from "../components/forms";
 import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
@@ -17,7 +17,11 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
   const { mode, setMode } = useTheme();
   const [msg, setMsg] = useState<string | null>(null);
   const [rot, setRot] = useState({ anchorDate: settings.work_rotation.anchorDate, onDays: String(settings.work_rotation.onDays), offDays: String(settings.work_rotation.offDays) });
-  const integrations = useApi<{ integrations: Integration[] }>("/integrations", inbox.length);
+  const [conn, setConn] = useState<{ name: string; module: ModuleId; access: "read" | "write"; days: string }>({ name: "", module: "daily", access: "write", days: "30" });
+  const [fresh, setFresh] = useState<{ name: string; token: string } | null>(null);
+  const [rev, setRev] = useState(0);
+  const integrations = useApi<{ integrations: Integration[] }>("/integrations", `${inbox.length}-${rev}`);
+  const production = environment === "production";
   const demo = tasks.filter((t) => t.demo).length + goals.filter((g) => g.demo).length + habits.filter((h) => h.demo).length + events.filter((e) => e.demo).length;
   const save = (key: string, value: unknown) => void mutate(() => post("/settings", { key, value }));
   const zones = ZONES.includes(settings.timezone) || settings.timezone === "auto" ? ZONES : [settings.timezone, ...ZONES];
@@ -26,6 +30,14 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
     const r = await mutate(() => post("/settings", { key: "work_rotation", value: { anchorDate: rot.anchorDate, onDays, offDays } }));
     setMsg(r && r.success ? "Rotation saved." : r && !r.success ? r.error.message : "Could not save.");
   };
+  const READ = ["tasks:read", "goals:read", "habits:read", "calendar:read", "briefing:read", "activity:read"];
+  const WRITE = ["tasks:write", "goals:write", "habits:write", "calendar:write"];
+  const createConn = async () => {
+    const name = conn.name.trim() || `${MODULES_META[conn.module].label} assistant`;
+    const r = await post<{ token: string }>("/integrations", { name, kind: "chatgpt", modules: [conn.module], scopes: conn.access === "write" ? [...READ, ...WRITE] : READ, expiresInDays: Number(conn.days) || 30 });
+    if (r.success) { setFresh({ name, token: r.data.token }); setRev((n) => n + 1); setMsg(null); } else setMsg(r.error.message);
+  };
+  const revoke = async (id: string) => { const r = await post(`/integrations/${id}/revoke`, {}); setMsg(r.success ? "Connection revoked. Its token stops working immediately." : r.error.message); setRev((n) => n + 1); };
   const demoAction = async (path: "load" | "clear") => {
     const r = await mutate(() => post(`/demo/${path}`, { today }));
     setMsg(r && r.success ? (path === "load" ? "Synthetic demonstration data loaded." : "Synthetic demonstration data removed.") : r && !r.success ? r.error.message : "Could not reach Axis.");
@@ -79,9 +91,32 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
               );
             })}
           </ul>
-          <p className="mono mt-3 !normal-case !tracking-normal">Assistants connected over REST or MCP appear below. Each is confined to its modules and can be revoked immediately.</p>
+          <p className="mono mt-3 !normal-case !tracking-normal">Modules and the connections below are separate: a connection never sees another module.</p>
+        </Widget>
+
+        <Widget id="connections" title="Connections" tag="One token per assistant, limited to one module">
+          <p className="text-[13.5px] text-muted">A connection is a revocable token that can only touch the module you choose, with only the access you give it. The assistant's identity comes from the token, never from what it says about itself. The token is shown once; only its hash is kept.</p>
+          <div className="mt-3 grid gap-3.5 md:grid-cols-2">
+            <Field label="Name">{(id) => <TextInput id={id} value={conn.name} onChange={(v) => setConn((c) => ({ ...c, name: v }))} placeholder="Optional" maxLength={60} />}</Field>
+            <Field label="Module">{(id) => <Select id={id} value={conn.module} onChange={(v) => setConn((c) => ({ ...c, module: v }))} options={MODULE_IDS.map((m) => ({ value: m, label: MODULES_META[m].label }))} />}</Field>
+            <Field label="Access">{(id) => <Select id={id} value={conn.access} onChange={(v) => setConn((c) => ({ ...c, access: v }))} options={[{ value: "write", label: "Read and write tasks, goals, habits, events" }, { value: "read", label: "Read only" }]} />}</Field>
+            <Field label="Expires after (days)">{(id) => <TextInput id={id} inputMode="numeric" value={conn.days} onChange={(v) => setConn((c) => ({ ...c, days: v }))} />}</Field>
+          </div>
+          <div className="mt-3"><Btn variant="primary" onClick={() => void createConn()}>Create connection</Btn></div>
+          {fresh && (
+            <div role="status" className="panel-dim mt-3 p-3.5">
+              <p className="text-[13px] font-medium">Token for {fresh.name}. Copy it now; it will not be shown again.</p>
+              <p className="mono mt-2 break-all !normal-case !tracking-normal select-all">{fresh.token}</p>
+              <div className="mt-2"><Btn variant="soft" onClick={() => setFresh(null)}>I have stored it</Btn></div>
+            </div>
+          )}
           {integrations.data && integrations.data.integrations.length > 0 && (
-            <ul className="mt-2">{integrations.data.integrations.map((i) => <li key={i.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="truncate">{i.name} <span className="text-muted">· {i.modules ? i.modules.join(", ") : "all modules"}</span></span><Status tone={i.revokedAt ? "idle" : "ok"}>{i.revokedAt ? "Revoked" : "Active"}</Status></li>)}</ul>
+            <ul className="mt-3">{integrations.data.integrations.map((i) => (
+              <li key={i.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0">
+                <span className="min-w-0 truncate">{i.name} <span className="text-muted">· {i.modules ? i.modules.join(", ") : "all modules"} · {i.scopes.some((x) => x.endsWith(":write")) ? "read and write" : "read only"}{i.lastUsedAt ? ` · used ${i.lastUsedAt.slice(0, 10)}` : ""}</span></span>
+                {i.revokedAt ? <Status tone="idle">Revoked</Status> : <Btn variant="soft" onClick={() => void revoke(i.id)}>Revoke</Btn>}
+              </li>
+            ))}</ul>
           )}
         </Widget>
 
@@ -98,13 +133,13 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           </div>
         </Widget>
 
-        <Widget id="data" title="Demonstration data" tag={demo ? `${demo} synthetic records` : "None loaded"}>
+        {!production && <Widget id="data" title="Demonstration data" tag={demo ? `${demo} synthetic records` : "None loaded"}>
           <p className="text-[13.5px] text-muted">Axis starts empty. You can load a small, clearly labelled synthetic set (every title ends "(synthetic)") to see the screens populated, and remove it again at any time. It never touches records you or an assistant create.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Btn variant="soft" onClick={() => void demoAction("load")} disabled={demo > 0}>Load demonstration data</Btn>
             <Btn variant="soft" onClick={() => void demoAction("clear")} disabled={demo === 0}>Remove demonstration data</Btn>
           </div>
-        </Widget>
+        </Widget>}
 
         <Widget id="security" title="Security">
           <ul className="space-y-2 text-[13.5px]">

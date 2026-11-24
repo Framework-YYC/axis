@@ -47,7 +47,7 @@ export function useNavModel(): { module: Module; groups: NavGroup[]; contextual:
     else if (module.to === "/tasks") main = [{ to: "/tasks?h=all", label: "All open", count: open.length }, ...HORIZONS.map((h) => ({ to: `/tasks?h=${h}`, label: HORIZON_LABELS[h], count: hz[h] })), { to: "/tasks?h=done", label: "Completed" }];
     else if (module.to === "/calendar") main = [{ to: "/calendar?view=week", label: "Week" }, { to: "/calendar?view=month", label: "Month" }, { to: "/calendar?view=day", label: "Day" }];
     else if (module.to === "/goals") main = hashItems("/goals", [["goals", "Goals"], ["habits", "Habits"]]);
-    else if (module.to === "/settings") main = hashItems("/settings", [["preferences", "Preferences"], ["rotation", "Work rotation"], ["approvals", "Approvals"], ["assistants", "Assistants"], ["activity", "Activity"], ["data", "Demo data"], ["security", "Security"]]);
+    else if (module.to === "/settings") main = hashItems("/settings", [["preferences", "Preferences"], ["rotation", "Work rotation"], ["approvals", "Approvals"], ["assistants", "Assistants"], ["activity", "Activity"], ["connections", "Connections"], ["data", "Demo data"], ["security", "Security"]]);
     else main = hashItems("/", [["priorities", "Priorities"], ["schedule", "Schedule"], ["goals", "Goals"], ["habits", "Habits"], ["modules", "Modules"], ["activity", "Assistant activity"]]);
     const groups: NavGroup[] = [{ label: module.label, items: main }];
     groups.push({

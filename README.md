@@ -29,7 +29,7 @@ The response contains a one-time `axk_…` token. Use it as `Authorization: Bear
 `wrangler.jsonc` defines `staging` (axis-staging.frameworktools.ca) and `production` (axis.frameworktools.ca) with placeholder IDs, so deploys fail until real IDs are supplied after approval. Steps are in docs/SECURITY.md ("Required before any real data").
 
 ## Docs
-docs/ARCHITECTURE.md · ASSISTANT_INTEGRATION.md · PRODUCT_REQUIREMENTS.md · ROADMAP.md · DESIGN_SYSTEM.md · SECURITY.md · CHATGPT_INTEGRATION.md · CHANGELOG.md · migrations/README.md
+docs/ARCHITECTURE.md · PRODUCTION_DEPLOYMENT.md · ASSISTANT_INTEGRATION.md · PRODUCT_REQUIREMENTS.md · ROADMAP.md · DESIGN_SYSTEM.md · SECURITY.md · CHATGPT_INTEGRATION.md · CHANGELOG.md · migrations/README.md
 
 Screenshots (synthetic data): docs/screenshots/ (light and dark, desktop, iPad landscape and portrait, iPhone). Design: docs/DESIGN_SYSTEM.md.
 

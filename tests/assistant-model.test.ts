@@ -429,3 +429,46 @@ describe("settings, demo data and integrations", () => {
     expect((await run(owner, "list_integrations", {})).data.integrations[0].modules).toEqual(["health"]);
   });
 });
+
+describe("production posture", () => {
+  it("hardening closes the SQL inbox but not the service layer", async () => {
+    const { readFileSync } = await import("node:fs");
+    raw.exec(readFileSync("scripts/production-hardening.sql", "utf8"));
+    expect(() => ask("sql-path-blocked-1", "daily", "task.create", { title: "x" })).toThrow(/closed in production/);
+    const r = await run(owner, "create_task", { title: "Service still works" });
+    expect(r.ok).toBe(true);
+    raw.exec(readFileSync("scripts/production-hardening.sql", "utf8")); // idempotent
+  });
+  it("a scoped token fixes identity and module: no self-declaration, no cross-module reads or writes, duplicates prevented, audited", async () => {
+    const { authenticateBearer } = await import("../worker/services/integrations");
+    const made = await run(owner, "create_integration", { name: "Health", kind: "chatgpt", modules: ["health"], scopes: ["tasks:read", "tasks:write", "briefing:read", "activity:read"], expiresInDays: 30 });
+    expect(made.ok).toBe(true);
+    const actor = await authenticateBearer(db, `Bearer ${made.data.token}`, "mcp", NOW);
+    expect(actor?.modules).toEqual(new Set(["health"]));
+    const c = ctxFor(actor!);
+    const mine = await run(c, "create_task", { title: "Book physio", dueDate: TODAY, externalId: "email:1" });
+    expect(mine.ok).toBe(true);
+    expect(mine.data.module).toBe("health");
+    expect((await run(c, "create_task", { title: "Book physio", dueDate: TODAY, externalId: "email:1" })).duplicate).toBe(true);
+    expect((await run(c, "create_task", { title: "Sneaky", module: "financial" })).ok).toBe(false);
+    const fin = await run(owner, "create_task", { title: "Pay tax", module: "financial" });
+    expect((await run(c, "complete_task", { id: fin.data.id })).ok).toBe(false);
+    expect((await run(c, "get_briefing", { module: "financial" })).ok).toBe(false);
+    expect((await run(c, "get_briefing", { module: "overview" })).ok).toBe(false);
+    expect((await run(c, "list_tasks", {})).data.tasks.every((t: any) => t.module === "health")).toBe(true);
+    expect((await run(c, "create_goal", { title: "g", module: "health" })).ok).toBe(false); // no goals:write scope
+    expect((await run(c, "create_integration", { name: "x", scopes: ["tasks:read"] })).ok).toBe(false); // cannot mint tokens
+    expect(raw.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'task.create' AND actor_label = 'ChatGPT: Health'").get()).toMatchObject({ n: 1 });
+    await run(owner, "revoke_integration", { id: made.data.id });
+    expect(await authenticateBearer(db, `Bearer ${made.data.token}`, "mcp", NOW)).toBeNull();
+  });
+  it("production refuses demonstration data and the inbox runner", async () => {
+    const { handleApi } = await import("../worker/routes/api");
+    const env = { ENVIRONMENT: "production", AXIS_DB: db } as any;
+    for (const path of ["/api/v1/demo/load", "/api/v1/inbox/process"]) {
+      const res = await handleApi(new Request(`https://axis.frameworktools.ca${path}`, { method: "POST", body: "{}" }), env, owner);
+      expect(res.status).toBe(403);
+    }
+    expect(raw.prepare("SELECT COUNT(*) n FROM tasks WHERE demo = 1").get()).toMatchObject({ n: 0 });
+  });
+});

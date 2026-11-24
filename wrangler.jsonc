@@ -1,8 +1,7 @@
 // Axis Worker configuration.
-// - Only the `staging` environment is deployable today. `production` exists so the two stay separate,
-//   but it is NOT to be deployed without the owner's explicit authorization (see docs/SECURITY.md).
-// - The IDs below are placeholders on purpose: `wrangler deploy` fails until real ones are filled in,
-//   so nothing can be provisioned or shipped by accident. No account id or secret belongs in this file.
+// - `staging` and `production` are separate Workers and separate D1 databases. Production is deployed only by the manual
+//   "Deploy production" workflow, with the owner's explicit approval for that release (see docs/SECURITY.md).
+// - Identifiers here are not secrets. No account id or secret belongs in this file.
 // - workers_dev and preview_urls are OFF so the only way in is the custom domain behind Cloudflare Access.
 //   The Worker also validates the Access JWT itself (defence in depth), including for static assets.
 {
@@ -50,23 +49,25 @@
       // Secret (never in this file):  wrangler secret put OWNER_EMAIL --env staging
     },
     "production": {
-      "name": "axis",
+      "name": "axis-production",
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "axis.frameworktools.ca", "custom_domain": true }],
+      // No Cron Trigger on purpose: production has no assistant inbox. Assistants write synchronously through REST/MCP with scoped tokens.
       "vars": {
         "ENVIRONMENT": "production",
-        "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
-        "ACCESS_AUD": "REPLACE_WITH_PRODUCTION_ACCESS_APP_AUD"
+        "ACCESS_TEAM_DOMAIN": "frameworkco-admin.cloudflareaccess.com",
+        "ACCESS_AUD": "03df313d1e458936e662aa3ce76d672eec1355e7e8765819c7c3443efaf706f1"
       },
       "d1_databases": [
         {
           "binding": "AXIS_DB",
           "database_name": "axis-production",
-          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
+          "database_id": "e4941aa5-13fb-44b5-be7f-885b5807b79f",
           "migrations_dir": "migrations"
         }
       ]
+      // Secret (never in this file):  wrangler secret put OWNER_EMAIL --env production
     }
   }
 }
