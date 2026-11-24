@@ -24,11 +24,13 @@ describe("deploy workflows (public repository rules)", () => {
       expect(code(w)).toMatch(/uses: actions\/checkout@[0-9a-f]{40}/);
     }
   });
-  it("production config has its own database and no cron trigger", () => {
+  it("production has its own database and the single cron trigger; staging has none", () => {
     const cfg = readFileSync("wrangler.jsonc", "utf8");
+    const stagingBlock = cfg.slice(cfg.indexOf('"staging": {'), cfg.indexOf('"production": {'));
     const prodBlock = cfg.slice(cfg.indexOf('"production": {'));
     expect(prodBlock).toContain('"database_name": "axis-production"');
-    expect(prodBlock).not.toContain('"crons"');
+    expect(prodBlock).toContain('"crons": ["* * * * *"]');
     expect(prodBlock).not.toContain("600a5970"); // never the staging database id
+    expect(stagingBlock).toContain('"crons": []'); // the account has one free cron slot left; production uses it
   });
 });

@@ -431,13 +431,18 @@ describe("settings, demo data and integrations", () => {
 });
 
 describe("production posture", () => {
-  it("hardening closes the SQL inbox but not the service layer", async () => {
-    const { readFileSync } = await import("node:fs");
-    raw.exec(readFileSync("scripts/production-hardening.sql", "utf8"));
-    expect(() => ask("sql-path-blocked-1", "daily", "task.create", { title: "x" })).toThrow(/closed in production/);
-    const r = await run(owner, "create_task", { title: "Service still works" });
-    expect(r.ok).toBe(true);
-    raw.exec(readFileSync("scripts/production-hardening.sql", "utf8")); // idempotent
+  it("the SQL inbox works in production, and opening the app applies it and refreshes stale briefings", async () => {
+    const { onOpen } = await import("../worker/services/inbox");
+    ask("prod-open-test-1", "daily", "task.create", { title: "Filed by an assistant", dueDate: TODAY, externalId: "email:prod-1" });
+    expect(inboxRow("prod-open-test-1").status).toBe("pending");
+    await onOpen(db, NOW);
+    expect(inboxRow("prod-open-test-1").status).toBe("applied");
+    expect(raw.prepare("SELECT COUNT(*) n FROM briefings").get()).toMatchObject({ n: 6 }); // stale (none) -> refreshed
+    ask("prod-open-test-2", "daily", "task.create", { title: "Filed by an assistant", dueDate: TODAY, externalId: "email:prod-1" });
+    await onOpen(db, NOW);
+    expect(inboxRow("prod-open-test-2").status).toBe("duplicate");
+    expect(() => raw.exec("UPDATE tasks SET title = 'x'")).toThrow(/blocked/); // direct writes stay guarded
+    expect(raw.prepare("SELECT source_kind, source_assistant FROM tasks WHERE external_id = 'email:prod-1'").get()).toMatchObject({ source_kind: "assistant", source_assistant: "daily" });
   });
   it("a scoped token fixes identity and module: no self-declaration, no cross-module reads or writes, duplicates prevented, audited", async () => {
     const { authenticateBearer } = await import("../worker/services/integrations");
@@ -462,13 +467,13 @@ describe("production posture", () => {
     await run(owner, "revoke_integration", { id: made.data.id });
     expect(await authenticateBearer(db, `Bearer ${made.data.token}`, "mcp", NOW)).toBeNull();
   });
-  it("production refuses demonstration data and the inbox runner", async () => {
+  it("production refuses demonstration data but allows the owner to run the inbox", async () => {
     const { handleApi } = await import("../worker/routes/api");
     const env = { ENVIRONMENT: "production", AXIS_DB: db } as any;
-    for (const path of ["/api/v1/demo/load", "/api/v1/inbox/process"]) {
-      const res = await handleApi(new Request(`https://axis.frameworktools.ca${path}`, { method: "POST", body: "{}" }), env, owner);
-      expect(res.status).toBe(403);
-    }
+    const demo = await handleApi(new Request("https://axis.frameworktools.ca/api/v1/demo/load", { method: "POST", body: "{}" }), env, owner);
+    expect(demo.status).toBe(403);
+    const proc = await handleApi(new Request("https://axis.frameworktools.ca/api/v1/inbox/process", { method: "POST", body: "{}" }), env, owner);
+    expect(proc.status).toBe(200);
     expect(raw.prepare("SELECT COUNT(*) n FROM tasks WHERE demo = 1").get()).toMatchObject({ n: 0 });
   });
 });

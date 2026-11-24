@@ -8,7 +8,7 @@ import { pretty } from "../lib/dates";
 import { useData } from "../lib/data";
 import type { CalEvent, Goal, Habit } from "../lib/types";
 import { SegBar } from "./charts";
-import { Btn, Status, Tag } from "./ui";
+import { Btn, isUnverified, Status, Tag, UnverifiedTag } from "./ui";
 
 export const ModuleTag = ({ id }: { id: string }) => <span className="tag">{MODULES_META[id as keyof typeof MODULES_META]?.label ?? id}</span>;
 export const DemoMark = () => <span className="tag !h-[18px] !px-1.5 !text-[9px]" title="Synthetic demonstration record">SYNTHETIC</span>;
@@ -35,6 +35,7 @@ export function GoalCard({ g, onEdit, showModule = true }: { g: Goal; onEdit: (g
             {showModule && <span>{MODULES_META[g.module].label}</span>}
             {g.term && <span>{TERM_LABEL[g.term]}{g.termSource === "set" ? "" : " (from date)"}</span>}
             {g.targetDate && <span>target {pretty(g.targetDate, { day: "numeric", month: "short", year: "numeric" })}</span>}
+            {isUnverified(g.source) && <UnverifiedTag />}
             {g.demo && <DemoMark />}
           </p>
         </div>
@@ -95,6 +96,7 @@ export function HabitRow({ h, onEdit, showModule = true }: { h: Habit; onEdit: (
             {showModule && <span className="uppercase tracking-[0.07em]">{MODULES_META[h.module].label}</span>}
             <span>{scheduleText(h)}</span>
             {h.rotationMode !== "any" && <Repeat size={11} aria-label="Rotation-aware" />}
+            {isUnverified(h.source) && <UnverifiedTag />}
             {h.demo && <DemoMark />}
           </p>
         </div>
@@ -125,6 +127,7 @@ export function EventRow({ e, onOpen, showModule = true }: { e: CalEvent; onOpen
         <p className="truncate text-[13.5px]">{e.title}</p>
         <p className="mono mt-0.5 truncate !normal-case !tracking-normal">{[showModule ? MODULES_META[e.module].label : null, e.location].filter(Boolean).join(" · ")}</p>
       </button>
+      {isUnverified(e.source) && <UnverifiedTag />}
       {e.demo && <DemoMark />}
     </li>
   );

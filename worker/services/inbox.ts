@@ -89,3 +89,14 @@ export async function maintenance(db: D1Database, now = new Date()): Promise<{ p
   await refreshBriefings(db, now); // keeps "today" correct across midnight even when nothing changed
   return r;
 }
+
+/**
+ * Runs when the owner opens or polls the app: apply waiting requests, and refresh stored briefings when they are stale
+ * (so an environment without a Cron Trigger still serves a current briefing to SQL readers). Cheap when nothing is waiting.
+ */
+export async function onOpen(db: D1Database, now = new Date()): Promise<void> {
+  await processInbox(db, { now, limit: 25 });
+  // Any missing or old briefing triggers a full refresh (a touched module is refreshed by processInbox, which must not hide the others).
+  const b = await db.prepare("SELECT COUNT(*) AS n, MIN(generated_at) AS oldest FROM briefings").first<{ n: number; oldest: string | null }>();
+  if (!b || b.n < 6 || !b.oldest || new Date(b.oldest).getTime() < now.getTime() - 10 * 60_000) await refreshBriefings(db, now);
+}

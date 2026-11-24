@@ -95,8 +95,8 @@ export async function handleApi(request: Request, env: Env, ctx: Ctx): Promise<R
       }
     }
     Object.assign(input, m.groups ?? {});
-    // Production holds real data only: no demonstration data and no SQL-fed assistant inbox.
-    if (env.ENVIRONMENT === "production" && (op === "load_demo_data" || op === "process_inbox")) return json({ success: false, error: { code: "forbidden", message: "Not available in production" } }, 403);
+    // Production holds real data only: no demonstration data.
+    if (env.ENVIRONMENT === "production" && op === "load_demo_data") return json({ success: false, error: { code: "forbidden", message: "Not available in production" } }, 403);
     return envelope(await runOperation(ctx, op, input, request.headers.get("Idempotency-Key") ?? undefined));
   }
   return json({ success: false, error: { code: "not_found", message: "No such endpoint" } }, 404);

@@ -82,8 +82,6 @@ jobs:
       - run: npm run build
       - name: Apply additive D1 migrations (production database only)
         run: npx wrangler d1 migrations apply AXIS_DB --remote --env production
-      - name: Close the SQL write path (production hardening, idempotent)
-        run: npx wrangler d1 execute AXIS_DB --remote --env production --file scripts/production-hardening.sql
       - name: Deploy Worker and static assets (production environment only)
         run: npx wrangler deploy --env production
       - name: Smoke test, nothing may be publicly readable

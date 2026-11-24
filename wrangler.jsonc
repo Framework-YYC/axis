@@ -30,9 +30,9 @@
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "axis-staging.frameworktools.ca", "custom_domain": true }],
-      // Every minute: apply pending assistant requests (assistant_inbox) and refresh stored briefings.
-      // Uses 1 of the 5 free cron triggers in the Cloudflare account (4 are used by other Workers). Production would need its own.
-      "triggers": { "crons": ["* * * * *"] },
+      // No Cron Trigger: the account has 5 free slots, 4 belong to other Workers and the last one is used by production.
+      // Staging applies assistant_inbox requests (and refreshes stale briefings) when the owner opens or polls the app.
+      "triggers": { "crons": [] },
       "vars": {
         "ENVIRONMENT": "staging",
         "ACCESS_TEAM_DOMAIN": "frameworkco-admin.cloudflareaccess.com",
@@ -53,7 +53,8 @@
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "axis.frameworktools.ca", "custom_domain": true }],
-      // No Cron Trigger on purpose: production has no assistant inbox. Assistants write synchronously through REST/MCP with scoped tokens.
+      // Every minute: apply pending assistant requests (assistant_inbox) and refresh stored briefings. Uses the account's last free cron slot.
+      "triggers": { "crons": ["* * * * *"] },
       "vars": {
         "ENVIRONMENT": "production",
         "ACCESS_TEAM_DOMAIN": "frameworkco-admin.cloudflareaccess.com",

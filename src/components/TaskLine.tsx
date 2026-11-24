@@ -6,7 +6,7 @@ import { cx } from "../lib/cx";
 import { relative } from "../lib/dates";
 import type { Task } from "../lib/types";
 import { SegBar } from "./charts";
-import { Status } from "./ui";
+import { isUnverified, Status, UnverifiedTag } from "./ui";
 
 const prioTicks = (p: string): Tick[] => Array.from({ length: 4 }, (_, i) => (i < priorityLevel(p) ? (p === "critical" ? "bad" : "on") : "off"));
 
@@ -33,6 +33,7 @@ export function TaskLine({ t, today, onToggle, onOpen, showModule = true }: { t:
           {showModule && <span>{MODULES_META[t.module].label}</span>}
           {t.recurrence && <Repeat size={11} aria-label="Repeats" />}
           {t.source.assistant && <span>· via {MODULES_META[t.source.assistant as keyof typeof MODULES_META]?.assistant ?? t.source.assistant}</span>}
+          {isUnverified(t.source) && <UnverifiedTag />}
           {t.demo && <span className="tag !h-[18px] !px-1.5 !text-[9px]">SYNTHETIC</span>}
         </p>
       </button>
