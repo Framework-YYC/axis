@@ -6,7 +6,7 @@ This page is the contract between Axis and a ChatGPT project (or any other assis
 
 > **Status of verification.** Everything below is covered by automated tests against the real service layer and a local D1 (`tests/assistant-model.test.ts`). **Nothing has yet been run from a real ChatGPT project.** Whether each project can run the D1 write statement below (and is not blocked by a confirmation prompt, a read-only connector mode or a missing permission) must be confirmed by the owner with the acceptance test at the end of this page. Do not assume it works from every project.
 
-> **Production differs.** In production the SQL path below is closed (`assistant_inbox` inserts are refused) and only REST/MCP with scoped tokens is available. Sections 2, 3 and 5 describe the **staging** SQL path. Production prompts: docs/PRODUCTION_ASSISTANT_PROMPTS.md.
+> **Production** uses the same inbox contract (sections 2 and 3) against the `axis-production` database. The production prompts (docs/PRODUCTION_ASSISTANT_PROMPTS.md) supersede the staging blocks in section 5.
 
 ## 1. Two ways in, one service layer
 

@@ -10,19 +10,19 @@ Target: `https://axis.frameworktools.ca`, Worker `axis-production`, D1 `axis-pro
 | Host | `axis.frameworktools.ca` (custom domain) | `axis-staging.frameworktools.ca` |
 | Cloudflare Access | "Axis (owner only)" whole host, one Allow policy for the owner; bypass app for `/api/v1` and `/mcp` only (the Worker authenticates those) | equivalent, own apps |
 | Secrets | `OWNER_EMAIL` Worker secret (set with `wrangler secret put OWNER_EMAIL --env production`) | own |
-| Cron Trigger | **none** | 1 (every minute) |
-| Assistant SQL inbox | **closed** (trigger `prod_assistant_inbox_closed`) | open |
+| Cron Trigger | 1 (every minute): applies the assistant inbox, refreshes briefings | **none** (applies the inbox when the owner opens the app) |
+| Assistant SQL inbox | open (write-guarded, service-validated, audited; records labelled unverified) | open |
 | Demonstration data | **disabled** (API refuses, UI hides it) | available |
 
 No data is copied between the two databases. Production starts empty.
 
 ## Cron trigger capacity
-The Cloudflare account allows five Cron Triggers and other Workers use four of them, so production could not have its own. Production does not need one: the only scheduled job (applying the SQL-fed assistant inbox and refreshing stored briefings) does not exist in production. Assistants write synchronously through REST/MCP and read briefings computed on request. No other Worker was touched.
+The account allows five Cron Triggers; other Workers use four. The fifth moved from staging to production (staging's `triggers.crons` is empty). Staging applies the inbox and refreshes stale briefings when the owner opens or polls the app. No other Worker was touched.
 
 ## Release procedure (repeatable)
 1. The commit is on `staging`, CI and *Deploy staging* are green, and the owner has approved the release.
 2. Fast-forward `main` to that commit (`main` only moves by approved release).
-3. Actions > *Deploy production* > Run workflow on `main`, type `deploy production`. The job: re-runs typecheck and tests, applies additive migrations to the production database, applies `scripts/production-hardening.sql`, builds and deploys the Worker with assets, and smoke-tests that `/`, `/api/v1/*`, `/mcp` and assets are not readable without authentication.
+3. Actions > *Deploy production* > Run workflow on `main`, type `deploy production`. The job: re-runs typecheck and tests, applies additive migrations to the production database, builds and deploys the Worker with assets, and smoke-tests that `/`, `/api/v1/*`, `/mcp` and assets are not readable without authentication.
 4. Recommended (owner, in GitHub): Settings > Environments > production: required reviewer = owner; deployment branches = `main`.
 5. Verify (below), then merge `main` back into `staging` only if it moved ahead.
 
