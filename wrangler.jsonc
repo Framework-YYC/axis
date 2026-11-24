@@ -33,8 +33,8 @@
       "routes": [{ "pattern": "axis-staging.frameworktools.ca", "custom_domain": true }],
       "vars": {
         "ENVIRONMENT": "staging",
-        "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
-        "ACCESS_AUD": "REPLACE_WITH_STAGING_ACCESS_APP_AUD"
+        "ACCESS_TEAM_DOMAIN": "frameworkco-admin.cloudflareaccess.com",
+        "ACCESS_AUD": "d721a537fe6efc99a65e5609caa8a0ec690860df006dfda7676df4e67fe277e3"
       },
       "d1_databases": [
         {

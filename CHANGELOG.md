@@ -2,7 +2,8 @@
 
 ## Unreleased
 - Repository published (public, intentional). CI and staging-deploy workflows, Dependabot, public-repository rules in CLAUDE.md, SECURITY.md and ARCHITECTURE.md.
-- Staging D1 `axis-staging` created and migrated.
+- Staging D1 `axis-staging` created and migrated; Worker `axis-staging` deployed (interim, no assets) on `axis-staging.frameworktools.ca`; Access applications and owner secret configured.
+- Worker accepts the Access JWT from the `CF_Authorization` cookie on the bypassed `/api/v1` and `/mcp` paths (verified identically).
 
 ## 0.1.0 (Phases 1-2)
 - Foundation: Cloudflare Worker + Static Assets, React/Vite/Tailwind app, D1 migrations, Vitest suite.

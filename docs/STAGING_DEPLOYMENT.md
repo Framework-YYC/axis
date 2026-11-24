@@ -2,23 +2,24 @@
 
 Target: `axis-staging.frameworktools.ca`, Worker `axis-staging`, D1 `axis-staging`. Never Production.
 
-## Status
+## Status (2026-11-24)
 | Item | State |
 |---|---|
 | D1 `axis-staging` (id in `wrangler.jsonc`), migrations 0001-0002 | **done**, verified |
-| GitHub `staging` environment + secrets | owner |
-| Cloudflare Access application for the hostname | owner (build credential lacks Access permission) |
-| Worker secret `OWNER_EMAIL`, vars `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` | owner / after Access exists |
-| Worker + custom domain deploy | by `deploy-staging.yml` once the above exist |
+| Worker `axis-staging` + custom domain `axis-staging.frameworktools.ca` (proxied DNS) | **deployed, interim version without static assets** (fails closed; no UI yet) |
+| Cloudflare Access: "Axis staging (owner only)" for the whole host, one Allow policy for the owner's email | **done** |
+| Cloudflare Access: bypass application for `/api/v1` and `/mcp` only | **done** (the Worker authenticates these) |
+| `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` (in `wrangler.jsonc`, not secrets); `OWNER_EMAIL` Worker secret | **done** (email stored only in Cloudflare) |
+| Static assets (the UI) | **pending**: the build session's proxy-held credential cannot upload them; needs the GitHub Action below |
+| GitHub environment `staging` with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | **owner, still to do** |
 
-## Owner steps (about 15 minutes)
-1. **Deploy token** (Cloudflare > My Profile > API Tokens > Create). Permissions: Account: *Workers Scripts: Edit*, *D1: Edit*, *Account Settings: Read*; Zone `frameworktools.ca`: *Workers Routes: Edit*, *DNS: Edit*. Restrict to this account and zone, and set an expiry. Note: Workers Scripts is account-wide in Cloudflare, so this token could in principle touch other Workers; the workflow only deploys `--env staging`. A separate Cloudflare account would remove that risk.
-2. **GitHub environment**: repo Settings > Environments > New `staging`; Deployment branches: *Selected branches* = `staging`; secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Do not add secrets at repository level.
-3. **Cloudflare Access** (Zero Trust free plan; no paid service): create a Self-hosted application for `axis-staging.frameworktools.ca`, policy *Allow* = your email only (One-time PIN is fine). Then add a second application with **Bypass** (everyone) only for the paths `/api/v1` and `/mcp` (the Worker authenticates these itself with bearer tokens or the owner's `CF_Authorization` cookie, verified identically). `/oauth/*` and `/.well-known/*` are added only when OAuth is built (see CHATGPT_INTEGRATION.md). Never bypass `/` or anything else. Copy the application's **Audience (AUD) tag**.
-4. **Config values**: put the AUD tag and team domain into `wrangler.jsonc` (`env.staging.vars.ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`; neither is a secret), commit to `staging`.
-5. **Owner identity secret**: `npx wrangler secret put OWNER_EMAIL --env staging` (after the first deploy creates the Worker, or run once with the token) and enter your email. It is never committed.
-6. Push to `staging` (or run *Deploy staging* manually on `staging`). The workflow tests, migrates, deploys and checks that nothing answers 200 without authentication.
-7. Verify: open the hostname, sign in through Access, see the dashboard; `/api/v1/health` shows `environment: staging`, `database: true`.
+Verified live (unauthenticated): `/` and every page/asset redirect to the Access login; `/api/v1/*` and `/mcp` answer 401 without a valid token; a bogus bearer gets 401. Verified live with a short-lived synthetic staging token (revoked afterwards): MCP initialize and tools/list, create_task with idempotent retry, status read, briefing, audit trail, read-only scope refused, bulk request held for approval, revocation immediate.
+
+## Owner steps to finish
+1. **Deploy token** (Cloudflare > My Profile > API Tokens > Create): Account *Workers Scripts: Edit*, *D1: Edit*, *Account Settings: Read*; Zone `frameworktools.ca`: *Workers Routes: Edit*, *DNS: Edit*; limited to this account/zone, with an expiry. Workers Scripts is account-wide in Cloudflare, so the token could in principle touch other Workers; the workflow only deploys `--env staging`. A separate Cloudflare account would remove that risk.
+2. **GitHub environment**: repo Settings > Environments > New `staging`; Deployment branches = selected branches = `staging`; secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. No repository-level secrets.
+3. Re-run *Deploy staging* (Actions tab, branch `staging`). It tests, migrates, deploys the full build with assets, and smoke-tests that nothing answers 200 unauthenticated.
+4. Open the hostname, sign in through Access (one-time PIN to the owner email), see the dashboard, and `/api/v1/health` reporting `environment: staging`.
 
 ## Rollback
 `wrangler rollback --env staging`, or redeploy a previous commit by manual run. Database: D1 Time Travel (`wrangler d1 time-travel info axis-staging`); restores need the owner's approval.
