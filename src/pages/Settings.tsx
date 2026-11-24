@@ -1,41 +1,120 @@
+import { Check, X } from "lucide-react";
 import { useState } from "react";
-import { SegBar } from "../components/charts";
-import { PageHeader, Row, Segmented, Status, Tag, Widget } from "../components/ui";
-import { localToday } from "../lib/dates";
+import { MODULES_META } from "../../shared/modules";
+import { assistantLabel } from "../../shared/modules";
+import { Field, Select, TextInput } from "../components/forms";
+import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
+import { post } from "../lib/api";
+import { useData } from "../lib/data";
 import { useTheme, type ThemeMode } from "../lib/theme";
-import { DEFAULT_ROTATION } from "../../shared/rotation";
-import { rotationTicks } from "../../shared/viz";
+import { useApi } from "../lib/useApi";
+
+const ZONES = ["America/Edmonton", "America/Vancouver", "America/Toronto", "America/Winnipeg", "America/Halifax", "UTC"];
+interface Integration { id: string; name: string; kind: string; scopes: string[]; modules: string[] | null; createdAt: string; revokedAt: string | null; lastUsedAt: string | null }
 
 export default function Settings({ who, environment, signedIn }: { who: string; environment: string; signedIn: boolean }) {
+  const { settings, approvals, inbox, activity, decide, mutate, tasks, goals, habits, events, today } = useData();
   const { mode, setMode } = useTheme();
-  const [units, setUnits] = useState<"metric" | "imperial">("metric");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [rot, setRot] = useState({ anchorDate: settings.work_rotation.anchorDate, onDays: String(settings.work_rotation.onDays), offDays: String(settings.work_rotation.offDays) });
+  const integrations = useApi<{ integrations: Integration[] }>("/integrations", inbox.length);
+  const demo = tasks.filter((t) => t.demo).length + goals.filter((g) => g.demo).length + habits.filter((h) => h.demo).length + events.filter((e) => e.demo).length;
+  const save = (key: string, value: unknown) => void mutate(() => post("/settings", { key, value }));
+  const zones = ZONES.includes(settings.timezone) || settings.timezone === "auto" ? ZONES : [settings.timezone, ...ZONES];
+  const saveRotation = async () => {
+    const onDays = Number(rot.onDays), offDays = Number(rot.offDays);
+    const r = await mutate(() => post("/settings", { key: "work_rotation", value: { anchorDate: rot.anchorDate, onDays, offDays } }));
+    setMsg(r && r.success ? "Rotation saved." : r && !r.success ? r.error.message : "Could not save.");
+  };
+  const demoAction = async (path: "load" | "clear") => {
+    const r = await mutate(() => post(`/demo/${path}`, { today }));
+    setMsg(r && r.success ? (path === "load" ? "Synthetic demonstration data loaded." : "Synthetic demonstration data removed.") : r && !r.success ? r.error.message : "Could not reach Axis.");
+  };
+
   return (
-    <>
-      <PageHeader crumb="SETTINGS" title="Settings" subtitle="Appearance is saved on this device. The rest arrives with the settings API." />
-      <div className="stagger grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2">
-        <Widget id="appearance" title="Appearance">
-          <Segmented<ThemeMode> label="Appearance" value={mode} onChange={setMode} options={[{ value: "system", label: "Automatic" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />
-          <p className="mono mt-3 !normal-case">Automatic follows this device and changes with it.</p>
+    <div>
+      <PageHeader crumb="SETTINGS" title="Settings" subtitle={signedIn ? `${who} · ${environment}` : "Not signed in"} />
+      {msg && <p role="status" className="panel-dim mb-3 p-3 text-[13px]">{msg}</p>}
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Widget id="preferences" title="Preferences">
+          <div className="grid gap-3.5 md:grid-cols-2">
+            <Field label="Time zone" hint="Decides what 'today' means for horizons, habits and briefings.">{(id) => <Select id={id} value={settings.timezone === "auto" ? Intl.DateTimeFormat().resolvedOptions().timeZone : settings.timezone} onChange={(v) => save("timezone", v)} options={zones.filter((z) => z !== "auto").map((z) => ({ value: z, label: z.replace("_", " ") }))} />}</Field>
+            <Field label="Week starts on">{(id) => <Select id={id} value={settings.week_start} onChange={(v) => save("week_start", v)} options={[{ value: "monday", label: "Monday" }, { value: "sunday", label: "Sunday" }]} />}</Field>
+            <Field label="Units">{(id) => <Select id={id} value={settings.unit_system} onChange={(v) => save("unit_system", v)} options={[{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }]} />}</Field>
+            <Field label="Currency">{(id) => <Select id={id} value={settings.currency} onChange={(v) => save("currency", v)} options={["CAD", "USD", "EUR", "GBP"].map((c) => ({ value: c, label: c }))} />}</Field>
+            <Field label="Appearance">{(id) => <Select id={id} value={mode} onChange={(v) => setMode(v as ThemeMode)} options={[{ value: "system", label: "Match device" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />}</Field>
+          </div>
         </Widget>
-        <Widget id="units" title="Units & currency" tag="Preview">
-          <Segmented label="Unit system" value={units} onChange={setUnits} options={[{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }]} />
-          <ul className="mt-4"><Row left="Currency" right="CAD" /><Row left="Time zone" right="This device (automatic)" /></ul>
+
+        <Widget id="rotation" title="Work rotation" tag="Drives rotation-aware habits">
+          <div className="grid gap-3.5 md:grid-cols-3">
+            <Field label="Rotation start">{(id) => <TextInput id={id} type="date" value={rot.anchorDate} onChange={(v) => setRot((s) => ({ ...s, anchorDate: v }))} />}</Field>
+            <Field label="Days on">{(id) => <TextInput id={id} inputMode="numeric" value={rot.onDays} onChange={(v) => setRot((s) => ({ ...s, onDays: v }))} />}</Field>
+            <Field label="Days off">{(id) => <TextInput id={id} inputMode="numeric" value={rot.offDays} onChange={(v) => setRot((s) => ({ ...s, offDays: v }))} />}</Field>
+          </div>
+          <div className="mt-3"><Btn variant="primary" onClick={() => void saveRotation()}>Save rotation</Btn></div>
         </Widget>
-        <Widget id="rotation" title="Work rotation" tag="Preview">
-          <SegBar ticks={rotationTicks(localToday(), DEFAULT_ROTATION)} label="Current rotation cycle" height={22} />
-          <ul className="mt-4"><Row left="Pattern" right={`${DEFAULT_ROTATION.onDays} on / ${DEFAULT_ROTATION.offDays} off`} /><Row left="Current block started" right={DEFAULT_ROTATION.anchorDate} /></ul>
+
+        <Widget id="approvals" title="Approvals" count={approvals.length}>
+          {approvals.length === 0 ? <Empty>Nothing waiting for you.</Empty> : (
+            <ul>{approvals.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-3 border-t border-line py-3 first:border-t-0 first:pt-0">
+                <div className="min-w-0 flex-1"><p className="text-[13.5px]">{a.summary}</p><p className="mono mt-0.5 !normal-case !tracking-normal">Requested by {a.requestedBy} · {a.createdAt.slice(0, 16).replace("T", " ")}</p></div>
+                <Btn variant="primary" icon={Check} onClick={() => void decide(a.id, true)}>Approve</Btn>
+                <Btn variant="soft" icon={X} onClick={() => void decide(a.id, false)}>Decline</Btn>
+              </li>
+            ))}</ul>
+          )}
         </Widget>
-        <Widget id="security" title="Account security">
+
+        <Widget id="assistants" title="Assistants" tag="Five modules, one shared database">
           <ul>
-            <Row left="Signed in as" right={signedIn ? who : "Not signed in"} />
-            <Row left="Environment" right={<Tag>{environment || "…"}</Tag>} />
-            <Row left="Sign-in" sub="Cloudflare Access, checked again by the Worker" right={signedIn ? <Status tone="ok">Enforced</Status> : <Status tone="idle">Local preview</Status>} />
+            {(Object.keys(MODULES_META) as Array<keyof typeof MODULES_META>).map((m) => {
+              const mine = inbox.filter((r) => r.assistant === m);
+              return (
+                <li key={m} className="flex items-center justify-between gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0 first:pt-0">
+                  <span>{assistantLabel(m)}</span>
+                  <span className="mono">{mine.length ? `${mine.length} recent request${mine.length > 1 ? "s" : ""} · last ${mine[0].createdAt.slice(5, 16).replace("T", " ")}` : "No requests yet"}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mono mt-3 !normal-case !tracking-normal">Assistants connected over REST or MCP appear below. Each is confined to its modules and can be revoked immediately.</p>
+          {integrations.data && integrations.data.integrations.length > 0 && (
+            <ul className="mt-2">{integrations.data.integrations.map((i) => <li key={i.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="truncate">{i.name} <span className="text-muted">· {i.modules ? i.modules.join(", ") : "all modules"}</span></span><Status tone={i.revokedAt ? "idle" : "ok"}>{i.revokedAt ? "Revoked" : "Active"}</Status></li>)}</ul>
+          )}
+        </Widget>
+
+        <Widget id="activity" title="Assistant requests and audit" tag="Newest first" className="xl:col-span-2">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <p className="mono mb-2">Inbox</p>
+              {inbox.length === 0 ? <Empty>No requests yet.</Empty> : <ul>{inbox.slice(0, 12).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{MODULES_META[r.assistant]?.label} · {r.op}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
+            </div>
+            <div>
+              <p className="mono mb-2">Audit trail</p>
+              {activity.length === 0 ? <Empty>No activity.</Empty> : <ul>{activity.slice(0, 12).map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{a.action} <span className="text-muted">· {a.actor}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
+            </div>
+          </div>
+        </Widget>
+
+        <Widget id="data" title="Demonstration data" tag={demo ? `${demo} synthetic records` : "None loaded"}>
+          <p className="text-[13.5px] text-muted">Axis starts empty. You can load a small, clearly labelled synthetic set (every title ends "(synthetic)") to see the screens populated, and remove it again at any time. It never touches records you or an assistant create.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Btn variant="soft" onClick={() => void demoAction("load")} disabled={demo > 0}>Load demonstration data</Btn>
+            <Btn variant="soft" onClick={() => void demoAction("clear")} disabled={demo === 0}>Remove demonstration data</Btn>
+          </div>
+        </Widget>
+
+        <Widget id="security" title="Security">
+          <ul className="space-y-2 text-[13.5px]">
+            <li className="flex justify-between gap-3"><span>Sign-in</span><span className="mono">Cloudflare Access, owner only</span></li>
+            <li className="flex justify-between gap-3"><span>Writes from assistants</span><span className="mono">Validated, audited, module-confined</span></li>
+            <li className="flex justify-between gap-3"><span>Bulk and destructive changes</span><span className="mono">Need your approval</span></li>
+            <li className="flex justify-between gap-3"><span>Imported and assistant text</span><span className="mono">Treated as untrusted</span></li>
           </ul>
         </Widget>
-        <Widget id="data" title="Data, backup and integrations" className="lg:col-span-2">
-          <p className="max-w-3xl text-[13.5px] text-muted">Export, deletion, backup and recovery procedures are documented in docs/SECURITY.md. Integration tokens and OAuth connections are managed in Intelligence. Categories and notification preferences arrive in the next phase.</p>
-        </Widget>
       </div>
-    </>
+    </div>
   );
 }

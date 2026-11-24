@@ -1,5 +1,7 @@
 # ChatGPT integration (core requirement)
 
+> **Update 2026-11-24.** ChatGPT's existing Cloudflare connection is now the first-priority path, through a database-level write guard and an `assistant_inbox` table, with five module-confined assistants. The contract, the five instruction blocks and the acceptance test are in **docs/ASSISTANT_INTEGRATION.md**. The OAuth/MCP analysis below stays valid for the later per-assistant-credential path.
+
 Axis is built so that ChatGPT can **read live data and create, update and manage records**, using the same business logic and database as the web app. This page records what is built, what the investigation found, and what is still unknown.
 
 ## What is built (Phase 2)

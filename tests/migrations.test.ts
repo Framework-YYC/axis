@@ -12,7 +12,8 @@ describe("migrations", () => {
   });
   it("contain no destructive statements", () => {
     for (const f of files) {
-      const sql = readFileSync(join(dir, f), "utf8").replace(/--.*$/gm, "");
+      // Trigger headers ("BEFORE UPDATE ON t") name an operation without performing one, and a trigger only ever raises an error here.
+      const sql = readFileSync(join(dir, f), "utf8").replace(/--.*$/gm, "").replace(/BEFORE\s+(INSERT|UPDATE|DELETE)\s+ON\s+\w+/gi, "").replace(/'[^']*'/g, "''"); // string literals (op names, messages) are data, not statements
       expect(sql, f).not.toMatch(/\b(DROP|DELETE|TRUNCATE|UPDATE|RENAME|PRAGMA)\b|INSERT\s+OR\s+REPLACE|\bREPLACE\s+INTO/i);
     }
   });

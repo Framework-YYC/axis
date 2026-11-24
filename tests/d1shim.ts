@@ -16,12 +16,18 @@ export function makeDb() {
   raw.exec("PRAGMA foreign_keys = ON");
   const dir = join(import.meta.dirname, "..", "migrations");
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) raw.exec(readFileSync(join(dir, f), "utf8"));
+  // Real D1 applies one batch at a time; the in-memory shim has a single connection, so it queues them the same way.
+  let queue: Promise<unknown> = Promise.resolve();
   const db = {
     prepare: (sql: string) => new Stmt(raw, sql),
-    async batch(stmts: Stmt[]) {
-      raw.exec("BEGIN");
-      try { const out = []; for (const s of stmts) out.push(await s.run()); raw.exec("COMMIT"); return out; }
-      catch (e) { raw.exec("ROLLBACK"); throw e; }
+    batch(stmts: Stmt[]) {
+      const job = queue.then(async () => {
+        raw.exec("BEGIN");
+        try { const out = []; for (const s of stmts) out.push(await s.run()); raw.exec("COMMIT"); return out; }
+        catch (e) { raw.exec("ROLLBACK"); throw e; }
+      });
+      queue = job.catch(() => undefined);
+      return job;
     },
   } as unknown as D1Database;
   return { db, raw };

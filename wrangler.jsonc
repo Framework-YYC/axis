@@ -31,6 +31,9 @@
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "axis-staging.frameworktools.ca", "custom_domain": true }],
+      // Every minute: apply pending assistant requests (assistant_inbox) and refresh stored briefings.
+      // Uses 1 of the 5 free cron triggers in the Cloudflare account (4 are used by other Workers). Production would need its own.
+      "triggers": { "crons": ["* * * * *"] },
       "vars": {
         "ENVIRONMENT": "staging",
         "ACCESS_TEAM_DOMAIN": "frameworkco-admin.cloudflareaccess.com",

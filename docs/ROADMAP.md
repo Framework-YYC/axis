@@ -12,3 +12,9 @@
 | 8 | Export/backup automation, notifications, dashboard customization, hardening, production readiness review | |
 
 Production deployment happens only with explicit authorization.
+
+## Next after the assistant-centred release
+- Owner acceptance from each ChatGPT project (docs/ASSISTANT_INTEGRATION.md, section 6); decide whether to scope or replace the account-wide Cloudflare connection.
+- Per-module detail (finance, health, business, construction) only after the shared model is proven; not started.
+- OAuth for the MCP path if ChatGPT write access is needed with per-assistant identity.
+- Production: needs its own cron slot or a different trigger approach, and explicit owner approval.

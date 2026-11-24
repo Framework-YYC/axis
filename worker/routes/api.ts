@@ -22,6 +22,34 @@ const ROUTES: Array<[string, RegExp, string]> = [
   ["POST", /^\/api\/v1\/tasks\/(?<id>[\w-]+)\/reopen$/, "reopen_task"],
   ["POST", /^\/api\/v1\/tasks\/(?<id>[\w-]+)\/archive$/, "archive_task"],
   ["GET", /^\/api\/v1\/activity$/, "get_recent_activity"],
+  ["GET", /^\/api\/v1\/briefing$/, "get_briefing"],
+  ["GET", /^\/api\/v1\/briefing\/(?<module>[a-z]+)$/, "get_briefing"],
+  ["GET", /^\/api\/v1\/modules\/(?<module>[a-z]+)\/activity$/, "get_module_activity"],
+  ["GET", /^\/api\/v1\/goals$/, "list_goals"],
+  ["POST", /^\/api\/v1\/goals$/, "create_goal"],
+  ["GET", /^\/api\/v1\/goals\/(?<id>[\w-]+)$/, "get_goal"],
+  ["PATCH", /^\/api\/v1\/goals\/(?<id>[\w-]+)$/, "update_goal"],
+  ["POST", /^\/api\/v1\/goals\/(?<id>[\w-]+)\/progress$/, "update_goal_progress"],
+  ["GET", /^\/api\/v1\/goals\/(?<id>[\w-]+)\/history$/, "get_goal_history"],
+  ["POST", /^\/api\/v1\/goals\/(?<id>[\w-]+)\/archive$/, "archive_goal"],
+  ["POST", /^\/api\/v1\/goals\/(?<goalId>[\w-]+)\/milestones$/, "add_milestone"],
+  ["POST", /^\/api\/v1\/milestones\/(?<id>[\w-]+)$/, "set_milestone"],
+  ["GET", /^\/api\/v1\/habits$/, "list_habits"],
+  ["POST", /^\/api\/v1\/habits$/, "create_habit"],
+  ["GET", /^\/api\/v1\/habits\/(?<id>[\w-]+)$/, "get_habit"],
+  ["PATCH", /^\/api\/v1\/habits\/(?<id>[\w-]+)$/, "update_habit"],
+  ["POST", /^\/api\/v1\/habits\/(?<habitId>[\w-]+)\/log$/, "log_habit"],
+  ["GET", /^\/api\/v1\/habits\/(?<id>[\w-]+)\/history$/, "get_habit_history"],
+  ["GET", /^\/api\/v1\/events$/, "list_events"],
+  ["POST", /^\/api\/v1\/events$/, "create_event"],
+  ["PATCH", /^\/api\/v1\/events\/(?<id>[\w-]+)$/, "update_event"],
+  ["GET", /^\/api\/v1\/settings$/, "get_settings"],
+  ["POST", /^\/api\/v1\/settings$/, "set_setting"],
+  ["POST", /^\/api\/v1\/demo\/load$/, "load_demo_data"],
+  ["POST", /^\/api\/v1\/demo\/clear$/, "clear_demo_data"],
+  ["GET", /^\/api\/v1\/inbox$/, "list_inbox"],
+  ["POST", /^\/api\/v1\/inbox\/process$/, "process_inbox"],
+  ["POST", /^\/api\/v1\/briefings\/refresh$/, "refresh_briefings"],
   ["GET", /^\/api\/v1\/approvals$/, "list_approvals"],
   ["POST", /^\/api\/v1\/approvals\/(?<id>[\w-]+)\/approve$/, "approve_action"],
   ["POST", /^\/api\/v1\/approvals\/(?<id>[\w-]+)\/reject$/, "reject_action"],
@@ -55,8 +83,8 @@ export async function handleApi(request: Request, env: Env, ctx: Ctx): Promise<R
     let input: Record<string, unknown> = {};
     if (method === "GET") {
       for (const [k, val] of url.searchParams) {
-        const multi = ["status", "priority"].includes(k);
-        input[k] = multi ? val.split(",") : val;
+        const multi = ["status", "priority", "horizon", "module"].includes(k) && val.includes(",");
+        input[k] = multi ? val.split(",") : k === "status" || k === "priority" ? [val] : val;
       }
     } else {
       const raw = await request.text();

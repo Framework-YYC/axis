@@ -18,7 +18,7 @@ export interface RotationStatus {
 export const DEFAULT_ROTATION: RotationConfig = { anchorDate: "2026-11-16", onDays: 14, offDays: 7 };
 
 const DAY = 86_400_000;
-function toDays(date: string): number {
+export function toDays(date: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!m) throw new RangeError(`Invalid date: ${date}`);
   return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / DAY);

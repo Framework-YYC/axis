@@ -1,288 +1,148 @@
-import { BarChart3, Plus, Sparkles, Spline, Grip } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertTriangle, ArrowRight, Plus } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { DotMatrix, SegBar, Spark, type ChartMode } from "../components/charts";
+import { MODULE_IDS, MODULES_META } from "../../shared/modules";
+import { addDays } from "../../shared/rotation";
+import { horizonOf } from "../../shared/horizons";
+import { EventEditor, GoalEditor, HabitEditor, TaskEditor } from "../components/editors";
+import { ASSISTANT_ICONS } from "../components/nav";
+import { EventRow, GoalCard, HabitRow } from "../components/records";
 import { TaskLine } from "../components/TaskLine";
-import { Btn, IconToggle, LinkBtn, PageHeader, Panel, Segmented, StatLine, Status, Tabs, Tag, Widget, cx } from "../components/ui";
-import { accounts, bills, events, goals, netWorthTrend, nextPayday, scheduleLoad, steps, stepsGoal, waterGoalMl, waterStartMl, weight, type EventKind } from "../data/synthetic";
-import { categoryName } from "../lib/categories";
+import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
+import { SegBar } from "../components/charts";
+import { fillTicks } from "../../shared/viz";
 import { useData } from "../lib/data";
-import { localToday, pretty, relative, shift, ymd } from "../lib/dates";
-import { ageLabel, useNow } from "../lib/useNow";
-import { formatMoney, sumMinor } from "../../shared/money";
-import { DEFAULT_ROTATION, rotationStatus } from "../../shared/rotation";
-import { clockLabel, fillTicks, hourFraction, pad2, rotationTicks } from "../../shared/viz";
-import { formatVolume, formatWeight } from "../../shared/units";
+import { pretty } from "../lib/dates";
+import { byUrgency, isOpen } from "../lib/taskUi";
+import type { CalEvent, Goal, Habit, Task } from "../lib/types";
 
-type Range = "today" | "7d" | "30d";
-const KIND_DOT: Record<EventKind, string> = {
-  Work: "bg-ink", Personal: "border-2 border-ink", Training: "bg-lime ring-2 ring-ink", Health: "border-2 border-[var(--lime-deep)]", Finance: "bg-amber", Travel: "bg-faint",
-};
+type Editing = { kind: "task"; task?: Task } | { kind: "goal"; goal?: Goal } | { kind: "habit"; habit?: Habit } | { kind: "event"; event?: CalEvent } | null;
 
-function split(minor: number) {
-  const s = formatMoney(minor);
-  const i = s.lastIndexOf(".");
-  return [s.slice(0, i), s.slice(i)] as const;
-}
-
-interface Attention { key: string; ref: string; age: string; title: string; sub: string; primary: { label: string; run?: () => void; to?: string }; secondary?: { label: string; run?: () => void; to?: string } }
-
-export default function Dashboard() {
-  const { tasks, approvals, source, complete, reopen, decide } = useData();
-  const now = useNow();
-  const today = localToday();
-  const [range, setRange] = useState<Range>("today");
-  const [mode, setMode] = useState<ChartMode>("dots");
-  const [tab, setTab] = useState<"today" | "overdue" | "done">("today");
-  const [water, setWater] = useState(waterStartMl);
-  const demoSuffix = source === "demo";
-
-  const open = useMemo(() => tasks.filter((t) => t.status !== "completed" && !t.archivedAt), [tasks]);
-  const dueToday = open.filter((t) => t.dueDate === today);
-  const overdue = open.filter((t) => t.dueDate && t.dueDate < today);
-  const active = open.filter((t) => t.status === "in_progress");
-  const doneToday = tasks.filter((t) => t.status === "completed" && t.completedAt && ymd(new Date(t.completedAt)) === today);
-  const outstanding = dueToday.length + overdue.length;
-
-  const evs = events();
-  const todayEvents = evs.filter((e) => e.day === today && e.time !== "—").sort((a, b) => a.time.localeCompare(b.time));
-  const clock = clockLabel(now);
-  const nextEvent = todayEvents.find((e) => e.time >= clock) ?? evs.find((e) => e.day > today && e.time !== "—");
-  const payday = nextPayday();
-  const paydayIn = Math.round((new Date(payday).getTime() - new Date(today).getTime()) / 86_400_000);
-
-  // Hero chart data per range. Today = synthetic schedule load by hour; 7 and 30 days = real tasks due per day plus synthetic events.
-  const hero = useMemo(() => {
-    if (range === "today") {
-      const sum = scheduleLoad.Work.map((_, i) => scheduleLoad.Work[i] + scheduleLoad.Personal[i] + scheduleLoad.Training[i]);
-      const idx = nextEvent && nextEvent.day === today ? Number(nextEvent.time.slice(0, 2)) : undefined;
-      return {
-        values: sum, series: Object.entries(scheduleLoad).map(([name, values]) => ({ name, values })), labels: Array.from({ length: 24 }, (_, i) => pad2(i)), labelEvery: 3,
-        now: hourFraction(now), nowLabel: `NOW ${clock}`, unit: "items", big: outstanding, caption: `open today · ${overdue.length} overdue`, annotation: idx !== undefined && nextEvent ? { index: idx, text: `${nextEvent.time} · ${nextEvent.title.toUpperCase()}`.slice(0, 26) } : undefined, aria: "Schedule load by hour for today",
-      };
-    }
-    const days = range === "7d" ? 7 : 30;
-    const dates = Array.from({ length: days }, (_, i) => shift(today, i));
-    const taskCounts = dates.map((d) => open.filter((t) => t.dueDate === d).length);
-    const evCounts = dates.map((d) => evs.filter((e) => e.day === d).length);
-    return {
-      values: taskCounts.map((c, i) => c + evCounts[i]), series: [{ name: "Tasks", values: taskCounts }, { name: "Events", values: evCounts }],
-      labels: dates.map((d) => (range === "7d" ? pretty(d, { weekday: "narrow" }) : String(Number(d.slice(8)))), ), labelEvery: range === "7d" ? 1 : 5,
-      now: undefined, nowLabel: undefined, unit: "items", big: taskCounts.reduce((a, b) => a + b, 0), caption: `tasks due in the next ${days} days`, annotation: undefined, aria: `Items per day, next ${days} days`,
-    };
-  }, [range, now, clock, nextEvent, today, open, evs, outstanding, overdue.length]);
-
-  // Items that need the owner: pending approvals, overdue tasks, bills due soon.
-  const attention: Attention[] = [
-    ...approvals.map((a) => ({ key: a.id, ref: "APR", age: ageLabel(a.createdAt, now), title: a.summary, sub: `Requested by ${a.requestedBy}`, primary: { label: "Approve", run: () => void decide(a.id, true) }, secondary: { label: "Decline", run: () => void decide(a.id, false) } })),
-    ...overdue.slice(0, 2).map((t) => ({ key: t.id, ref: "TSK", age: relative(t.dueDate!, today).replace(" days overdue", "d"), title: t.title, sub: `${categoryName(t.category) || "Task"} · overdue`, primary: { label: "Complete", run: () => void complete(t.id) }, secondary: { label: "Open", to: "/tasks?view=overdue" } })),
-    ...bills().filter((b) => b.due <= shift(today, 3)).map((b) => ({ key: b.name, ref: "BILL", age: relative(b.due, today), title: `${b.name} · ${formatMoney(b.amount)}`, sub: "Finance · synthetic", primary: { label: "View", to: "/finance#cashflow" } })),
-  ];
-  const first = attention[0];
-
-  const netWorth = sumMinor(accounts.map((a) => a.balance));
-  const assets = sumMinor(accounts.filter((a) => a.balance > 0).map((a) => a.balance));
-  const debts = -sumMinor(accounts.filter((a) => a.balance < 0).map((a) => a.balance));
-  const [nwDollars, nwCents] = split(netWorth);
-  const rot = rotationStatus(today, DEFAULT_ROTATION);
-  const priorityList = [...overdue, ...dueToday, ...active.filter((t) => t.dueDate !== today && !(t.dueDate && t.dueDate < today))];
-  const list = tab === "today" ? priorityList : tab === "overdue" ? overdue : doneToday;
-  const lastWeight = weight[weight.length - 1].kg;
-
-  const timeline = todayEvents.filter((e) => e.time < clock);
-  const upcoming = [...todayEvents.filter((e) => e.time >= clock), ...evs.filter((e) => e.day === shift(today, 1))];
+export default function Overview() {
+  const { tasks, goals, habits, events, approvals, inbox, activity, today, weekStart, source, loading, error, completeTask, reopenTask } = useData();
+  const [edit, setEdit] = useState<Editing>(null);
+  const open = tasks.filter(isOpen);
+  const at = (h: string) => open.filter((t) => horizonOf(t.dueDate, today, weekStart) === h).sort(byUrgency);
+  const overdue = at("overdue"), dueToday = at("today"), tomorrow = at("tomorrow");
+  const thisWeek = open.filter((t) => { const h = horizonOf(t.dueDate, today, weekStart); return h === "this_week" || h === "tomorrow"; }).sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "") || byUrgency(a, b));
+  const doneToday = tasks.filter((t) => t.status === "completed" && t.completedAt?.slice(0, 10) === today).length;
+  const todaysEvents = events.filter((e) => e.date === today && e.status === "scheduled");
+  const nextEvents = events.filter((e) => e.date > today && e.date <= addDays(today, 7) && e.status === "scheduled").slice(0, 6);
+  const activeGoals = goals.filter((g) => g.status === "active");
+  const dueHabits = habits.filter((h) => h.status === "active" && h.today.applies);
+  const habitsDone = dueHabits.filter((h) => h.today.done).length;
+  const inboxProblems = inbox.filter((r) => r.status === "rejected" || r.status === "error").length;
+  const toggle = (t: Task) => void (t.status === "completed" ? reopenTask(t.id) : completeTask(t.id));
+  const openTask = (t: Task) => setEdit({ kind: "task", task: t });
+  const empty = !loading && tasks.length + goals.length + habits.length + events.length === 0;
 
   return (
-    <>
-      <PageHeader
-        crumb="OVERVIEW"
-        title="Overview"
-        subtitle={`${pretty(today, { weekday: "long", day: "numeric", month: "long" })} · ${clock}`}
-        controls={<Segmented<Range> label="Chart range" value={range} onChange={setRange} options={[{ value: "today", label: "Today" }, { value: "7d", label: "7 days" }, { value: "30d", label: "30 days" }]} />}
-        tag={<Tag>{source === "live" ? "Tasks live · finance, health, schedule, goals synthetic" : source === "demo" ? "Local preview · all data synthetic" : "Offline"}</Tag>}
-      />
+    <div>
+      <PageHeader crumb="OVERVIEW" title="Overview" subtitle={`${pretty(today, { weekday: "long", day: "numeric", month: "long" })} · all five modules`} />
+      {source !== "live" && <p role="alert" className="panel-dim mb-4 p-3.5 text-[13px]">{error}</p>}
+      {error && source === "live" && <p role="alert" className="panel-dim mb-4 p-3.5 text-[13px] text-red">{error}</p>}
+      {empty && (
+        <div className="panel-dim mb-4 p-5 text-[13.5px]">
+          <p className="font-medium">Nothing here yet.</p>
+          <p className="mt-1 text-muted">Axis holds no records. Add a task, or load the clearly labelled synthetic demonstration set from <Link className="underline" to="/settings#data">Settings</Link> to see every screen populated.</p>
+        </div>
+      )}
 
-      <div className="stagger grid grid-cols-1 gap-3 md:grid-cols-6 md:gap-4 lg:grid-cols-12">
-        {/* Hero */}
-        <Panel id="overview" className="flex flex-col p-4 md:col-span-6 md:p-5 lg:col-span-8">
-          <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-              <h2 className="text-[15px] font-medium tracking-tight">{range === "today" ? "Today" : range === "7d" ? "Next 7 days" : "Next 30 days"}</h2>
-              <span className="mono flex flex-wrap items-center gap-x-3"><span><i className="mr-1.5 inline-block size-2 rounded-full bg-ink align-middle" />Elapsed</span><span><i className="mr-1.5 inline-block size-2 rounded-full border border-faint align-middle" />Upcoming</span></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <IconToggle<ChartMode> label="Chart type" value={mode} onChange={setMode} options={[{ value: "dots", icon: Grip, label: "Dot matrix" }, { value: "lines", icon: Spline, label: "Fine lines" }, { value: "bars", icon: BarChart3, label: "Bars" }]} />
-              <LinkBtn to="/calendar">Open calendar</LinkBtn>
-            </div>
-          </header>
-          <div className="mb-4 grid gap-4 lg:grid-cols-[168px_minmax(0,1fr)] lg:gap-5">
-            <div className="flex flex-col">
-              <p className="display num text-[84px] md:text-[92px]">{hero.big}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="pill pill-lime">↑ {doneToday.length} done today</span>
-              </div>
-              <p className="mono mt-2 !normal-case !tracking-[0.02em]">{hero.caption}</p>
-              <div className="mt-4">
-                <StatLine label="Done today" value={doneToday.length} />
-                <StatLine label="Overdue" value={overdue.length} tone={overdue.length ? "bad" : undefined} />
-                <StatLine label="In progress" value={active.length} />
-              </div>
-            </div>
-            <div className="min-w-0 self-end">
-              <DotMatrix values={hero.values} series={hero.series} mode={mode} now={hero.now} nowLabel={hero.nowLabel} labels={hero.labels} labelEvery={hero.labelEvery} unit={hero.unit} annotation={hero.annotation} ariaLabel={hero.aria} maxDots={13} />
-            </div>
-          </div>
-          <div className="panel-dim mt-auto flex flex-wrap items-center gap-3 p-2.5 pr-3 lg:mt-auto">
-            <span className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-[var(--rail)] text-white"><Sparkles size={16} aria-hidden /></span>
-            <p className="min-w-[200px] flex-1 text-[13px] leading-snug">
-              <strong className="font-semibold">{nextEvent ? `${nextEvent.title} at ${nextEvent.time}.` : "Nothing else scheduled today."}</strong>{" "}
-              <span className="text-muted">Payday is {paydayIn <= 0 ? "today" : `in ${paydayIn} days`}.{overdue.length ? ` ${overdue.length} overdue.` : " Nothing overdue."}</span>
-            </p>
-            <div className="flex items-center gap-2">
-              <Link to="/tasks?view=today" className="btn btn-primary !min-h-9 !px-4 !text-[12.5px]">Plan the day</Link>
-              <Link to="/calendar" className="btn btn-soft !min-h-9 !px-3.5 !text-[12.5px]">Schedule →</Link>
-            </div>
-          </div>
-        </Panel>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[["Due today", dueToday.length, "/tasks?h=today"], ["Overdue", overdue.length, "/tasks?h=overdue"], ["Next 7 days", thisWeek.length, "/tasks?h=this_week"], ["Done today", doneToday, "/tasks?h=done"]].map(([l, n, to]) => (
+          <Link key={l as string} to={to as string} className="panel p-4 md:p-5">
+            <p className="mono">{l}</p>
+            <p className={`num mt-1 text-[44px] font-extralight leading-none tracking-tight ${l === "Overdue" && (n as number) > 0 ? "text-red" : ""}`}>{n}</p>
+          </Link>
+        ))}
+      </div>
 
-        {/* Needs you */}
-        <Panel label="Needs you" tabIndex={0} onKeyDown={(e) => { if (e.target !== e.currentTarget || !first) return; if (e.key === "Enter") first.primary.run?.(); if (e.key === "Escape") first.secondary?.run?.(); }} className="flex flex-col p-4 outline-offset-4 md:col-span-6 md:p-5 lg:col-span-4">
-          <header className="mb-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2"><h2 className="text-[15px] font-medium tracking-tight">Needs you</h2>{attention.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-lime px-1.5 text-[11px] font-semibold text-lime-ink num">{attention.length}</span>}</div>
-            <LinkBtn to="/intelligence#approvals">Open queue</LinkBtn>
-          </header>
-          {attention.length === 0 ? <p className="mono flex-1 py-10 text-center !normal-case">Nothing needs you right now.</p> : (
-            <ul className="flex flex-1 flex-col gap-2.5">
-              {attention.slice(0, 3).map((a, i) => (
-                <li key={a.key} className={cx("rounded-[16px] p-3.5", i === 0 ? "raised" : "panel-dim")}>
-                  <div className="flex items-center justify-between gap-3"><span className="tag">{a.ref}</span><span className="mono">{a.age}</span></div>
-                  <p className="mt-2 text-[14px] font-medium leading-snug">{a.title}</p>
-                  <p className="mono mt-0.5 !normal-case !tracking-[0.02em]">{a.sub}</p>
-                  {i === 0 && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {a.primary.to ? <Link to={a.primary.to} className="btn btn-primary !min-h-9 !px-4 !text-[12.5px]">{a.primary.label}</Link> : <Btn variant="primary" kbd="↵" onClick={a.primary.run} className="!min-h-9 !px-4 !text-[12.5px]">{a.primary.label}</Btn>}
-                      {a.secondary && (a.secondary.to ? <Link to={a.secondary.to} className="btn btn-soft !min-h-9 !px-4 !text-[12.5px]">{a.secondary.label}</Link> : <Btn variant="soft" kbd="Esc" onClick={a.secondary.run} className="!min-h-9 !px-4 !text-[12.5px]">{a.secondary.label}</Btn>)}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mono mt-3 !normal-case">{approvals.length ? "↵ approve · Esc decline" : demoSuffix ? "Local preview · synthetic items" : "Approvals, overdue tasks and bills due soon"}</p>
-        </Panel>
-
-        {/* Priorities */}
-        <Widget id="priorities" title="Today's priorities" tag={source === "live" ? "Live" : source === "demo" ? "Synthetic" : undefined} className="md:col-span-6 lg:col-span-7" action={<LinkBtn to="/tasks?view=today">All tasks</LinkBtn>}>
-          <div className="mb-2 border-b border-line">
-            <Tabs<"today" | "overdue" | "done"> label="Priority views" value={tab} onChange={setTab} options={[{ value: "today", label: "Priorities", count: priorityList.length }, { value: "overdue", label: "Overdue", count: overdue.length }, { value: "done", label: "Done", count: doneToday.length }]} />
-          </div>
-          {list.length === 0 ? <p className="mono py-8 text-center !normal-case">{tab === "today" ? "Clear. Nothing urgent." : tab === "overdue" ? "Nothing overdue." : "Nothing completed yet today."}</p> : (
-            <ul>{list.slice(0, 6).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={(x) => (x.status === "completed" ? void reopen(x.id) : void complete(x.id))} />)}</ul>
-          )}
-        </Widget>
-
-        {/* Briefing */}
-        <Widget id="briefing" title="Daily briefing" tag="Synthetic" className="md:col-span-3 lg:col-span-5">
-          <p className="text-[22px] font-light leading-[1.2] tracking-tight">{outstanding === 0 ? "A clear day." : `${outstanding} ${outstanding === 1 ? "task needs" : "tasks need"} you today.`} {todayEvents.length} events{nextEvent && nextEvent.day === today ? `, next at ${nextEvent.time}` : ""}.</p>
-          <dl className="mt-4 divide-y divide-[var(--line)] text-[13px]">
-            {[
-              ["Schedule", todayEvents.map((e) => `${e.time} ${e.title}`).slice(0, 2).join(" · ") || "Nothing scheduled"],
-              ["Money", `${bills()[0].name} ${relative(bills()[0].due, today).toLowerCase()} · ${formatMoney(bills()[0].amount)}`],
-              ["Rotation", `Day ${rot.dayInPhase} of ${rot.phaseLength} · ${rot.daysRemaining} days left`],
-              ["Health", `Water ${formatVolume(water, "metric")} of ${formatVolume(waterGoalMl, "metric")} · ${steps[steps.length - 1].s.toLocaleString()} steps`],
-            ].map(([k, v]) => (
-              <div key={k} className="flex gap-3 py-2"><dt className="mono w-16 shrink-0 pt-0.5">{k}</dt><dd className="min-w-0 flex-1">{v}</dd></div>
-            ))}
-          </dl>
-          <p className="mono mt-auto pt-3 !normal-case">Briefings an assistant imports appear here after your review.</p>
-        </Widget>
-
-        {/* Schedule */}
-        <Widget id="schedule" title="Upcoming schedule" tag="Synthetic" className="md:col-span-3 lg:col-span-5" action={<LinkBtn to="/calendar?view=day">Day view</LinkBtn>}>
-          <ol className="relative space-y-0.5 text-[13.5px]">
-            {timeline.map((e) => (
-              <li key={e.title} className="flex items-center gap-3 py-1.5 opacity-55"><span className="mono num w-11">{e.time}</span><i className={cx("block size-2.5 shrink-0 rounded-full", KIND_DOT[e.kind])} /><span className="min-w-0 flex-1 truncate">{e.title}</span></li>
-            ))}
-            <li className="flex items-center gap-3 py-1" aria-label={`Now ${clock}`}>
-              <span className="mono num w-11 !text-ink">{clock}</span>
-              <i className="live-dot block size-2.5 shrink-0 rounded-full bg-lime ring-2 ring-ink" />
-              <span className="h-px flex-1 border-t border-dashed border-ink/40" />
-              <span className="mono !text-ink">Now</span>
-            </li>
-            {upcoming.slice(0, 5).map((e, i) => (
-              <li key={`${e.day}${e.title}`} className="flex items-center gap-3 py-1.5">
-                <span className="mono num w-11">{e.day === today ? e.time : i === 0 || upcoming[i - 1].day !== e.day ? "TMR" : ""}</span>
-                <i className={cx("block size-2.5 shrink-0 rounded-full", KIND_DOT[e.kind])} />
-                <span className="min-w-0 flex-1 truncate">{e.title}{e.day !== today ? <span className="mono ml-2">{e.time}</span> : null}</span>
-                <span className="mono hidden sm:inline">{e.kind}</span>
-              </li>
-            ))}
-          </ol>
-        </Widget>
-
-        {/* Finance */}
-        <Widget id="finance" title="Financial overview" tag="Synthetic · CAD" className="md:col-span-6 lg:col-span-7" action={<LinkBtn to="/finance">Open finance</LinkBtn>}>
-          <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div>
-              <p className="mono">Net worth</p>
-              <p className="display num mt-1.5 text-[52px] md:text-[60px]">{nwDollars}<span className="text-[26px] text-faint">{nwCents}</span></p>
-              <div className="mt-2 flex items-center gap-2"><span className="pill pill-lime">↑ 2.8% this month</span></div>
-              <Spark values={netWorthTrend.map((p) => p.v)} label="Net worth over six months, rising" className="mt-3 max-w-[220px]" />
-              <div className="mt-2 max-w-[260px]">
-                <StatLine label="Assets" value={formatMoney(assets, { compact: true })} />
-                <StatLine label="Liabilities" value={formatMoney(debts, { compact: true })} />
-                <StatLine label="Next payday" value={pretty(payday, { weekday: "short", day: "numeric", month: "short" })} />
-              </div>
-            </div>
-            <div>
-              <p className="mono mb-2">Bills due</p>
+      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="space-y-3">
+          <Widget id="priorities" title="Today's priorities" count={dueToday.length + overdue.length} action={<Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "task" })}>Task</Btn>}>
+            {overdue.length + dueToday.length === 0 ? <Empty>Nothing due today.</Empty> : (
               <ul>
-                {bills().slice(0, 4).map((b) => (
-                  <li key={b.name} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0">
-                    <div className="min-w-0 flex-1"><p className="truncate text-[13.5px]">{b.name}</p><p className="mono mt-0.5">{relative(b.due, today)}</p></div>
-                    {b.due <= shift(today, 2) && <Status tone="bad">Soon</Status>}
-                    <span className="num text-[13.5px] font-medium">{formatMoney(b.amount)}</span>
-                  </li>
-                ))}
+                {[...overdue, ...dueToday].slice(0, 12).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={openTask} />)}
               </ul>
-            </div>
-          </div>
-        </Widget>
+            )}
+            {tomorrow.length > 0 && <p className="mono mt-3 !normal-case">Tomorrow: {tomorrow.length} task{tomorrow.length === 1 ? "" : "s"}, starting with "{tomorrow[0].title}"</p>}
+          </Widget>
+          <Widget id="schedule" title="Schedule" tag="Today and next 7 days" action={<Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "event" })}>Event</Btn>}>
+            {todaysEvents.length + nextEvents.length === 0 ? <Empty>No events in the next week.</Empty> : (
+              <>
+                {todaysEvents.length > 0 && <ul className="mb-2">{todaysEvents.map((e) => <EventRow key={e.id} e={e} onOpen={(x) => setEdit({ kind: "event", event: x })} />)}</ul>}
+                {nextEvents.length > 0 && <ul>{nextEvents.map((e) => <li key={e.id} className="flex items-center gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0"><span className="mono w-[74px] shrink-0">{pretty(e.date, { weekday: "short", day: "numeric" })}</span><button className="min-w-0 flex-1 truncate text-left" onClick={() => setEdit({ kind: "event", event: e })}>{e.title}</button><span className="mono">{e.startTime ?? "All day"}</span></li>)}</ul>}
+              </>
+            )}
+          </Widget>
+          <Widget title="Due this week" count={thisWeek.length}>
+            {thisWeek.length === 0 ? <Empty>Nothing else due this week.</Empty> : <ul>{thisWeek.slice(0, 8).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={openTask} />)}</ul>}
+          </Widget>
+        </div>
 
-        {/* Rotation */}
-        <Widget id="rotation" title="Work rotation" className="md:col-span-3 lg:col-span-4" action={<Status tone={rot.phase === "on" ? "lime" : "ok"}>{rot.phase === "on" ? "Working" : "Off"}</Status>}>
-          <p className="display num text-[56px]">{rot.dayInPhase}<span className="ml-2 text-[20px] font-light tracking-normal text-muted">of {rot.phaseLength}</span></p>
-          <p className="mono mt-2">{rot.phase === "on" ? "On rotation" : "Time off"} · {rot.daysRemaining === 0 ? "last day" : `${rot.daysRemaining} days left`}</p>
-          <SegBar ticks={rotationTicks(today, DEFAULT_ROTATION)} label={`Rotation: day ${rot.dayInPhase} of ${rot.phaseLength}, ${DEFAULT_ROTATION.onDays} on and ${DEFAULT_ROTATION.offDays} off`} height={26} className="mt-4" />
-          <p className="mono mt-3 !normal-case">Changes {pretty(rot.nextChange, { weekday: "short", day: "numeric", month: "short" })} · {DEFAULT_ROTATION.onDays} on / {DEFAULT_ROTATION.offDays} off</p>
-        </Widget>
+        <div className="space-y-3">
+          <Widget title="Needs attention" count={approvals.length + overdue.length + inboxProblems}>
+            <ul className="space-y-2 text-[13.5px]">
+              <li className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><AlertTriangle size={14} aria-hidden />Overdue tasks</span><Status tone={overdue.length ? "bad" : "ok"}>{overdue.length}</Status></li>
+              <li className="flex items-center justify-between gap-3"><Link to="/settings#approvals" className="underline-offset-2 hover:underline">Awaiting your approval</Link><Status tone={approvals.length ? "lime" : "ok"}>{approvals.length}</Status></li>
+              <li className="flex items-center justify-between gap-3"><Link to="/settings#activity" className="underline-offset-2 hover:underline">Assistant requests that failed</Link><Status tone={inboxProblems ? "warn" : "ok"}>{inboxProblems}</Status></li>
+            </ul>
+          </Widget>
+          <Widget id="goals" title="Active goals" count={activeGoals.length} action={<Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "goal" })}>Goal</Btn>}>
+            {activeGoals.length === 0 ? <Empty>No active goals.</Empty> : <ul className="space-y-2.5">{activeGoals.slice(0, 5).map((g) => <GoalCard key={g.id} g={g} onEdit={(x) => setEdit({ kind: "goal", goal: x })} />)}</ul>}
+          </Widget>
+          <Widget id="habits" title="Today's habits" tag={dueHabits.length ? `${habitsDone} of ${dueHabits.length} done` : undefined} action={<Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "habit" })}>Habit</Btn>}>
+            {dueHabits.length === 0 ? <Empty>No habits due today.</Empty> : (
+              <>
+                <SegBar ticks={fillTicks(Math.max(dueHabits.length, 1) * 4, habitsDone * 4, dueHabits.length * 4)} label={`${habitsDone} of ${dueHabits.length} habits done`} height={14} className="mb-3" />
+                <ul>{dueHabits.map((h) => <HabitRow key={h.id} h={h} onEdit={(x) => setEdit({ kind: "habit", habit: x })} />)}</ul>
+              </>
+            )}
+          </Widget>
+        </div>
+      </div>
 
-        {/* Health */}
-        <Widget id="health" title="Health & hydration" tag="Synthetic" className="md:col-span-3 lg:col-span-4" action={<LinkBtn to="/health">Open</LinkBtn>}>
-          <div className="flex items-end justify-between gap-3">
-            <div><p className="mono">Weight</p><p className="display num mt-1 text-[40px]">{lastWeight.toFixed(1)}<span className="ml-1.5 text-[16px] font-light tracking-normal text-muted">kg</span></p></div>
-            <Spark values={weight.map((w) => w.kg)} label={`Weight ${formatWeight(lastWeight, "metric")}, trending down`} className="w-28" />
-          </div>
-          <div className="mt-4 space-y-3.5">
-            <div><div className="mb-1.5 flex justify-between"><span className="mono">Steps</span><span className="mono num !text-ink">{steps[steps.length - 1].s.toLocaleString()} / {stepsGoal.toLocaleString()}</span></div><SegBar ticks={fillTicks(20, steps[steps.length - 1].s, stepsGoal)} label="Steps against goal" height={14} /></div>
-            <div><div className="mb-1.5 flex items-center justify-between"><span className="mono">Water</span><span className="mono num !text-ink">{formatVolume(water, "metric")} / {formatVolume(waterGoalMl, "metric")}</span></div><SegBar ticks={fillTicks(10, water, waterGoalMl, "now")} label="Water intake against goal" height={14} /></div>
-          </div>
-          <Btn variant="primary" icon={Plus} onClick={() => setWater((w) => Math.min(w + 250, 5000))} label="Add 250 millilitres of water" className="mt-4 !min-h-9 self-start !px-4 !text-[12.5px]">250 ml</Btn>
-        </Widget>
+      <section id="modules" aria-label="Modules" className="mt-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {MODULE_IDS.map((m) => {
+            const mt = open.filter((t) => t.module === m);
+            const od = mt.filter((t) => horizonOf(t.dueDate, today, weekStart) === "overdue").length;
+            const td = mt.filter((t) => t.dueDate === today).length;
+            const gs = activeGoals.filter((g) => g.module === m);
+            const hs = dueHabits.filter((h) => h.module === m);
+            const Icon = ASSISTANT_ICONS[m];
+            return (
+              <Link key={m} to={`/m/${m}`} className="panel flex flex-col gap-3 p-4">
+                <div className="flex items-center justify-between"><span className="flex items-center gap-2 text-[15px] font-medium"><Icon size={16} aria-hidden />{MODULES_META[m].label}</span><ArrowRight size={14} className="text-faint" aria-hidden /></div>
+                <dl className="grid grid-cols-3 gap-2 text-center">
+                  <div><dt className="mono">Open</dt><dd className="num text-[22px] font-light">{mt.length}</dd></div>
+                  <div><dt className="mono">Today</dt><dd className="num text-[22px] font-light">{td}</dd></div>
+                  <div><dt className="mono">Overdue</dt><dd className={`num text-[22px] font-light ${od ? "text-red" : ""}`}>{od}</dd></div>
+                </dl>
+                <p className="mono !normal-case !tracking-normal">{gs.length ? `${gs.length} goal${gs.length > 1 ? "s" : ""}, avg ${Math.round(gs.reduce((a, g) => a + g.progress, 0) / gs.length)}%` : "No active goals"} · {hs.length ? `${hs.filter((h) => h.today.done).length}/${hs.length} habits` : "no habits today"}</p>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
-        {/* Goals */}
-        <Widget id="goals" title="Goals" tag="Synthetic" className="md:col-span-6 lg:col-span-4" action={<LinkBtn to="/goals">Open goals</LinkBtn>}>
-          <ul className="grid gap-x-8 gap-y-4 md:grid-cols-2 lg:grid-cols-1">
-            {goals.map((g) => (
-              <li key={g.name}>
-                <div className="mb-1.5 flex items-baseline justify-between gap-3"><span className="truncate text-[13.5px]">{g.name}</span><span className="num text-[13px] font-medium">{g.progress}%</span></div>
-                <SegBar ticks={fillTicks(24, g.progress, 100)} label={`${g.name}: ${g.progress}%`} height={14} />
-                <p className="mono mt-1.5">{g.area} · target {g.due}</p>
+      <Widget id="activity" title="Recent assistant activity" className="mt-3">
+        {activity.length === 0 ? <Empty>No activity yet.</Empty> : (
+          <ul className="grid gap-x-8 md:grid-cols-2">
+            {activity.slice(0, 10).map((a, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0 md:[&:nth-child(2)]:border-t-0">
+                <span className="min-w-0 truncate">{a.action} <span className="text-muted">· {a.actor}</span></span>
+                <span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span>
               </li>
             ))}
           </ul>
-        </Widget>
-      </div>
-    </>
+        )}
+      </Widget>
+
+      {edit?.kind === "task" && <TaskEditor task={edit.task} onClose={() => setEdit(null)} />}
+      {edit?.kind === "goal" && <GoalEditor goal={edit.goal} onClose={() => setEdit(null)} />}
+      {edit?.kind === "habit" && <HabitEditor habit={edit.habit} onClose={() => setEdit(null)} />}
+      {edit?.kind === "event" && <EventEditor event={edit.event} onClose={() => setEdit(null)} />}
+    </div>
   );
 }

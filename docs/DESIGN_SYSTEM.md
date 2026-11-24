@@ -26,14 +26,17 @@ Accent discipline: lime is used only for the counts, "now", positive deltas, act
 Pure logic lives in `shared/` (`taskViews.ts`, `viz.ts`) and is unit-tested.
 
 ## Navigation and responsive behaviour
-- **Desktop (≥ 1280 px)**: black rail + contextual secondary panel (workspace switcher, search with ⌘K, module sections, LIVE status counts, task folders, identity card) + sheet.
+- **Desktop (≥ 1280 px)**: black rail + contextual secondary panel (workspace switcher, search with ⌘K, the current page's sections, LIVE counts, the five assistant modules with open-task counts, identity card) + sheet.
 - **iPad landscape (1024-1279 px)**: rail + sheet; the contextual panel becomes scrollable chips under the header. 12-column dashboard grid.
 - **iPad portrait (768-1023 px)**: rail + sheet; 6-column grid with paired cards.
-- **iPhone (< 768 px)**: no sheet; compact header (round bell and "+" actions), floating black dock (Dashboard, Tasks, Finance, Health, More sheet), single-column stack ordered by priority.
+- **iPhone (< 768 px)**: no sheet; compact header (round bell and "+" actions), floating black dock (Overview, Tasks, Assistants sheet with the five modules, Calendar, More sheet with Goals & Habits and Settings), single-column stack ordered by priority.
 - The dashboard is intentionally asymmetric: a wide Today hero (big numeral, dot-matrix day, insight bar) beside the attention queue; priorities beside the briefing; schedule beside finance; rotation, health and goals as a trio.
 
 ## Interaction and accessibility
 Targets ≥ 40 px on touch; visible focus ring; labelled icon buttons; ARIA tabs, toggles and progress; charts have text alternatives and a live readout; reduced-motion disables animation; key hints (↵ / Esc / ⌘K) are hidden on touch. The attention card accepts Enter / Escape only while the card itself has focus.
 
 ## Data honesty
-Anything not backed by the live API carries a mono "SYNTHETIC" tag and the page header says which parts are synthetic. Demo data appears only when the page runs from the developer's machine without a Worker; on a deployed host an unreachable API is shown as an error, never as fake data.
+Anything not backed by the live API carries a mono "SYNTHETIC" tag and the page header says which parts are synthetic. Axis starts empty. Demonstration records are real rows flagged `demo`, titled "(synthetic)" and tagged SYNTHETIC wherever they appear; the owner loads and removes them in Settings. On a deployed host an unreachable API is shown as an error, never as fake data.
+
+## Modules and horizons
+The five assistant modules share one module page (`/m/<module>`, tabs Overview, Tasks, Goals, Habits, Briefing, Activity, Metrics) built from the existing Widget, Row, SegBar and Tabs components. Task rows (`TaskLine`) show the module, a repeat glyph for recurring tasks, the source assistant and a SYNTHETIC tag; tasks are grouped under collapsible horizon headings (`TaskGroups`) with the overdue group in the alert colour. Editors (`editors.tsx`) are sheets on iPhone and centred panels elsewhere. Grid children may shrink (`.grid > * { min-width: 0 }`) so long titles truncate instead of widening the page.

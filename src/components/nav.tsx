@@ -1,79 +1,79 @@
-import { Bot, CalendarDays, CheckSquare, HeartPulse, LayoutDashboard, type LucideIcon, Settings, Target, Wallet } from "lucide-react";
+import { Briefcase, CalendarDays, CheckSquare, HardHat, HeartPulse, LayoutDashboard, type LucideIcon, Settings, Sun, Target, Wallet } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { CATEGORIES } from "../lib/categories";
+import { HORIZONS, HORIZON_LABELS, horizonOf } from "../../shared/horizons";
+import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
 import { cx } from "../lib/cx";
-import { localToday } from "../lib/dates";
 import { useData } from "../lib/data";
-import { countViews } from "../../shared/taskViews";
 
-export interface Module { to: string; label: string; crumb: string; icon: LucideIcon }
+export interface Module { to: string; label: string; crumb: string; icon: LucideIcon; assistant?: ModuleId }
+export const ASSISTANT_ICONS: Record<ModuleId, LucideIcon> = { daily: Sun, health: HeartPulse, financial: Wallet, framework: Briefcase, progressive: HardHat };
+
+const assistantNav = (id: ModuleId): Module => ({ to: `/m/${id}`, label: MODULES_META[id].label, crumb: MODULES_META[id].label.toUpperCase(), icon: ASSISTANT_ICONS[id], assistant: id });
+/** Overview, Tasks, the five assistant modules, Calendar, Goals & Habits, Settings. */
 export const MODULES: Module[] = [
-  { to: "/", label: "Dashboard", crumb: "DASHBOARD", icon: LayoutDashboard },
+  { to: "/", label: "Overview", crumb: "OVERVIEW", icon: LayoutDashboard },
   { to: "/tasks", label: "Tasks", crumb: "TASKS", icon: CheckSquare },
-  { to: "/finance", label: "Finance", crumb: "FINANCE", icon: Wallet },
-  { to: "/health", label: "Health", crumb: "HEALTH", icon: HeartPulse },
+  ...MODULE_IDS.map(assistantNav),
   { to: "/calendar", label: "Calendar", crumb: "CALENDAR", icon: CalendarDays },
-  { to: "/goals", label: "Goals", crumb: "GOALS", icon: Target },
-  { to: "/intelligence", label: "Intelligence", crumb: "INTELLIGENCE", icon: Bot },
+  { to: "/goals", label: "Goals & Habits", crumb: "GOALS & HABITS", icon: Target },
   { to: "/settings", label: "Settings", crumb: "SETTINGS", icon: Settings },
 ];
+export const ASSISTANT_NAV = MODULES.filter((m) => m.assistant);
 
 export interface NavItem { to: string; label: string; count?: number; hot?: boolean; dot?: "ok" | "bad" | "warn" | "idle" }
 export interface NavGroup { label: string; items: NavItem[] }
 
+export const MODULE_TABS: Array<[string, string]> = [["overview", "Overview"], ["tasks", "Tasks"], ["goals", "Goals"], ["habits", "Habits"], ["briefing", "Briefing"], ["activity", "Activity"], ["metrics", "Metrics"]];
 const hashItems = (base: string, items: Array<[string, string]>): NavItem[] => items.map(([id, label]) => ({ to: `${base}#${id}`, label }));
 
-const VIEW_LABELS: Array<[string, string]> = [["today", "Today"], ["tomorrow", "Tomorrow"], ["week", "This week"], ["month", "This month"], ["later", "Long-term"], ["inbox", "Inbox"], ["overdue", "Overdue"], ["done", "Completed"]];
+export function moduleOf(pathname: string): Module {
+  return MODULES.find((m) => (m.to === "/" ? pathname === "/" : pathname === m.to || pathname.startsWith(`${m.to}/`))) ?? MODULES[0];
+}
 
-/** The contextual navigation for the current module, plus the live status list and (on Tasks) the category folders. */
+/** The contextual navigation for the current page, plus the live status list and the assistant shortcuts. */
 export function useNavModel(): { module: Module; groups: NavGroup[]; contextual: NavItem[] } {
   const { pathname } = useLocation();
-  const { tasks, approvals } = useData();
-  const today = localToday();
-  const counts = useMemo(() => countViews(tasks, today), [tasks, today]);
-  const module = MODULES.find((m) => (m.to === "/" ? pathname === "/" : pathname.startsWith(m.to))) ?? MODULES[0];
+  const { tasks, approvals, today, weekStart } = useData();
+  const module = moduleOf(pathname);
 
   return useMemo(() => {
+    const open = tasks.filter((t) => t.status !== "completed" && !t.archivedAt);
+    const hz = Object.fromEntries(HORIZONS.map((h) => [h, 0])) as Record<(typeof HORIZONS)[number], number>;
+    for (const t of open) hz[horizonOf(t.dueDate, today, weekStart)]++;
+    const modCount = (id: string) => open.filter((t) => t.module === id).length;
     let main: NavItem[];
-    switch (module.to) {
-      case "/tasks": main = VIEW_LABELS.map(([v, l]) => ({ to: `/tasks?view=${v}`, label: l, count: counts[v as keyof typeof counts] })); break;
-      case "/finance": main = hashItems("/finance", [["networth", "Net worth"], ["cashflow", "Cash flow"], ["budget", "Budget"], ["accounts", "Accounts"]]); break;
-      case "/health": main = hashItems("/health", [["weight", "Weight"], ["today", "Today"], ["steps", "Steps"], ["workouts", "Workouts"]]); break;
-      case "/calendar": main = [{ to: "/calendar?view=day", label: "Day" }, { to: "/calendar?view=week", label: "Week" }, { to: "/calendar?view=month", label: "Month" }]; break;
-      case "/goals": main = hashItems("/goals", [["goals", "Goals"], ["habits", "Habits"]]); break;
-      case "/intelligence": main = [{ to: "/intelligence#approvals", label: "Approvals", count: approvals.length, hot: true }, ...hashItems("/intelligence", [["assistants", "Assistants"], ["activity", "Activity"]])]; break;
-      case "/settings": main = hashItems("/settings", [["appearance", "Appearance"], ["units", "Units & currency"], ["rotation", "Work rotation"], ["security", "Security"]]); break;
-      default: main = hashItems("/", [["overview", "Overview"], ["priorities", "Priorities"], ["briefing", "Briefing"], ["schedule", "Schedule"], ["finance", "Finance"], ["health", "Health"], ["goals", "Goals"]]);
-    }
+    if (module.assistant) main = MODULE_TABS.map(([t, l]) => ({ to: `${module.to}?tab=${t}`, label: l, count: t === "tasks" ? modCount(module.assistant!) : undefined }));
+    else if (module.to === "/tasks") main = [{ to: "/tasks?h=all", label: "All open", count: open.length }, ...HORIZONS.map((h) => ({ to: `/tasks?h=${h}`, label: HORIZON_LABELS[h], count: hz[h] })), { to: "/tasks?h=done", label: "Completed" }];
+    else if (module.to === "/calendar") main = [{ to: "/calendar?view=week", label: "Week" }, { to: "/calendar?view=month", label: "Month" }, { to: "/calendar?view=day", label: "Day" }];
+    else if (module.to === "/goals") main = hashItems("/goals", [["goals", "Goals"], ["habits", "Habits"]]);
+    else if (module.to === "/settings") main = hashItems("/settings", [["preferences", "Preferences"], ["rotation", "Work rotation"], ["approvals", "Approvals"], ["assistants", "Assistants"], ["activity", "Activity"], ["data", "Demo data"], ["security", "Security"]]);
+    else main = hashItems("/", [["priorities", "Priorities"], ["schedule", "Schedule"], ["goals", "Goals"], ["habits", "Habits"], ["modules", "Modules"], ["activity", "Assistant activity"]]);
     const groups: NavGroup[] = [{ label: module.label, items: main }];
     groups.push({
       label: "Live",
       items: [
-        { to: "/tasks?view=today", label: "Due today", count: counts.today, dot: "ok" },
-        { to: "/tasks?view=overdue", label: "Overdue", count: counts.overdue, dot: "bad" },
-        { to: "/tasks?view=active", label: "In progress", count: counts.active, dot: "warn" },
-        { to: "/intelligence#approvals", label: "Needs you", count: approvals.length, hot: true },
+        { to: "/tasks?h=today", label: "Due today", count: hz.today, dot: "ok" },
+        { to: "/tasks?h=overdue", label: "Overdue", count: hz.overdue, dot: "bad" },
+        { to: "/settings#approvals", label: "Needs you", count: approvals.length, hot: true },
       ],
     });
-    if (module.to === "/tasks") {
-      groups.push({ label: "Folders", items: CATEGORIES.map(([id, name]) => ({ to: `/tasks?view=all&category=${id}`, label: name, count: tasks.filter((t) => t.category === id && t.status !== "completed" && !t.archivedAt).length })) });
-    }
+    groups.push({ label: "Assistants", items: ASSISTANT_NAV.map((m) => ({ to: m.to, label: m.label, count: modCount(m.assistant!) })) });
     return { module, groups, contextual: main };
-  }, [module, counts, approvals.length, tasks]);
+  }, [module, tasks, approvals.length, today, weekStart]);
 }
 
-const DEFAULT_VIEW: Record<string, string> = { "/tasks": "today", "/calendar": "week" };
+const DEFAULTS: Record<string, string> = { tab: "overview", h: "all", view: "week" };
 
 export function useIsActive() {
   const loc = useLocation();
   return (to: string, index = 0) => {
     const u = new URL(to, "http://x");
     if (u.pathname !== loc.pathname) return false;
-    if (u.hash) return loc.hash === u.hash || (!loc.hash && index === 0 && u.pathname !== "/tasks");
+    if (u.hash) return loc.hash === u.hash || (!loc.hash && index === 0);
     if (u.search) {
       const cur = new URLSearchParams(loc.search);
-      for (const [k, v] of u.searchParams) if ((cur.get(k) ?? (k === "view" ? DEFAULT_VIEW[u.pathname] : undefined)) !== v) return false;
+      for (const [k, v] of u.searchParams) if ((cur.get(k) ?? DEFAULTS[k]) !== v) return false;
     }
     return true;
   };
@@ -83,7 +83,6 @@ export function useIsActive() {
 export function ContextChips() {
   const { module, contextual } = useNavModel();
   const active = useIsActive();
-  if (module.to === "/tasks") return null;
   return (
     <nav aria-label={`${module.label} sections`} className="no-scrollbar -mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 xl:hidden">
       {contextual.map((it, i) => (

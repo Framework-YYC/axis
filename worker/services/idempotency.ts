@@ -1,4 +1,5 @@
 import { canonical, sha256Hex } from "../../shared/ingest";
+import { write } from "./db";
 import { fail, ok, type Ctx, type Result } from "./types";
 
 /**
@@ -17,10 +18,9 @@ export async function withIdempotency<T>(ctx: Ctx, op: string, key: string | und
   }
   const result = await fn();
   if (result.ok) {
-    await ctx.db
+    await write(ctx.db, [ctx.db
       .prepare("INSERT OR IGNORE INTO idempotency_keys (scope, key, request_hash, response, created_at) VALUES (?,?,?,?,?)")
-      .bind(ctx.actor.id, key, hash, JSON.stringify({ data: result.data }), ctx.now().toISOString())
-      .run();
+      .bind(ctx.actor.id, key, hash, JSON.stringify({ data: result.data }), ctx.now().toISOString())]);
   }
   return result;
 }

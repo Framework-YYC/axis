@@ -36,7 +36,7 @@ describe("acceptance: ChatGPT <-> Axis round trip", () => {
     const created = await tool(gpt.token, "create_task", { title: "Renew passport", category: "Personal", priority: "high", dueDate: "2026-11-25", externalId: "gpt-1" });
     expect(created.ok).toBe(true);
     const id = created.data.id as string;
-    expect(created.data.source).toEqual({ kind: "integration", name: "ChatGPT: Personal assistant" });
+    expect(created.data.source).toMatchObject({ kind: "integration", name: "ChatGPT: Personal assistant" });
     // another open task so the briefing is not empty
     await tool(gpt.token, "create_task", { title: "Book dentist", dueDate: "2026-11-26", externalId: "gpt-2" });
 

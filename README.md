@@ -1,6 +1,6 @@
 # Axis
 
-A private personal operating system: tasks, finance, health, calendar, goals and AI-assisted intelligence in one installable app (iPhone, iPad, desktop). Built on Cloudflare Workers + D1, React + TypeScript + Tailwind. Single user, Cloudflare Access protected. ChatGPT and other automations use the same service layer through REST and MCP.
+A private personal operating system organised around five assistants (Daily, Health, Financial, Framework, Progressive): one task list with computed time horizons, goals, habits, calendar, per-module briefings, and a controlled write path for ChatGPT projects. Installable app (iPhone, iPad, desktop). Built on Cloudflare Workers + D1, React + TypeScript + Tailwind. Single user, Cloudflare Access protected. ChatGPT and other automations use the same service layer through REST and MCP.
 
 > Public repository by design (free Actions, personal project): no secret is stored here and no control relies on the source being private. See docs/SECURITY.md.
 >
@@ -9,13 +9,16 @@ A private personal operating system: tasks, finance, health, calendar, goals and
 ## Develop
 ```bash
 npm install
-npm run dev                 # UI only (Vite). No API: tasks fall back to labelled demo data.
+npm run dev                 # UI only (Vite). Shows 'no API'; run the Worker for live data.
 cp .dev.vars.example .dev.vars
 npm run build && npm run db:migrate:local && npm run dev:worker   # full app on http://localhost:8787 (local D1)
 npm test                    # unit + integration + security + acceptance tests
 npm run typecheck
 ```
 Local sign-in is a loopback-only development identity; deployed environments require Cloudflare Access.
+
+## Demonstration data
+Axis starts empty. Settings > Demonstration data loads a small, labelled synthetic set (every title ends "(synthetic)") and removes it again. Operator scripts that write to D1 directly must go through the service layer or open the write gate; see migrations/README.md.
 
 ## Connect an assistant locally
 With the dev Worker running, create an integration as the owner:
@@ -26,7 +29,7 @@ The response contains a one-time `axk_…` token. Use it as `Authorization: Bear
 `wrangler.jsonc` defines `staging` (axis-staging.frameworktools.ca) and `production` (axis.frameworktools.ca) with placeholder IDs, so deploys fail until real IDs are supplied after approval. Steps are in docs/SECURITY.md ("Required before any real data").
 
 ## Docs
-docs/ARCHITECTURE.md · PRODUCT_REQUIREMENTS.md · ROADMAP.md · DESIGN_SYSTEM.md · SECURITY.md · CHATGPT_INTEGRATION.md · CHANGELOG.md · migrations/README.md
+docs/ARCHITECTURE.md · ASSISTANT_INTEGRATION.md · PRODUCT_REQUIREMENTS.md · ROADMAP.md · DESIGN_SYSTEM.md · SECURITY.md · CHATGPT_INTEGRATION.md · CHANGELOG.md · migrations/README.md
 
 Screenshots (synthetic data): docs/screenshots/ (light and dark, desktop, iPad landscape and portrait, iPhone). Design: docs/DESIGN_SYSTEM.md.
 

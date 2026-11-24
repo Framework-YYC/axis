@@ -26,6 +26,15 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 - **Untrusted content**: assistant and imported text is stored and rendered as inert text.
 - Synthetic data only. No confidential employer information. No banking credentials are ever stored.
 
+## Assistant-centred model (2026-11-24)
+- **Write guard.** Every core table has `BEFORE INSERT/UPDATE/DELETE` triggers that abort while `write_gate` is closed; the service layer opens it only inside its own D1 batch. Direct SQL from any connection (including ChatGPT's Cloudflare connector) is refused for Axis data. This is a **tripwire, not a hard barrier**: the gate row must be writable by the service, so a caller with full SQL that deliberately opens it is not stopped.
+- **Inbox.** The only table an SQL-only assistant may write is `assistant_inbox` (validated by trigger: known op, valid JSON under 20 000 characters, `pending` only, at most 200 waiting). Axis applies each row through the same service layer, with a module-confined identity, validation, idempotency (`inbox:<id>`), approvals and audit (`via = inbox`). Results are written back to the row.
+- **Module separation** is enforced in the services: a request for module X can only create records in X and can only update records in X (also after an approval is granted). The Daily overview briefing exposes counts and next due dates for other modules, never titles.
+- **Self-declared identity over SQL.** The connector carries no per-project identity, so `assistant_inbox.assistant` is a claim. Per-assistant credentials (REST/MCP tokens limited to modules) are the fix and remain available.
+- **The Cloudflare connection is account-wide.** It can reach every D1 database in the Framework account, including databases that are not Axis. Axis cannot restrict that from inside Axis. Owner decision needed: scope the connection to the Axis staging database, or move Axis to its own account, before real data. Until then Axis holds synthetic data only.
+- **Demo data** is flagged (`demo = 1`), titled "(synthetic)", labelled in the UI, and removable by the owner in one action. Axis starts empty.
+- Untrusted input: task text, notes, `sourceRef` and email-derived text are stored and rendered as inert text.
+
 ## Staging provisioning status (2026-11-24)
 Done: dedicated D1 `axis-staging` (additive migrations applied), Worker `axis-staging` on `axis-staging.frameworktools.ca`, Access application (owner-only) plus a path-only bypass for `/api/v1` and `/mcp`, `OWNER_EMAIL` secret. The full build (with static assets) is deployed by the `Deploy staging` workflow, which passed its unauthenticated smoke test. See docs/STAGING_DEPLOYMENT.md.
 

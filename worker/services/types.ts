@@ -1,11 +1,15 @@
+import type { ModuleId } from "../../shared/modules";
+
 export const SCOPES = [
   "dashboard:read", "tasks:read", "tasks:write",
   "finance:read", "finance:write", "health:read", "health:write",
-  "goals:read", "goals:write", "intelligence:read", "intelligence:write", "activity:read",
+  "goals:read", "goals:write", "habits:read", "habits:write", "calendar:read", "calendar:write", "briefing:read",
+  "intelligence:read", "intelligence:write", "activity:read",
 ] as const;
 export type Scope = (typeof SCOPES)[number];
 
-export type Channel = "web" | "rest" | "mcp";
+/** inbox = a request an assistant added to assistant_inbox and Axis applied through the service layer. */
+export type Channel = "web" | "rest" | "mcp" | "inbox";
 
 export interface Actor {
   type: "user" | "integration";
@@ -15,10 +19,16 @@ export interface Actor {
   label: string;
   scopes: ReadonlySet<string>;
   channel: Channel;
+  /** Modules this actor may read or change. Undefined = all (the owner). Enforced by every service, so REST, MCP and the inbox behave alike. */
+  modules?: ReadonlySet<string>;
+  /** Set when the actor is one of the five assistants; recorded as the source of records it creates. */
+  assistant?: ModuleId;
 }
 
 export interface Ctx {
   db: D1Database;
+  /** Cached per request by prefs.ts. */
+  prefs?: import("./prefs").Prefs;
   actor: Actor;
   requestId: string;
   now: () => Date;

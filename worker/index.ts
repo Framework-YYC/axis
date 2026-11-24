@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { finalize, json, sameOriginWrite } from "./http";
 import { handleApi } from "./routes/api";
 import { handleMcp } from "./routes/mcp";
+import { maintenance, processInbox } from "./services/inbox";
 import { authenticateBearer } from "./services/integrations";
 import { ownerActor, type Actor, type Channel, type Ctx } from "./services/types";
 
@@ -10,7 +11,7 @@ const deny = (status: number, pathname: string, headers: Record<string, string> 
   finalize(new Response(status === 401 ? "Unauthorized" : status === 403 ? "Forbidden" : "Service unavailable", { status, headers: { "Content-Type": "text/plain", ...headers } }), pathname);
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, exec?: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const isMcp = pathname === "/mcp";
@@ -45,6 +46,8 @@ export default {
       // Browser sessions carry ambient cookies, so writes must be same-origin JSON. Bearer calls have no ambient credential.
       if (!viaBearer && !sameOriginWrite(request)) return finalize(json({ success: false, error: { code: "forbidden", message: "Cross-origin or non-JSON write" } }, 403), pathname);
       const ctx: Ctx = { db: env.AXIS_DB, actor, requestId: crypto.randomUUID(), now: () => new Date() };
+      // The owner's app polls the task list; applying any waiting assistant requests first keeps it current between cron runs.
+      if (!viaBearer && request.method === "GET" && pathname === "/api/v1/tasks" && exec) exec.waitUntil(processInbox(env.AXIS_DB).then(() => undefined).catch(() => undefined));
       try {
         const res = isMcp ? await handleMcp(request, env, ctx) : await handleApi(request, env, ctx);
         res.headers.set("X-Request-Id", ctx.requestId);
@@ -58,5 +61,10 @@ export default {
 
     if (request.method !== "GET" && request.method !== "HEAD") return finalize(new Response("Method not allowed", { status: 405 }), pathname);
     return finalize(await env.ASSETS.fetch(request), pathname);
+  },
+
+  /** Every minute: apply pending assistant requests through the service layer and keep stored briefings current. */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(maintenance(env.AXIS_DB).then((r) => { if (r.processed) console.log(JSON.stringify({ event: "inbox_processed", count: r.processed })); }).catch(() => console.error(JSON.stringify({ event: "maintenance_failed" }))));
   },
 } satisfies ExportedHandler<Env>;

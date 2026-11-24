@@ -1,10 +1,10 @@
-import { ChevronsUpDown, MoreHorizontal, Monitor, Moon, Search, Sun, X } from "lucide-react";
+import { Bot, CalendarDays, ChevronsUpDown, LayoutDashboard, CheckSquare, MoreHorizontal, Monitor, Moon, Search, Sun, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
 import { useTheme, type ThemeMode } from "../lib/theme";
-import { MODULES, useIsActive, useNavModel, type NavGroup } from "./nav";
+import { ASSISTANT_NAV, MODULES, moduleOf, useIsActive, useNavModel, type NavGroup } from "./nav";
 import { Btn } from "./ui";
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
@@ -50,14 +50,14 @@ function ThemeButton({ className }: { className?: string }) {
 function Rail() {
   return (
     <aside aria-label="Primary" className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
-      <div className="flex flex-col items-center gap-1.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 shadow-[0_22px_34px_-16px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.04)]">
-        <Link to="/" aria-label="Axis home" className="mb-2"><LogoMark size={36} /></Link>
+      <div className="flex flex-col items-center gap-0.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 shadow-[0_22px_34px_-16px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.04)]">
+        <Link to="/" aria-label="Axis home" className="mb-1.5"><LogoMark size={36} /></Link>
         {MODULES.map((m) => (
-          <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-11 place-items-center rounded-[14px] transition-colors", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
+          <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-10 place-items-center rounded-[13px] transition-colors", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
             {({ isActive }) => (
               <>
                 {isActive && <span className="absolute -left-[7px] top-3 h-5 w-[3px] rounded-full bg-lime" />}
-                <m.icon size={19} strokeWidth={1.7} aria-hidden />
+                <m.icon size={18} strokeWidth={1.7} aria-hidden />
               </>
             )}
           </NavLink>
@@ -114,7 +114,7 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const v = q.trim();
-    if (v) navigate(`/tasks?view=all&q=${encodeURIComponent(v)}`);
+    if (v) navigate(`/tasks?h=all&q=${encodeURIComponent(v)}`);
   };
   return (
     <aside aria-label="Section" className="panel sticky top-4 hidden h-[calc(100dvh-2rem)] w-[240px] shrink-0 flex-col rounded-[22px] p-3 xl:flex">
@@ -140,47 +140,52 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
 }
 
 function Dock() {
-  const [more, setMore] = useState(false);
+  const [sheet, setSheet] = useState<null | "assistants" | "more">(null);
   const { pathname } = useLocation();
-  const { me } = useData();
-  useEffect(() => setMore(false), [pathname]);
-  const primary = MODULES.slice(0, 4);
-  const rest = MODULES.slice(4);
-  const moreActive = rest.some((m) => pathname.startsWith(m.to));
-  const Item = ({ to, label, icon: Icon, on, end }: { to: string; label: string; icon: (typeof MODULES)[number]["icon"]; on?: boolean; end?: boolean }) => (
-    <NavLink to={to} end={end} className={({ isActive }) => cx("relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", (on ?? isActive) ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
+  const { me, approvals } = useData();
+  useEffect(() => setSheet(null), [pathname]);
+  const here = moduleOf(pathname);
+  const Item = ({ to, label, icon: Icon, end }: { to: string; label: string; icon: typeof Sun; end?: boolean }) => (
+    <NavLink to={to} end={end} className={({ isActive }) => cx("relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
       <Icon size={20} strokeWidth={1.7} aria-hidden />
       {label}
     </NavLink>
   );
+  const SheetBtn = ({ id, label, icon: Icon, on }: { id: "assistants" | "more"; label: string; icon: typeof Sun; on: boolean }) => (
+    <button onClick={() => setSheet(id)} aria-haspopup="dialog" className={cx("relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", on ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
+      <Icon size={20} strokeWidth={1.7} aria-hidden />{label}
+      {id === "more" && approvals.length > 0 && <span className="absolute right-3 top-2 size-2 rounded-full bg-lime" />}
+    </button>
+  );
+  const onAssistant = !!here.assistant;
+  const onMore = here.to === "/goals" || here.to === "/settings";
   return (
     <>
       <nav aria-label="Primary" className="safe-b fixed inset-x-3 bottom-3 z-30 md:hidden">
         <ul className="grid grid-cols-5 gap-1 rounded-[30px] bg-[var(--rail)] p-1.5 shadow-[0_24px_40px_-14px_rgb(0_0_0/0.7),inset_0_1px_0_rgb(255_255_255/0.12)]">
-          {primary.map((m) => <li key={m.to}><Item to={m.to} label={m.label} icon={m.icon} end={m.to === "/"} /></li>)}
-          <li>
-            <button onClick={() => setMore(true)} aria-haspopup="dialog" className={cx("flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", moreActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
-              <MoreHorizontal size={20} strokeWidth={1.7} aria-hidden />More
-            </button>
-          </li>
+          <li><Item to="/" label="Overview" icon={LayoutDashboard} end /></li>
+          <li><Item to="/tasks" label="Tasks" icon={CheckSquare} /></li>
+          <li><SheetBtn id="assistants" label="Assistants" icon={Bot} on={onAssistant} /></li>
+          <li><Item to="/calendar" label="Calendar" icon={CalendarDays} /></li>
+          <li><SheetBtn id="more" label="More" icon={MoreHorizontal} on={onMore} /></li>
         </ul>
       </nav>
-      {more && (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More">
-          <button className="absolute inset-0 bg-black/45" aria-label="Close" onClick={() => setMore(false)} />
-          <div className="panel safe-b rise absolute inset-x-2 bottom-2 rounded-[28px] p-4">
+      {sheet && (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={sheet === "more" ? "More" : "Assistants"}>
+          <button className="absolute inset-0 bg-black/45" aria-label="Close" onClick={() => setSheet(null)} />
+          <div className="panel safe-b rise absolute inset-x-2 bottom-2 max-h-[85dvh] overflow-y-auto rounded-[28px] p-4">
             <div className="mb-3 flex items-center justify-between">
-              <span className="mono">More</span>
-              <button onClick={() => setMore(false)} aria-label="Close" className="inset grid size-9 place-items-center rounded-full"><X size={16} /></button>
+              <span className="mono">{sheet === "more" ? "More" : "Assistant modules"}</span>
+              <button onClick={() => setSheet(null)} aria-label="Close" className="inset grid size-9 place-items-center rounded-full"><X size={16} /></button>
             </div>
             <ul className="grid grid-cols-2 gap-2">
-              {rest.map((m) => (
+              {(sheet === "more" ? MODULES.filter((m) => m.to === "/goals" || m.to === "/settings") : ASSISTANT_NAV).map((m) => (
                 <li key={m.to}>
                   <NavLink to={m.to} className="raised flex h-14 items-center gap-3 rounded-[18px] px-4 text-[14px] font-medium"><m.icon size={19} strokeWidth={1.7} aria-hidden />{m.label}</NavLink>
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex items-center justify-between gap-3"><Identity compact /><ThemeSwitch /></div>
+            {sheet === "more" && <div className="mt-4 flex items-center justify-between gap-3"><Identity compact /><ThemeSwitch /></div>}
             <p className="sr-only">{me.label}</p>
           </div>
         </div>
@@ -205,7 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (searchRef.current && searchRef.current.offsetParent !== null) searchRef.current.focus();
-        else navigate("/tasks?view=all");
+        else navigate("/tasks?h=all");
       }
     };
     addEventListener("keydown", onKey);

@@ -54,11 +54,11 @@ export function Btn({ children, onClick, variant = "soft", icon: Icon, kbd, disa
 
 /** Bell and the primary "New task" pill. Compact (phone) shows round icon buttons. */
 export function HeaderActions({ compact }: { compact?: boolean }) {
-  const { approvals, tasks } = useData();
-  const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < localDay()).length;
+  const { approvals, tasks, today } = useData();
+  const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < today).length;
   return (
     <div className="flex items-center gap-2">
-      <Link to="/intelligence#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft relative !min-h-10 !w-10 !px-0">
+      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft relative !min-h-10 !w-10 !px-0">
         <Bell size={16} aria-hidden />
         {attention > 0 && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-red ring-2 ring-[var(--card-a)]" />}
       </Link>
@@ -70,11 +70,6 @@ export function HeaderActions({ compact }: { compact?: boolean }) {
     </div>
   );
 }
-function localDay() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export function PageHeader({ crumb, title, subtitle, controls, tag }: { crumb: string; title: string; subtitle?: string; controls?: ReactNode; tag?: ReactNode }) {
   return (
     <header className="mb-4 md:mb-5">

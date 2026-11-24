@@ -19,6 +19,7 @@ Private personal operating system. Separate from Framework's website, Nexus and 
 
 ## Architecture rules
 - Every capability is an entry in `worker/services/operations.ts`. REST and MCP are adapters only; the UI uses REST. Do not put business logic in routes or components.
+- Direct SQL writes to core tables are blocked by write-guard triggers; operator scripts must go through the service layer (or open `write_gate` inside the same batch). Assistants write only via `assistant_inbox` (docs/ASSISTANT_INTEGRATION.md). Module separation is enforced in the services: keep it when adding operations.
 - Money is integer minor units. Transfers are one record with a counter-account.
 - Mutations write their audit row and history row in the same batch.
 - Reuse `src/components/ui.tsx`, `charts.tsx` and the tokens in `src/styles/index.css` before adding markup or styles; follow docs/DESIGN_SYSTEM.md (silver canvas, raised/inset layers, black pills, lime only as a restrained accent, Outfit + mono). No inline scripts, no `data:` fonts, no third-party font or asset hosts (strict CSP).
@@ -27,4 +28,4 @@ Private personal operating system. Separate from Framework's website, Nexus and 
 `npm test` and `npm run typecheck` before every commit. Work on `staging`; `main` only by approved release. Update README, CHANGELOG and the relevant `docs/` page with each change.
 
 ## Map
-`docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/CHATGPT_INTEGRATION.md`, `docs/DESIGN_SYSTEM.md`, `docs/PRODUCT_REQUIREMENTS.md`, `docs/ROADMAP.md`, `migrations/README.md`.
+`docs/ARCHITECTURE.md`, `docs/ASSISTANT_INTEGRATION.md`, `docs/SECURITY.md`, `docs/CHATGPT_INTEGRATION.md`, `docs/DESIGN_SYSTEM.md`, `docs/PRODUCT_REQUIREMENTS.md`, `docs/ROADMAP.md`, `migrations/README.md`.

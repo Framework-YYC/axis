@@ -46,3 +46,13 @@ A browser cannot read HealthKit. Planned path: an Apple Shortcut (or later a com
 4. **Tailwind/Recharts bundle.** Charts add about 100 KB gzipped on chart pages; they are lazy-loaded.
 5. **Time zones.** Dates are calendar strings; "today" comes from the device (or an explicit `today` argument for assistants).
 6. **Idempotency record is written after the change**, not in the same batch; a crash between the two could allow one duplicate on retry (externalId still prevents it).
+
+## Assistant-centred architecture (2026-11-24)
+Five modules (Daily, Health, Financial, Framework, Progressive), one database, one service layer. The module is a column on tasks, goals, habits, events and the briefing; separation is enforced by the services, not by separate stores.
+
+- **Navigation:** Overview, Tasks, the five modules (`/m/<module>` with tabs Overview, Tasks, Goals, Habits, Briefing, Activity, Metrics), Calendar, Goals & Habits, Settings. Desktop: floating rail and contextual panel. iPad: rail plus chips. iPhone: floating dock (Overview, Tasks, Assistants, Calendar, More).
+- **Tasks:** one table. Time horizons (Overdue, Today, Tomorrow, This week, This month, This quarter, This year, Future, Someday) are computed in `shared/horizons.ts` from the due date, today and the owner's time zone and week start; they are never stored and are mutually exclusive. Recurrence (`shared/recurrence.ts`) creates the next occurrence once, guarded by a unique index on (series, due date).
+- **Goals** (`shared/goals.ts`): numeric or qualitative, term derived from the target date (short under 90 days, medium to one year, long beyond), milestones, progress history. **Habits** (`shared/habits.ts`): period targets, quantities, streaks, work-rotation modes (any, on, off, split).
+- **Briefings** are computed by Axis for the owner's "today" and stored (`briefings`), so an SQL-only assistant reads the same briefing the app shows. Refreshed every minute and after each applied request.
+- **Writes from SQL-only assistants:** `assistant_inbox` -> `worker/services/inbox.ts` -> `operations.ts`. See docs/ASSISTANT_INTEGRATION.md. The write gate is described in SECURITY.md.
+- **Scheduled work:** one Cron Trigger (every minute, staging) runs `maintenance`: apply waiting inbox requests, refresh briefings. The owner opening Tasks also triggers it.

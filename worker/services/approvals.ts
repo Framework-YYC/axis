@@ -1,5 +1,7 @@
 import { audit, auditStmt } from "./audit";
-import { fail, ok, type Ctx, type Result } from "./types";
+import { write } from "./db";
+import { assistantActor, assistantIdOf } from "./assistants";
+import { fail, ok, type Actor, type Ctx, type Result } from "./types";
 import * as v from "./validate";
 
 const EXPIRY_MS = 7 * 86_400_000;
@@ -7,7 +9,7 @@ const EXPIRY_MS = 7 * 86_400_000;
 /** An integration asked for something bulk or destructive. Nothing happens until the owner approves it in the web app. */
 export async function requestApproval(ctx: Ctx, action: string, summary: string, payload: unknown): Promise<Result<never>> {
   const id = `apr_${crypto.randomUUID()}`;
-  await ctx.db.batch([
+  await write(ctx.db, [
     ctx.db
       .prepare("INSERT INTO pending_approvals (id, action, summary, payload, requested_by_id, requested_by_label, channel, created_at) VALUES (?,?,?,?,?,?,?,?)")
       .bind(id, action, summary, JSON.stringify(payload), ctx.actor.id, ctx.actor.label, ctx.actor.channel, ctx.now().toISOString()),
@@ -35,7 +37,7 @@ export async function decideApproval(ctx: Ctx, raw: unknown, approve: boolean, e
     if (row.status !== "pending") return fail("conflict", `Already ${row.status}`);
     const at = ctx.now().toISOString();
     if (!approve || Date.parse(row.created_at) + EXPIRY_MS < ctx.now().getTime()) {
-      await ctx.db.batch([
+      await write(ctx.db, [
         ctx.db.prepare("UPDATE pending_approvals SET status='rejected', decided_at=? WHERE id=?").bind(at, id),
         auditStmt(ctx, `approval.rejected:${row.action}`, "approval", id),
       ]);
@@ -43,9 +45,9 @@ export async function decideApproval(ctx: Ctx, raw: unknown, approve: boolean, e
     }
     const exec = executors[row.action];
     if (!exec) return fail("internal_error", "Unknown approval action");
-    await ctx.db.prepare("UPDATE pending_approvals SET status='approved', decided_at=? WHERE id=?").bind(at, id).run();
+    await write(ctx.db, [ctx.db.prepare("UPDATE pending_approvals SET status='approved', decided_at=? WHERE id=?").bind(at, id)]);
     // Execute as the integration that asked (so history shows the true origin), flagged as approved.
-    const asRequester: Ctx = { ...ctx, approved: true, actor: { ...ctx.actor, type: "integration", id: row.requested_by_id, label: row.requested_by_label, channel: row.channel as Ctx["actor"]["channel"] } };
+    const asRequester: Ctx = { ...ctx, approved: true, actor: await requesterActor(ctx, row.requested_by_id, row.requested_by_label, row.channel) };
     const result = await exec(asRequester, JSON.parse(row.payload));
     await audit(ctx, `approval.approved:${row.action}`, "approval", id, result.ok ? "success" : "failure");
     return ok({ status: "approved", result: result.ok ? result.data : result.error });
@@ -53,4 +55,17 @@ export async function decideApproval(ctx: Ctx, raw: unknown, approve: boolean, e
     if (e instanceof v.InvalidInput) return fail("invalid_input", e.message);
     throw e;
   }
+}
+
+/** The identity that asked, with the limits it had when it asked (module confinement must survive approval). */
+async function requesterActor(ctx: Ctx, id: string, label: string, channel: string): Promise<Actor> {
+  const assistant = assistantIdOf(id);
+  if (assistant) return assistantActor(assistant);
+  const row = await ctx.db.prepare("SELECT scopes, modules FROM integrations WHERE id = ?").bind(id).first<{ scopes: string; modules: string | null }>();
+  return {
+    type: "integration", id, label, channel: channel as Actor["channel"],
+    scopes: new Set<string>(row ? (JSON.parse(row.scopes) as string[]) : []),
+    // No row = unknown identity = no module access. A row without a module list = all modules, as when it asked.
+    modules: row ? (row.modules ? new Set<string>(JSON.parse(row.modules) as string[]) : undefined) : new Set<string>(),
+  };
 }

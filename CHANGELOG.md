@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Assistant-centred architecture.** Five modules (Daily, Health, Financial, Framework, Progressive) each with overview, tasks, goals, habits, briefing, activity history and metrics. New navigation (Overview, Tasks, five modules, Calendar, Goals & Habits, Settings) and a command-centre Overview.
+- One central task table: module, priority, status, due date and optional time, scheduled date, recurrence, source assistant and reference, goal, notes, history. Nine exclusive time horizons computed from the due date, today and the owner's time zone (never stored). Recurring tasks create the next occurrence once.
+- Goals (numeric and qualitative, short/medium/long, milestones, progress history) and habits (quantities, streaks, work-rotation aware) with persistence; live calendar; settings for time zone, week start, units, currency, work rotation.
+- Controlled assistant writes: write-guard triggers on every core table and an `assistant_inbox` that the service layer applies with module-confined identities, validation, idempotency, approvals and audit. Migrations 0003 (data model) and 0004 (write guard), both additive. Stored briefings per module. Cron Trigger every minute on staging.
+- Demonstration data is now explicit: flagged, labelled "SYNTHETIC", loadable and removable in Settings; the client-side demo fallback is gone.
+- Docs: docs/ASSISTANT_INTEGRATION.md (contract, five instruction blocks, acceptance test); SECURITY.md records the account-wide connector risk and the limits of the write gate.
 - Final acceptance verification of the task round trip on staging (D1, REST, MCP, briefing, approvals, audit). ChatGPT compatibility re-assessed against current OpenAI documentation: Plus write access to custom MCP is unsupported by anything found; plan and next steps in docs/CHATGPT_INTEGRATION.md.
 - Visual redesign to the new Axis direction: silver canvas, layered raised and inset surfaces, floating black rail with a contextual panel (iPad: chips; iPhone: floating dock), lime accent, black pill actions, Outfit + JetBrains Mono (self-hosted), dot-matrix / fine-line / bar charts, segmented tick indicators, asymmetric dashboard, dark theme in the same system. See docs/DESIGN_SYSTEM.md.
 - The attention queue and Intelligence page now use the real approvals, integrations and audit APIs (approve, decline, revoke).

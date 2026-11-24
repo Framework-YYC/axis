@@ -60,3 +60,39 @@ export function bool(v: unknown, name: string): boolean | undefined {
   if (v === "false") return false;
   throw new InvalidInput(`${name} must be true or false`);
 }
+
+import { validateRecurrence, type Recurrence } from "../../shared/recurrence";
+import { MODULE_IDS, type ModuleId } from "../../shared/modules";
+
+export function time(v: unknown, name: string): string | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw new InvalidInput(`${name} must be a 24-hour time HH:MM`);
+  return v;
+}
+
+export function num(v: unknown, name: string, opts: { min?: number; max?: number } = {}): number | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  const n = typeof v === "string" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isFinite(n)) throw new InvalidInput(`${name} must be a number`);
+  if ((opts.min !== undefined && n < opts.min) || (opts.max !== undefined && n > opts.max)) throw new InvalidInput(`${name} must be between ${opts.min ?? "-inf"} and ${opts.max ?? "inf"}`);
+  return n;
+}
+
+export function moduleId(v: unknown, name = "module"): ModuleId | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== "string" || !(MODULE_IDS as readonly string[]).includes(v)) throw new InvalidInput(`${name} must be one of: ${MODULE_IDS.join(", ")}`);
+  return v as ModuleId;
+}
+
+export function recurrence(v: unknown): Recurrence | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  try { return validateRecurrence(v); } catch (e) { throw new InvalidInput(e instanceof RangeError ? e.message : "invalid recurrence"); }
+}
+
+export function weekdays(v: unknown, name: string): number[] | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (!Array.isArray(v) || v.length === 0 || v.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) throw new InvalidInput(`${name} must list weekdays 0 (Sunday) to 6`);
+  return [...new Set(v as number[])].sort();
+}
