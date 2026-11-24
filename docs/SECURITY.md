@@ -12,6 +12,7 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 ## Controls in place (Phase 2)
 - **Authentication first, for everything.** Worker validates the Cloudflare Access JWT (RS256, issuer, audience, expiry, owner email) before serving any file or API. Missing/placeholder configuration fails closed (500). `workers_dev` and preview URLs are disabled; the custom domain behind Access is the only entry. Tests: wrong audience/issuer/expiry/key/identity, missing token, bypass attempts.
 - **Dev bypass** exists only when `ENVIRONMENT=development` **and** the host is loopback. Deployed environments set their own value; a test pins that a deployed environment never honours it.
+- **Bypassed paths.** Access is deliberately bypassed only for `/api/v1` and `/mcp`. There the Worker accepts either a bearer token or the owner's `CF_Authorization` cookie JWT, verified exactly like the Access header (signature, issuer, audience, expiry, owner email); browser writes remain same-origin JSON only.
 - **Integrations**: scoped (read and write separate per module), revocable immediately, token shown once and stored as SHA-256 only, 90-day default expiry, accepted only on `/api/v1/*` and `/mcp`. An `Authorization` header elsewhere is ignored.
 - **Owner-only**: managing integrations and approvals. Assistants cannot, and these are never offered over MCP.
 - **Approval for bulk/destructive**: more than 10 tasks in one call, and any archive from an assistant, create a pending approval executed only after the owner approves in the app.
@@ -29,7 +30,7 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 Done: dedicated D1 `axis-staging` (own database, additive migrations 0001-0002 applied, 7 seeded categories). Not done, blocked from the build session: Worker deploy (the proxy-held credential cannot upload static assets), Access application (credential lacks Access permissions), `OWNER_EMAIL` secret. Until those exist the Worker fails closed. See docs/STAGING_DEPLOYMENT.md.
 
 ## Required before any real data (owner decisions)
-1. Cloudflare Access application for each hostname, policy = owner's identity only, with **bypass** policies only for `/mcp`, `/api/v1/*`, `/oauth/token`, `/oauth/register`, `/.well-known/*` (Worker enforces those).
+1. Cloudflare Access application for each hostname, policy = owner's identity only, with **bypass** only for `/mcp` and `/api/v1` now (`/oauth/token`, `/oauth/register`, `/.well-known/*` are added when OAuth exists); the Worker enforces those.
 2. Set `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` (vars) and `OWNER_EMAIL` (secret) per environment.
 3. Rate limiting rule on the bypassed paths.
 4. Decide on a separate Cloudflare account (see ARCHITECTURE concerns).

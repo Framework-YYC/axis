@@ -23,6 +23,15 @@ function jwksFor(teamDomain: string): JWTVerifyGetKey {
   return jwks;
 }
 
+function cookie(header: string | null, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim() || null;
+  }
+  return null;
+}
+
 /**
  * Authenticates a request. Fails closed: missing or placeholder configuration is a 500, never a pass.
  * `getKey` is injectable so tests can use a local key instead of the network.
@@ -50,7 +59,10 @@ export async function authenticate(
     return { ok: false, status: 500, reason: "access configuration incomplete" };
   }
 
-  const token = request.headers.get("Cf-Access-Jwt-Assertion");
+  // Access adds the JWT as a header on paths it protects. On paths it deliberately bypasses (/api/v1, /mcp, so assistants can use
+  // bearer tokens) it does not, but the owner's browser still carries the same signed JWT in the CF_Authorization cookie.
+  // It is verified identically (signature, issuer, audience, expiry, owner email), so the cookie grants nothing extra.
+  const token = request.headers.get("Cf-Access-Jwt-Assertion") ?? cookie(request.headers.get("Cookie"), "CF_Authorization");
   if (!token) return { ok: false, status: 401, reason: "missing access token" };
 
   try {

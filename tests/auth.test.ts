@@ -29,6 +29,15 @@ describe("authenticate (Cloudflare Access JWT)", () => {
     const r = await authenticate(req(await sign()), base, getKey);
     expect(r).toMatchObject({ ok: true, via: "access", email: "owner@example.invalid" });
   });
+  it("accepts the same valid JWT from the CF_Authorization cookie (paths Access bypasses), and verifies it identically", async () => {
+    const { getKey, sign } = await setup();
+    const good = await sign();
+    const withCookie = (t: string) => new Request("https://axis-staging.frameworktools.ca/api/v1/tasks", { headers: { Cookie: `a=b; CF_Authorization=${t}; c=d` } });
+    expect(await authenticate(withCookie(good), base, getKey)).toMatchObject({ ok: true, via: "access" });
+    expect(await authenticate(withCookie(await sign({}, { aud: "other" })), base, getKey)).toMatchObject({ ok: false, status: 401 });
+    expect(await authenticate(withCookie(await sign({ email: "x@else.invalid" })), base, getKey)).toMatchObject({ ok: false, status: 403 });
+    expect(await authenticate(withCookie("not-a-jwt"), base, getKey)).toMatchObject({ ok: false, status: 401 });
+  });
   it("rejects a missing token", async () => {
     expect(await authenticate(req(), base)).toMatchObject({ ok: false, status: 401 });
   });
