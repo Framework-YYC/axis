@@ -40,7 +40,7 @@
         {
           "binding": "AXIS_DB",
           "database_name": "axis-staging",
-          "database_id": "REPLACE_WITH_STAGING_D1_ID",
+          "database_id": "600a5970-d009-4648-8124-34ae2aa0e585",
           "migrations_dir": "migrations"
         }
       ]
