@@ -2,7 +2,9 @@
 
 A private personal operating system: tasks, finance, health, calendar, goals and AI-assisted intelligence in one installable app (iPhone, iPad, desktop). Built on Cloudflare Workers + D1, React + TypeScript + Tailwind. Single user, Cloudflare Access protected. ChatGPT and other automations use the same service layer through REST and MCP.
 
-> Status: Phases 1-2 complete locally. Nothing is deployed and no Cloudflare resource has been created. All finance, health and calendar data on screen is synthetic.
+> Public repository by design (free Actions, personal project): no secret is stored here and no control relies on the source being private. See docs/SECURITY.md.
+>
+> Status: Phases 1-2 complete; code on GitHub (`main`, `staging`). Staging D1 exists; the Worker is not deployed yet (docs/STAGING_DEPLOYMENT.md). All finance, health and calendar data on screen is synthetic.
 
 ## Develop
 ```bash
@@ -20,7 +22,7 @@ With the dev Worker running, create an integration as the owner:
 `curl -X POST localhost:8787/api/v1/integrations -H 'Content-Type: application/json' -d '{"name":"Personal assistant","kind":"chatgpt","scopes":["tasks:read","tasks:write"]}'`
 The response contains a one-time `axk_…` token. Use it as `Authorization: Bearer …` on `/api/v1/*` or `/mcp`. ChatGPT itself needs OAuth, which is the next integration phase (docs/CHATGPT_INTEGRATION.md).
 
-## Staging (not provisioned)
+## Staging
 `wrangler.jsonc` defines `staging` (axis-staging.frameworktools.ca) and `production` (axis.frameworktools.ca) with placeholder IDs, so deploys fail until real IDs are supplied after approval. Steps are in docs/SECURITY.md ("Required before any real data").
 
 ## Docs

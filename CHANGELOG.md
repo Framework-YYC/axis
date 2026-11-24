@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.0 (unreleased, Phases 1-2)
+## Unreleased
+- Repository published (public, intentional). CI and staging-deploy workflows, Dependabot, public-repository rules in CLAUDE.md, SECURITY.md and ARCHITECTURE.md.
+- Staging D1 `axis-staging` created and migrated.
+
+## 0.1.0 (Phases 1-2)
 - Foundation: Cloudflare Worker + Static Assets, React/Vite/Tailwind app, D1 migrations, Vitest suite.
 - Security: Access JWT validation in the Worker for every request, fail-closed config, dev bypass limited to loopback, strict CSP and cache policy.
 - Shared service layer with one operation catalogue serving the web app, REST `/api/v1` and MCP `/mcp`.

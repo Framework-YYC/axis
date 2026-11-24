@@ -24,6 +24,9 @@ ChatGPT/Shortcut ──► Worker ─ authenticate(bearer)  ───┤
 ```
 `worker/services/operations.ts` is the single catalogue. REST (`routes/api.ts`) maps method+path to an operation; MCP (`routes/mcp.ts`) lists the operations the actor's scopes allow. No business logic lives in either adapter. `shared/` (money, ledger classification, rotation, units, import envelope) is used by both Worker and UI.
 
+## Delivery and the public repository
+Source is public by design; nothing in it is a secret and no control depends on its secrecy. Flow: pull request -> `ci.yml` (no secrets) -> merge to `staging` -> `deploy-staging.yml` (tests, additive D1 migration, `wrangler deploy --env staging`, unauthenticated smoke test) using the `staging` GitHub environment. Production is a manual, explicitly approved step and has no workflow. Runtime secrets are Cloudflare Worker Secrets. Staging resources: Worker `axis-staging`, D1 `axis-staging` (`600a5970-…`), host `axis-staging.frameworktools.ca`, one Access application. Constraint found: the build session's proxy-held credential cannot upload Static Assets (it overwrites the upload session's Authorization header), so deployment is done by GitHub Actions (or Cloudflare Workers Builds) with owner-held credentials.
+
 ## Layout
 `worker/` Worker (auth, http, routes, services) · `src/` app (components, pages, lib, data) · `shared/` pure logic · `migrations/` · `tests/` · `docs/`.
 

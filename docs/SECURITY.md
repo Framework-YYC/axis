@@ -1,5 +1,14 @@
 # Security
 
+## Public repository decision
+The repository is public **intentionally** (free GitHub Actions; personal, non-commercial). Consequences and rules:
+- **No security by obscurity.** All of the source, the API shape, the MCP tool list and the Access/Worker design are public. Protection rests on Cloudflare Access, Worker-side token validation, scoped revocable integration tokens, approvals and the audit trail, not on hidden code.
+- **Never in the repository or its history:** credentials, tokens, private keys, `.env` / `.dev.vars`, the owner's email or any personal information, database exports or backups, real financial/health/work data. Tests, fixtures and screenshots are synthetic (`example.invalid`, "synthetic" labels). A full-history scan was clean before the first push (2026-11-24).
+- **Where secrets live:** runtime secrets (`OWNER_EMAIL`, later OAuth signing keys) in Cloudflare Worker Secrets; deploy credentials (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) only in the GitHub environment `staging`, restricted to the `staging` branch. Identifiers such as the D1 database id and hostnames are not secrets.
+- **Workflows:** `ci.yml` has no secrets and a read-only token and runs on pull requests (including forks) via `pull_request`; `deploy-staging.yml` runs only on pushes to `staging` or manual runs on `staging`, only for this repository, only in the `staging` environment; `pull_request_target` is never used; actions are pinned to commit SHAs; `npm ci --ignore-scripts`; Production has no workflow and needs explicit approval.
+- **Free GitHub protections to keep on** (owner to verify in Settings > Code security; they are not settable from the build session): secret scanning with push protection (default for public repos), Dependabot alerts and security updates, private vulnerability reporting. `dependabot.yml` (weekly npm and Actions updates) and `npm audit --omit=dev --audit-level=high` in CI are in the repository. Recommended: a branch ruleset on `staging` and `main` requiring the `Tests` check and blocking force-pushes, and "Require approval for all outside collaborators" for Actions runs.
+- **Forks and pull requests** from outsiders can never reach a credential: they run only `ci.yml`.
+
 ## Controls in place (Phase 2)
 - **Authentication first, for everything.** Worker validates the Cloudflare Access JWT (RS256, issuer, audience, expiry, owner email) before serving any file or API. Missing/placeholder configuration fails closed (500). `workers_dev` and preview URLs are disabled; the custom domain behind Access is the only entry. Tests: wrong audience/issuer/expiry/key/identity, missing token, bypass attempts.
 - **Dev bypass** exists only when `ENVIRONMENT=development` **and** the host is loopback. Deployed environments set their own value; a test pins that a deployed environment never honours it.
@@ -15,6 +24,9 @@
 - **No secrets in the repo or the bundle.** `OWNER_EMAIL` is a Worker secret; `.dev.vars` is git-ignored.
 - **Untrusted content**: assistant and imported text is stored and rendered as inert text.
 - Synthetic data only. No confidential employer information. No banking credentials are ever stored.
+
+## Staging provisioning status (2026-11-24)
+Done: dedicated D1 `axis-staging` (own database, additive migrations 0001-0002 applied, 7 seeded categories). Not done, blocked from the build session: Worker deploy (the proxy-held credential cannot upload static assets), Access application (credential lacks Access permissions), `OWNER_EMAIL` secret. Until those exist the Worker fails closed. See docs/STAGING_DEPLOYMENT.md.
 
 ## Required before any real data (owner decisions)
 1. Cloudflare Access application for each hostname, policy = owner's identity only, with **bypass** policies only for `/mcp`, `/api/v1/*`, `/oauth/token`, `/oauth/register`, `/.well-known/*` (Worker enforces those).
