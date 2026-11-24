@@ -1,0 +1,69 @@
+// Axis Worker configuration.
+// - Only the `staging` environment is deployable today. `production` exists so the two stay separate,
+//   but it is NOT to be deployed without the owner's explicit authorization (see docs/SECURITY.md).
+// - The IDs below are placeholders on purpose: `wrangler deploy` fails until real ones are filled in,
+//   so nothing can be provisioned or shipped by accident. No account id or secret belongs in this file.
+// - workers_dev and preview_urls are OFF so the only way in is the custom domain behind Cloudflare Access.
+//   The Worker also validates the Access JWT itself (defence in depth), including for static assets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The top level is LOCAL DEVELOPMENT ONLY (`wrangler dev`). Deploys always name an environment.
+  "name": "axis-local-dev",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // Every request, static files included, runs through the Worker first so authentication cannot be skipped.
+    "run_worker_first": true
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
+  "vars": { "ENVIRONMENT": "development" },
+  "d1_databases": [
+    { "binding": "AXIS_DB", "database_name": "axis-local", "database_id": "local-dev", "migrations_dir": "migrations" }
+  ],
+  "env": {
+    "staging": {
+      "name": "axis-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "axis-staging.frameworktools.ca", "custom_domain": true }],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
+        "ACCESS_AUD": "REPLACE_WITH_STAGING_ACCESS_APP_AUD"
+      },
+      "d1_databases": [
+        {
+          "binding": "AXIS_DB",
+          "database_name": "axis-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID",
+          "migrations_dir": "migrations"
+        }
+      ]
+      // Secret (never in this file):  wrangler secret put OWNER_EMAIL --env staging
+    },
+    "production": {
+      "name": "axis",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "axis.frameworktools.ca", "custom_domain": true }],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
+        "ACCESS_AUD": "REPLACE_WITH_PRODUCTION_ACCESS_APP_AUD"
+      },
+      "d1_databases": [
+        {
+          "binding": "AXIS_DB",
+          "database_name": "axis-production",
+          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
+}

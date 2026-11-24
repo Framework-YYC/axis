@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `npm run dev:worker` (never commit .dev.vars).
+# Local-only identity: honoured ONLY when ENVIRONMENT=development AND the request host is localhost.
+ENVIRONMENT=development
+OWNER_EMAIL=dev@example.invalid
