@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Final acceptance verification of the task round trip on staging (D1, REST, MCP, briefing, approvals, audit). ChatGPT compatibility re-assessed against current OpenAI documentation: Plus write access to custom MCP is unsupported by anything found; plan and next steps in docs/CHATGPT_INTEGRATION.md.
 - Visual redesign to the new Axis direction: silver canvas, layered raised and inset surfaces, floating black rail with a contextual panel (iPad: chips; iPhone: floating dock), lime accent, black pill actions, Outfit + JetBrains Mono (self-hosted), dot-matrix / fine-line / bar charts, segmented tick indicators, asymmetric dashboard, dark theme in the same system. See docs/DESIGN_SYSTEM.md.
 - The attention queue and Intelligence page now use the real approvals, integrations and audit APIs (approve, decline, revoke).
 - Fixed: the sign-in footer always read "Design preview" because `/api/v1/me` did not use the standard `{success, data}` envelope (now it does). The UI no longer silently shows demo data on a deployed host when the API is unreachable.
