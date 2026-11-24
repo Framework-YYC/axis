@@ -7,11 +7,13 @@ import { addDays } from "../../shared/rotation";
 import { fillTicks } from "../../shared/viz";
 import { EventEditor, GoalEditor, HabitEditor, TaskEditor } from "../components/editors";
 import { SegBar, Spark } from "../components/charts";
-import { MODULE_TABS } from "../components/nav";
+import { isTab, type TabId } from "../components/nav";
+import { ModuleTabs } from "../components/ModuleTabs";
+import { TasksView } from "../components/TasksView";
+import { Calendar } from "./Calendar";
 import { GoalList, HabitList } from "../components/compact";
-import { TaskGroups } from "../components/TaskGroups";
 import { TaskLine } from "../components/TaskLine";
-import { Btn, Empty, PageHeader, StatLine, Status, Tabs, Widget } from "../components/ui";
+import { Btn, Empty, PageHeader, StatLine, Status, Widget } from "../components/ui";
 import { useData } from "../lib/data";
 import { pretty } from "../lib/dates";
 import { byUrgency, isOpen } from "../lib/taskUi";
@@ -28,8 +30,8 @@ export default function ModulePage() {
 }
 
 function Module({ id }: { id: ModuleId }) {
-  const [sp, setSp] = useSearchParams();
-  const tab = MODULE_TABS.some(([t]) => t === sp.get("tab")) ? sp.get("tab")! : "overview";
+  const [sp] = useSearchParams();
+  const tab: TabId = isTab(sp.get("tab")) ? (sp.get("tab") as TabId) : "overview";
   const { tasks, goals, habits, events, today, weekStart, completeTask, reopenTask, inbox } = useData();
   const [edit, setEdit] = useState<Editing>(null);
   const meta = MODULES_META[id];
@@ -47,17 +49,17 @@ function Module({ id }: { id: ModuleId }) {
   const rows: ActivityRow[] = Array.isArray(activity.data) ? activity.data : activity.data?.activity ?? activity.data?.events ?? [];
   const mine = inbox.filter((r) => r.assistant === id);
   const addButton = (
-    <div className="flex gap-2">
+    <div className="flex gap-2 max-md:hidden">
       <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "task" })}>Task</Btn>
-      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "goal" })} className="max-sm:hidden">Goal</Btn>
-      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "habit" })} className="max-sm:hidden">Habit</Btn>
+      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "goal" })}>Goal</Btn>
+      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "habit" })}>Habit</Btn>
     </div>
   );
 
   return (
     <div>
       <PageHeader crumb={meta.label.toUpperCase()} title={meta.label} subtitle={meta.blurb} controls={addButton} />
-      <div className="mb-4 hidden xl:block"><Tabs label={`${meta.label} sections`} value={tab} onChange={(t) => { const n = new URLSearchParams(sp); n.set("tab", t); setSp(n, { replace: true }); }} options={MODULE_TABS.map(([v, l]) => ({ value: v, label: l, count: v === "tasks" ? open.length : v === "goals" ? mg.length : v === "habits" ? mh.length : undefined }))} /></div>
+      <ModuleTabs module={id} tab={tab} counts={{ tasks: open.length, goals: mg.length, habits: mh.length }} />
 
       {tab === "overview" && (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -79,12 +81,9 @@ function Module({ id }: { id: ModuleId }) {
         </div>
       )}
 
-      {tab === "tasks" && (
-        <Widget bare title="Tasks" count={open.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "task" })}>New task</Btn>}>
-          <TaskGroups tasks={[...open].sort(byUrgency)} today={today} weekStart={weekStart} onToggle={toggle} onOpen={openTask} showModule={false} />
-          {done.length > 0 && <details className="mt-5"><summary className="mono cursor-pointer">Completed ({done.length})</summary><ul className="mt-2">{done.slice(0, 15).map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={openTask} showModule={false} />)}</ul></details>}
-        </Widget>
-      )}
+      {tab === "tasks" && <TasksView module={id} embedded />}
+
+      {tab === "calendar" && <Calendar module={id} />}
 
       {tab === "goals" && (
         <Widget bare title="Goals" count={mg.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ kind: "goal" })}>New goal</Btn>}>

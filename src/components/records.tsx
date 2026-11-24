@@ -88,7 +88,7 @@ export function HabitRow({ h, onEdit, showModule = true }: { h: Habit; onEdit: (
   return (
     <li className="flex flex-col gap-2.5 border-t border-line py-3.5 first:border-t-0 first:pt-1">
       <div className="flex min-w-0 items-center gap-3">
-        <button onClick={() => void logHabit(h.id)} disabled={!quant && t.done} aria-label={quant ? `Log one ${h.title}` : t.done ? `${h.title} done today` : `Mark ${h.title} done today`} className={cx("grid size-9 shrink-0 place-items-center rounded-full", t.done ? "bg-lime text-lime-ink" : t.applies ? "inset text-muted" : "inset text-faint opacity-60")}>
+        <button onClick={() => void logHabit(h.id)} disabled={!quant && t.done} aria-label={quant ? `Log one ${h.title}` : t.done ? `${h.title} done today` : `Mark ${h.title} done today`} className={cx("grid size-9 shrink-0 place-items-center rounded-full", t.done ? "bg-[var(--g-sage)] text-[var(--w-on)]" : t.applies ? "inset text-muted" : "inset text-faint opacity-60")}>
           {quant ? <Plus size={15} /> : <Check size={15} strokeWidth={2.6} />}
         </button>
         <div className="min-w-0">

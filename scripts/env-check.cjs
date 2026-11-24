@@ -23,7 +23,7 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "PASS" : "FAIL"
     const tag = `${env}/${sn}/${scheme}`;
     const target = env === "production" ? "staging" : "production";
     // locate the card: phone = More sheet; ipad = rail popover; desktop = sidebar
-    if (sn === "phone") { await pg.getByRole("button", { name: "More", exact: true }).click(); }
+    if (sn === "phone") { await pg.getByRole("button", { name: "Settings and account" }).first().click(); }
     else if (sn === "ipadP") { await pg.getByRole("button", { name: /^Environment:/ }).click(); }
     await pg.waitForTimeout(250);
     const card = pg.locator("section[aria-label=Environment]:visible").first();

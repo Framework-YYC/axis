@@ -1,10 +1,10 @@
-import { Bot, CalendarDays, ChevronsUpDown, LayoutDashboard, CheckSquare, MoreHorizontal, Monitor, Moon, Search, Sun, X } from "lucide-react";
+import { ChevronsUpDown, Monitor, Moon, Search, Sun } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
-import { useTheme, type ThemeMode } from "../lib/theme";
-import { ASSISTANT_NAV, MODULES, moduleOf, useIsActive, useNavModel, type NavGroup } from "./nav";
+import { useTheme } from "../lib/theme";
+import { DESTINATIONS, dockActive, UTILITY, useIsActive, useNavModel, type NavGroup } from "./nav";
 import { Btn } from "./ui";
 import { EnvCard, EnvRailButton, StagingTag, useEnvironment } from "./EnvSwitch";
 
@@ -56,14 +56,14 @@ function RailStagingDot() {
 function Rail() {
   return (
     <aside aria-label="Primary" className="sticky top-4 z-30 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
-      <div className="flex flex-col items-center gap-0.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 shadow-[0_22px_34px_-16px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.04)]">
+      <div className="flex flex-col items-center gap-0.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 ring-1 ring-white/[0.06]">
         <Link to="/" aria-label="Axis home" className="relative mb-1.5"><LogoMark size={36} /><RailStagingDot /></Link>
-        {MODULES.map((m) => (
-          <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-10 place-items-center rounded-[13px] transition-colors", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
+        {[...DESTINATIONS, null, ...UTILITY].map((m, i) => m === null ? <i key={`sep${i}`} aria-hidden className="my-1.5 block h-px w-6 bg-white/10" /> : (
+          <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-10 place-items-center rounded-[13px] transition-colors", isActive ? "bg-white/10 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
             {({ isActive }) => (
               <>
-                {isActive && <span className="absolute -left-[7px] top-3 h-5 w-[3px] rounded-full bg-lime" />}
-                <m.icon size={18} strokeWidth={1.7} aria-hidden />
+                {isActive && <span className="absolute -left-[7px] top-3 h-5 w-[2px] rounded-full bg-[var(--lime)]" />}
+                <m.icon size={18} strokeWidth={1.4} aria-hidden />
               </>
             )}
           </NavLink>
@@ -147,66 +147,29 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
   );
 }
 
+/** The persistent floating dock: six permanent destinations. Icon-only below 360 px; labels stay available to screen readers. */
 function Dock() {
-  const [sheet, setSheet] = useState<null | "assistants" | "more">(null);
   const { pathname } = useLocation();
-  const { me, approvals } = useData();
-  useEffect(() => setSheet(null), [pathname]);
-  const here = moduleOf(pathname);
-  const Item = ({ to, label, icon: Icon, end }: { to: string; label: string; icon: typeof Sun; end?: boolean }) => (
-    <NavLink to={to} end={end} className={({ isActive }) => cx("relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
-      <Icon size={20} strokeWidth={1.7} aria-hidden />
-      {label}
-    </NavLink>
-  );
-  const SheetBtn = ({ id, label, icon: Icon, on }: { id: "assistants" | "more"; label: string; icon: typeof Sun; on: boolean }) => (
-    <button onClick={() => setSheet(id)} aria-haspopup="dialog" className={cx("relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", on ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
-      <Icon size={20} strokeWidth={1.7} aria-hidden />{label}
-      {id === "more" && approvals.length > 0 && <span className="absolute right-3 top-2 size-2 rounded-full bg-lime" />}
-    </button>
-  );
-  const onAssistant = !!here.assistant;
-  const onMore = here.to === "/goals" || here.to === "/settings";
+  const { approvals } = useData();
+  const here = dockActive(pathname);
   return (
-    <>
-      <nav aria-label="Primary" className="safe-b fixed inset-x-3 bottom-3 z-30 md:hidden">
-        <ul className="grid grid-cols-5 gap-1 rounded-[30px] bg-[var(--rail)] p-1.5 shadow-[0_24px_40px_-14px_rgb(0_0_0/0.7),inset_0_1px_0_rgb(255_255_255/0.12)]">
-          <li><Item to="/" label="Overview" icon={LayoutDashboard} end /></li>
-          <li><Item to="/tasks" label="Tasks" icon={CheckSquare} /></li>
-          <li><SheetBtn id="assistants" label="Assistants" icon={Bot} on={onAssistant} /></li>
-          <li><Item to="/calendar" label="Calendar" icon={CalendarDays} /></li>
-          <li><SheetBtn id="more" label="More" icon={MoreHorizontal} on={onMore} /></li>
-        </ul>
-      </nav>
-      {sheet && (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={sheet === "more" ? "More" : "Assistants"}>
-          <button className="absolute inset-0 bg-black/45" aria-label="Close" onClick={() => setSheet(null)} />
-          <div className="panel safe-b rise absolute inset-x-2 bottom-2 max-h-[85dvh] overflow-y-auto rounded-[28px] p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="mono">{sheet === "more" ? "More" : "Assistant modules"}</span>
-              <button onClick={() => setSheet(null)} aria-label="Close" className="inset grid size-9 place-items-center rounded-full"><X size={16} /></button>
-            </div>
-            <ul className="grid grid-cols-2 gap-2">
-              {(sheet === "more" ? MODULES.filter((m) => m.to === "/goals" || m.to === "/settings") : ASSISTANT_NAV).map((m) => (
-                <li key={m.to}>
-                  <NavLink to={m.to} className="raised flex h-14 items-center gap-3 rounded-[18px] px-4 text-[14px] font-medium"><m.icon size={19} strokeWidth={1.7} aria-hidden />{m.label}</NavLink>
-                </li>
-              ))}
-            </ul>
-            {sheet === "more" && <div className="mt-4 flex items-center justify-between gap-3"><Identity compact /><ThemeSwitch /></div>}
-            {sheet === "more" && <div className="mt-5"><EnvCard /></div>}
-            <p className="sr-only">{me.label}</p>
-          </div>
-        </div>
-      )}
-    </>
+    <nav aria-label="Primary" className="safe-b fixed inset-x-2.5 bottom-2.5 z-30 md:hidden">
+      <ul className="grid grid-cols-6 gap-0.5 rounded-[26px] bg-[var(--rail)] p-1 ring-1 ring-white/[0.07]">
+        {DESTINATIONS.map((m) => {
+          const on = here === m.to;
+          return (
+            <li key={m.to}>
+              <NavLink to={m.to} end={m.to === "/"} aria-label={m.label} aria-current={on ? "page" : undefined} className={cx("relative flex h-[52px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[20px] transition-colors", on ? "bg-white/[0.1] text-[#f1f1ee]" : "text-[var(--rail-ink)]")}>
+                <m.icon size={19} strokeWidth={1.3} aria-hidden />
+                <span className="max-w-full truncate text-[9.5px] font-normal leading-none tracking-[0.01em] max-[359px]:sr-only">{m.label}</span>
+                {m.to === "/" && approvals.length > 0 && <i aria-hidden className="absolute right-2.5 top-2 size-1.5 rounded-full" style={{ background: "var(--w-terra)" }} />}
+              </NavLink>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
-}
-
-function ThemeSwitch() {
-  const { mode, cycle } = useTheme();
-  const Icon = THEME_ICON[mode as ThemeMode];
-  return <Btn onClick={cycle} icon={Icon} variant="soft" label={`Appearance: ${mode}`}><span className="capitalize">{mode}</span></Btn>;
 }
 
 function PhoneStagingRow() {

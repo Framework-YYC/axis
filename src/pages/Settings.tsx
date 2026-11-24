@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
 import { assistantLabel } from "../../shared/modules";
 import { Field, Select, TextInput } from "../components/forms";
+import { EnvCard } from "../components/EnvSwitch";
 import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
 import { post } from "../lib/api";
 import { useData } from "../lib/data";
@@ -48,6 +49,8 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
       <PageHeader crumb="SETTINGS" title="Settings" subtitle={signedIn ? `${who} · ${environment}` : "Not signed in"} />
       {msg && <p role="status" className="panel-dim mb-3 p-3 text-[13px]">{msg}</p>}
       <div className="grid gap-3 xl:grid-cols-2">
+        <div id="environment" className="xl:col-span-2"><EnvCard /></div>
+
         <Widget id="preferences" title="Preferences">
           <div className="grid gap-3.5 md:grid-cols-2">
             <Field label="Time zone" hint="Decides what 'today' means for horizons, habits and briefings.">{(id) => <Select id={id} value={settings.timezone === "auto" ? Intl.DateTimeFormat().resolvedOptions().timeZone : settings.timezone} onChange={(v) => save("timezone", v)} options={zones.filter((z) => z !== "auto").map((z) => ({ value: z, label: z.replace("_", " ") }))} />}</Field>

@@ -1,38 +1,48 @@
 import { CalendarDays, CheckSquare, LayoutDashboard, type LucideIcon, Settings, Target } from "lucide-react";
-import { ASSISTANT_ICONS } from "../lib/moduleStyle";
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, horizonOf } from "../../shared/horizons";
-import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
+import { ALL_TABS, MODULE_IDS, MODULES_META, PRIMARY_TABS, type ModuleId, type TabId } from "../../shared/modules";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
+import { ASSISTANT_ICONS } from "../lib/moduleStyle";
 
 export interface Module { to: string; label: string; crumb: string; icon: LucideIcon; assistant?: ModuleId }
 export { ASSISTANT_ICONS } from "../lib/moduleStyle";
 
-const assistantNav = (id: ModuleId): Module => ({ to: `/m/${id}`, label: MODULES_META[id].label, crumb: MODULES_META[id].label.toUpperCase(), icon: ASSISTANT_ICONS[id], assistant: id });
-/** Overview, Tasks, the five assistant modules, Calendar, Goals & Habits, Settings. */
-export const MODULES: Module[] = [
-  { to: "/", label: "Overview", crumb: "OVERVIEW", icon: LayoutDashboard },
+const moduleNav = (id: ModuleId): Module => ({ to: `/m/${id}`, label: MODULES_META[id].label, crumb: MODULES_META[id].label.toUpperCase(), icon: ASSISTANT_ICONS[id], assistant: id });
+export const HOME: Module = { to: "/", label: "Home", crumb: "OVERVIEW", icon: LayoutDashboard };
+/** The six permanent destinations (phone dock, iPad rail and desktop rail): Home, then the five modules. Display labels only; ids are unchanged. */
+export const DESTINATIONS: Module[] = [HOME, ...MODULE_IDS.map(moduleNav)];
+/** Cross-module screens. Reached from Home, from module tabs and, on wider screens, from the rail. */
+export const UTILITY: Module[] = [
   { to: "/tasks", label: "Tasks", crumb: "TASKS", icon: CheckSquare },
-  ...MODULE_IDS.map(assistantNav),
-  { to: "/calendar", label: "Calendar", crumb: "CALENDAR", icon: CalendarDays },
   { to: "/goals", label: "Goals & Habits", crumb: "GOALS & HABITS", icon: Target },
+  { to: "/calendar", label: "Calendar", crumb: "CALENDAR", icon: CalendarDays },
   { to: "/settings", label: "Settings", crumb: "SETTINGS", icon: Settings },
 ];
-export const ASSISTANT_NAV = MODULES.filter((m) => m.assistant);
+export const MODULES: Module[] = [...DESTINATIONS, ...UTILITY];
 
 export interface NavItem { to: string; label: string; count?: number; hot?: boolean; dot?: "ok" | "bad" | "warn" | "idle" }
 export interface NavGroup { label: string; items: NavItem[] }
 
-export const MODULE_TABS: Array<[string, string]> = [["overview", "Overview"], ["tasks", "Tasks"], ["goals", "Goals"], ["habits", "Habits"], ["briefing", "Briefing"], ["activity", "Activity"], ["metrics", "Metrics"]];
+export type { TabId };
+export const TAB_LABEL: Record<TabId, string> = { overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
+export { ALL_TABS };
+export const primaryTabs = (m: ModuleId): TabId[] => [...PRIMARY_TABS[m]];
+/** Everything else stays reachable from the tab bar's More menu. */
+export const moreTabs = (m: ModuleId): TabId[] => ALL_TABS.filter((t) => !PRIMARY_TABS[m].includes(t));
+export const isTab = (v: string | null): v is TabId => !!v && (ALL_TABS as string[]).includes(v);
+
 const hashItems = (base: string, items: Array<[string, string]>): NavItem[] => items.map(([id, label]) => ({ to: `${base}#${id}`, label }));
 
 export function moduleOf(pathname: string): Module {
-  return MODULES.find((m) => (m.to === "/" ? pathname === "/" : pathname === m.to || pathname.startsWith(`${m.to}/`))) ?? MODULES[0];
+  return MODULES.find((m) => (m.to === "/" ? pathname === "/" : pathname === m.to || pathname.startsWith(`${m.to}/`))) ?? HOME;
 }
+/** The dock highlights the module being viewed, otherwise Home (Tasks, Goals, Calendar and Settings open from Home). */
+export const dockActive = (pathname: string): string => { const m = moduleOf(pathname); return m.assistant ? m.to : "/"; };
 
-/** The contextual navigation for the current page, plus the live status list and the assistant shortcuts. */
+/** The contextual navigation for the current page, the live status list and the cross-module shortcuts. */
 export function useNavModel(): { module: Module; groups: NavGroup[]; contextual: NavItem[] } {
   const { pathname } = useLocation();
   const { tasks, approvals, today, weekStart } = useData();
@@ -44,13 +54,17 @@ export function useNavModel(): { module: Module; groups: NavGroup[]; contextual:
     for (const t of open) hz[horizonOf(t.dueDate, today, weekStart)]++;
     const modCount = (id: string) => open.filter((t) => t.module === id).length;
     let main: NavItem[];
-    if (module.assistant) main = MODULE_TABS.map(([t, l]) => ({ to: `${module.to}?tab=${t}`, label: l, count: t === "tasks" ? modCount(module.assistant!) : undefined }));
-    else if (module.to === "/tasks") main = [{ to: "/tasks?h=all", label: "All open", count: open.length }, ...HORIZONS.map((h) => ({ to: `/tasks?h=${h}`, label: HORIZON_LABELS[h], count: hz[h] })), { to: "/tasks?h=done", label: "Completed" }];
-    else if (module.to === "/calendar") main = [{ to: "/calendar?view=week", label: "Week" }, { to: "/calendar?view=month", label: "Month" }, { to: "/calendar?view=day", label: "Day" }];
-    else if (module.to === "/goals") main = hashItems("/goals", [["goals", "Goals"], ["habits", "Habits"]]);
-    else if (module.to === "/settings") main = hashItems("/settings", [["preferences", "Preferences"], ["rotation", "Work rotation"], ["approvals", "Approvals"], ["assistants", "Assistants"], ["activity", "Activity"], ["connections", "Connections"], ["data", "Demo data"], ["security", "Security"]]);
-    else main = hashItems("/", [["priorities", "Priorities"], ["schedule", "Schedule"], ["goals", "Goals"], ["habits", "Habits"], ["modules", "Modules"], ["activity", "Assistant activity"]]);
-    const groups: NavGroup[] = [{ label: module.label, items: main }];
+    const groups: NavGroup[] = [];
+    if (module.assistant) {
+      const id = module.assistant;
+      const item = (t: TabId): NavItem => ({ to: `${module.to}?tab=${t}`, label: TAB_LABEL[t], count: t === "tasks" ? modCount(id) : undefined });
+      main = primaryTabs(id).map(item);
+      groups.push({ label: module.label, items: main }, { label: "More", items: moreTabs(id).map(item) });
+    } else if (module.to === "/tasks") { main = [{ to: "/tasks?h=all", label: "All open", count: open.length }, ...HORIZONS.map((h) => ({ to: `/tasks?h=${h}`, label: HORIZON_LABELS[h], count: hz[h] })), { to: "/tasks?status=completed", label: "Completed" }]; groups.push({ label: module.label, items: main }); }
+    else if (module.to === "/calendar") { main = [{ to: "/calendar?view=week", label: "Week" }, { to: "/calendar?view=month", label: "Month" }, { to: "/calendar?view=day", label: "Day" }]; groups.push({ label: module.label, items: main }); }
+    else if (module.to === "/goals") { main = hashItems("/goals", [["goals", "Goals"], ["habits", "Habits"]]); groups.push({ label: module.label, items: main }); }
+    else if (module.to === "/settings") { main = hashItems("/settings", [["environment", "Environment"], ["preferences", "Preferences"], ["rotation", "Work rotation"], ["approvals", "Approvals"], ["assistants", "Assistants"], ["connections", "Connections"], ["activity", "Activity"], ["data", "Demo data"], ["security", "Security"]]); groups.push({ label: module.label, items: main }); }
+    else { main = [{ to: "/", label: "Overview" }, { to: "/tasks", label: "Tasks", count: open.length }, { to: "/goals", label: "Goals" }, { to: "/calendar", label: "Calendar" }]; groups.push({ label: module.label, items: main }); }
     groups.push({
       label: "Live",
       items: [
@@ -59,12 +73,12 @@ export function useNavModel(): { module: Module; groups: NavGroup[]; contextual:
         { to: "/settings#approvals", label: "Needs you", count: approvals.length, hot: true },
       ],
     });
-    groups.push({ label: "Assistants", items: ASSISTANT_NAV.map((m) => ({ to: m.to, label: m.label, count: modCount(m.assistant!) })) });
+    if (module.to !== "/") groups.push({ label: "Go to", items: [{ to: "/", label: "Home" }, { to: "/tasks", label: "All tasks", count: open.length }, { to: "/goals", label: "Goals & habits" }, { to: "/calendar", label: "Calendar" }, { to: "/settings", label: "Settings" }] });
     return { module, groups, contextual: main };
   }, [module, tasks, approvals.length, today, weekStart]);
 }
 
-const DEFAULTS: Record<string, string> = { tab: "overview", h: "all", view: "week" };
+const DEFAULTS: Record<string, string> = { tab: "overview", h: "all", view: "week", module: "all", status: "all" };
 
 export function useIsActive() {
   const loc = useLocation();
@@ -80,16 +94,17 @@ export function useIsActive() {
   };
 }
 
-/** Contextual navigation as scrollable chips, for iPad and iPhone (the secondary panel only fits on wide screens). */
+/** Contextual navigation as scrollable chips for the cross-module screens on iPad and iPhone. Module pages use their own tab bar. */
 export function ContextChips() {
   const { module, contextual } = useNavModel();
   const active = useIsActive();
+  if (module.assistant || module.to === "/" || module.to === "/tasks") return null; // modules have their own tab bar; Tasks has its selectors
   return (
     <nav aria-label={`${module.label} sections`} className="no-scrollbar -mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 xl:hidden">
       {contextual.map((it, i) => (
-        <Link key={it.to} to={it.to} aria-current={active(it.to, i) ? "true" : undefined} className={cx("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium", active(it.to, i) ? "raised text-ink" : "inset text-muted hover:text-ink")}>
+        <Link key={it.to} to={it.to} aria-current={active(it.to, i) ? "true" : undefined} className={cx("hit inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[12.5px]", active(it.to, i) ? "bg-[var(--pill-bg)] text-[var(--pill-ink)]" : "text-muted")} style={active(it.to, i) ? undefined : { boxShadow: "0 0 0 1px var(--line)" }}>
           {it.label}
-          {it.count ? <span className="mono !text-[10.5px]">{it.count}</span> : null}
+          {it.count ? <span className="mono !text-[10.5px] !text-current opacity-70">{it.count}</span> : null}
         </Link>
       ))}
     </nav>

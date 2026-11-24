@@ -26,7 +26,7 @@ export function TaskLine({ t, today, onToggle, onOpen, showModule = true }: { t:
   const bar = PRIORITY_BAR[t.priority];
   const assistant = t.source.assistant ? (MODULES_META[t.source.assistant as keyof typeof MODULES_META]?.assistant ?? t.source.assistant) : null;
   return (
-    <li className="relative flex items-start gap-1 py-0.5 md:items-center md:gap-3 md:border-t md:border-line md:py-3 md:first:border-t-0 md:first:pt-1">
+    <li className="relative flex items-start gap-1 border-t border-line py-0.5 first:border-t-0 md:items-center md:gap-3 md:py-3">
       {bar && !done && <span aria-hidden className="absolute -left-2 top-3 h-5 w-[3px] rounded-full md:left-[-10px] md:top-1/2 md:-translate-y-1/2" style={{ background: bar }} />}
       <button onClick={() => onToggle(t)} aria-label={done ? `Reopen ${t.title}` : `Mark ${t.title} completed`} aria-pressed={done} className="hit grid shrink-0 place-items-center">
         <span className={cx("grid size-7 place-items-center rounded-full transition-all", done ? "bg-ink text-[var(--card-a)]" : "inset text-transparent")}>

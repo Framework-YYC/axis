@@ -4,7 +4,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || "playwright");
 const BASE = process.env.BASE || "http://localhost:8788";
 const sizes = { phone: { width: 390, height: 844 }, ipadP: { width: 820, height: 1180 }, ipadL: { width: 1180, height: 820 }, desk: { width: 1600, height: 1000 } };
-const pages = ["/", "/tasks?h=today", "/goals", "/calendar", "/m/daily?tab=overview", "/m/health?tab=habits", "/settings"];
+const pages = ["/", "/tasks", "/tasks?module=health&h=this_week", "/goals", "/calendar", "/m/daily", "/m/daily?tab=calendar", "/m/financial?tab=tasks", "/m/health?tab=habits", "/m/progressive?tab=goals", "/settings"];
 (async () => {
   require("node:fs").mkdirSync(process.env.OUT || "/tmp/axis-shots", { recursive: true });
   const b = await chromium.launch(); const issues = []; let shots = 0;

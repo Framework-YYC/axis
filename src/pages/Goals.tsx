@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { MODULE_IDS, MODULES_META } from "../../shared/modules";
 import { GoalEditor, HabitEditor } from "../components/editors";
 import { GoalList, HabitList } from "../components/compact";
@@ -9,7 +10,9 @@ import type { Goal, Habit } from "../lib/types";
 
 export default function GoalsHabits() {
   const { goals, habits, loading } = useData();
-  const [mod, setMod] = useState<string>("all");
+  const [sp, setSp] = useSearchParams();
+  const mod = sp.get("module") ?? "all";
+  const setMod = (v: string) => setSp((p) => { const n = new URLSearchParams(p); if (v === "all") n.delete("module"); else n.set("module", v); return n; }, { replace: true });
   const [term, setTerm] = useState<string>("all");
   const [edit, setEdit] = useState<{ goal?: Goal } | { habit?: Habit } | null>(null);
   const g = goals.filter((x) => x.status !== "abandoned" && (mod === "all" || x.module === mod) && (term === "all" || x.term === term));

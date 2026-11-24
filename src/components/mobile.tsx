@@ -18,7 +18,7 @@ export function ModuleIcon({ id, size = 28, className }: { id: ModuleId; size?: 
 }
 
 /** Circular progress. `value` is a percentage; children render in the centre. */
-export function Ring({ value, size = 96, stroke = 9, color = "var(--lime)", label, children }: { value: number; size?: number; stroke?: number; color?: string; label: string; children?: ReactNode }) {
+export function Ring({ value, size = 96, stroke = 9, color = "var(--g-sage)", label, children }: { value: number; size?: number; stroke?: number; color?: string; label: string; children?: ReactNode }) {
   const r = (size - stroke) / 2;
   const a = ringArc(value, r);
   return (

@@ -68,7 +68,7 @@ function HabitTile({ h, onOpen }: { h: Habit; onOpen: (h: Habit) => void }) {
   return (
     <li className="flex items-center gap-1 py-1">
       <button onClick={() => void logHabit(h.id)} disabled={!t.applies || (!quant && t.done)} aria-label={!t.applies ? `${h.title}: rest day` : quant ? `Log one for ${h.title}` : t.done ? `${h.title} done today` : `Mark ${h.title} done today`} className="hit grid shrink-0 place-items-center">
-        <span className={cx("grid size-10 place-items-center rounded-full transition-colors", t.done ? "bg-lime text-lime-ink" : t.applies ? "inset text-muted" : "inset text-faint opacity-50")}>
+        <span className={cx("grid size-10 place-items-center rounded-full transition-colors", t.done ? "bg-[var(--g-sage)] text-[var(--w-on)]" : t.applies ? "inset text-muted" : "inset text-faint opacity-50")}>
           {quant && !t.done ? <Plus size={17} aria-hidden /> : <Check size={17} strokeWidth={2.6} aria-hidden />}
         </span>
       </button>
@@ -84,7 +84,7 @@ function HabitTile({ h, onOpen }: { h: Habit; onOpen: (h: Habit) => void }) {
       <div className="flex shrink-0 flex-col items-end gap-1.5 pr-1">
         <span className="flex items-center gap-0.5 text-[12px] font-medium num" aria-label={`${h.streak.current} day streak`}><Flame size={13} className={h.streak.current ? "text-[var(--amber)]" : "text-faint"} aria-hidden />{h.streak.current}</span>
         <span className="flex gap-[3px]" role="img" aria-label="Last 7 days">
-          {week.map((d, i) => <i key={i} className="block size-[9px] rounded-full" style={{ background: d.done ? "var(--lime)" : "transparent", boxShadow: d.done ? "0 0 0 1px var(--ink)" : d.applies ? "inset 0 0 0 1.5px var(--tick-off)" : "none", opacity: d.applies ? 1 : 0.35 }} />)}
+          {week.map((d, i) => <i key={i} className="block size-[9px] rounded-full" style={{ background: d.done ? "var(--g-sage)" : "transparent", boxShadow: d.done ? "none" : d.applies ? "inset 0 0 0 1.5px var(--tick-off)" : "none", opacity: d.applies ? 1 : 0.35 }} />)}
         </span>
       </div>
     </li>

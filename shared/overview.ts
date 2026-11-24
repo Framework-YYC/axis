@@ -1,3 +1,4 @@
+import { localDay } from "./gauges";
 import { addDays } from "./rotation";
 
 /** Presentation maths for the mobile Overview. Pure, so it is tested without a browser. */
@@ -9,7 +10,7 @@ export function focusStats(tasks: readonly FocusTask[], today: string): Focus {
   let remaining = 0, completed = 0, overdue = 0;
   for (const t of tasks) {
     if (t.archivedAt) continue;
-    if (t.status === "completed") { if (t.completedAt && t.completedAt.slice(0, 10) === today) completed++; continue; }
+    if (t.status === "completed") { if (t.completedAt && localDay(t.completedAt) === today) completed++; continue; }
     if (t.dueDate && t.dueDate <= today) { remaining++; if (t.dueDate < today) overdue++; }
   }
   const total = remaining + completed;

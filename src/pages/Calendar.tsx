@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { dateStrip } from "../../shared/overview";
 import { addDays } from "../../shared/rotation";
+import type { ModuleId } from "../../shared/modules";
 import { rotationTicks } from "../../shared/viz";
 import { EventEditor, TaskEditor } from "../components/editors";
 import { ModuleIcon } from "../components/mobile";
@@ -19,8 +20,14 @@ import type { CalEvent, Task } from "../lib/types";
 type View = "day" | "week" | "month";
 const startOfWeek = (d: string, ws: 0 | 1) => { const dow = parse(d).getDay(); return addDays(d, -((dow - ws + 7) % 7)); };
 
-export default function Calendar() {
-  const { events, tasks, today, weekStart, settings, completeTask, reopenTask } = useData();
+export default function CalendarPage() { return <Calendar />; }
+
+/** The calendar. Pass a module to see only that module's events and due tasks (used inside module tabs). */
+export function Calendar({ module }: { module?: ModuleId } = {}) {
+  const data = useData();
+  const { today, weekStart, settings, completeTask, reopenTask } = data;
+  const events = module ? data.events.filter((e) => e.module === module) : data.events;
+  const tasks = module ? data.tasks.filter((t) => t.module === module) : data.tasks;
   const [sp, setSp] = useSearchParams();
   const view: View = (["day", "week", "month"] as const).find((v) => v === sp.get("view")) ?? "week";
   const [focus, setFocus] = useState(today);
@@ -40,7 +47,7 @@ export default function Calendar() {
 
   return (
     <div>
-      <PageHeader crumb="CALENDAR" title="Calendar" subtitle={label} controls={<div className="max-md:hidden"><Segmented label="View" value={view} onChange={(v) => { const n = new URLSearchParams(sp); n.set("view", v); setSp(n, { replace: true }); }} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} /></div>} />
+      {module ? <p className="mono mb-3 px-1 !normal-case !tracking-normal">{label}</p> : <PageHeader crumb="CALENDAR" title="Calendar" subtitle={label} controls={<div className="max-md:hidden"><Segmented label="View" value={view} onChange={(v) => { const n = new URLSearchParams(sp); n.set("view", v); setSp(n, { replace: true }); }} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} /></div>} />}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Btn variant="soft" icon={ChevronLeft} label="Previous" onClick={() => move(-1)} />
         <Btn variant="soft" onClick={() => setFocus(today)}>Today</Btn>

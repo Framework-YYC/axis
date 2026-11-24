@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource-variable/outfit/wght.css";
+@import "@fontsource-variable/geist/wght.css";
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 
 /* ------------------------------------------------------------------------------------------------
@@ -7,74 +7,101 @@
    one restrained lime accent. Light is the reference theme; dark keeps the same dimensional hierarchy.
    The theme is always resolved to data-theme="light|dark" (public/theme-init.js before paint, useTheme after).
    ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------
+   Axis design tokens: premium industrial minimalism. Near-black canvas, charcoal instrument surfaces, three muted
+   data colours (powder blue, butter, sage), terracotta for warnings, one restrained lime brand accent.
+   Surfaces are flat with hairline borders; no gradients or glows. Dark is the reference theme; light is its complement.
+   The theme is always resolved to data-theme="light|dark" (public/theme-init.js before paint, useTheme after).
+   ------------------------------------------------------------------------------------------------ */
 :root {
-  --canvas-a: #e4e6e9;
-  --canvas-b: #cdd0d5;
-  --sheet: #e8eaed;
-  --card-a: #fcfcfd;
-  --card-b: #f2f3f5;
-  --card-dim: #e4e6e9;
-  --inset: #dcdfe3;
-  --ink: #0e0f11;
-  --muted: #5f646c;
-  --faint: #a2a8b0;
-  --line: rgb(14 15 17 / 0.1);
+  --canvas-a: #eceded;
+  --canvas-b: #eceded;
+  --sheet: #f2f3f3;
+  --card-a: #f8f8f7;
+  --card-b: #f8f8f7;
+  --card-dim: #edeeed;
+  --inset: #e3e5e4;
+  --ink: #15171a;
+  --muted: #5d6166;
+  --faint: #8e9297;
+  --line: rgb(21 23 26 / 0.1);
   --lime: #d4fa49;
   --lime-ink: #18220a;
-  --lime-deep: #8fb312;
-  --red: #e0383e;
-  --amber: #c9801a;
-  --rail: #0f1012;
-  --rail-ink: #a9aeb6;
-  --pill-bg: #0e0f11;
-  --pill-ink: #ffffff;
-  --tick-off: rgb(14 15 17 / 0.14);
-  --sh-sheet: inset 0 1px 0 rgb(255 255 255 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.35), 0 30px 60px -30px rgb(40 46 58 / 0.45);
-  --sh-card: inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px rgb(14 15 17 / 0.06), 0 14px 26px -16px rgb(40 46 58 / 0.4), 0 2px 5px rgb(40 46 58 / 0.06);
-  --sh-inset: inset 0 1px 3px rgb(30 36 48 / 0.22), inset 0 0 0 1px rgb(30 36 48 / 0.05), 0 1px 0 rgb(255 255 255 / 0.85);
-  --sh-pill: 0 8px 16px -8px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.2);
-  --sh-soft: inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px rgb(14 15 17 / 0.07), 0 4px 8px -4px rgb(40 46 58 / 0.3);
-  /* Per-module accents: subtle, used for icons and small tints only. Contrast checked on card surfaces in both themes. */
-  --m-daily: #a86a0f;
-  --m-health: #1f8a4c;
-  --m-financial: #2f5fcf;
-  --m-framework: #6a47c9;
-  --m-progressive: #bf5a1c;
-  --r-card: 20px;
+  --lime-deep: #6f8f0c;
+  --red: #b4543f;
+  --amber: #a7701a;
+  --rail: #1a1b1c;
+  --rail-ink: #a4a8a3;
+  --pill-bg: #15171a;
+  --pill-ink: #f4f4f1;
+  --tick-off: rgb(21 23 26 / 0.14);
+  --sh-sheet: none;
+  --sh-card: 0 0 0 1px var(--line);
+  --sh-inset: 0 0 0 1px var(--line);
+  --sh-pill: none;
+  --sh-soft: 0 0 0 1px var(--line);
+  /* Instrument widgets. Pastel cards keep dark text in both themes; the charcoal card follows the theme. */
+  --w-charcoal: #f8f8f7;
+  --w-charcoal-2: #edeeed;
+  --w-blue: #cddbe9;
+  --w-butter: #f1e5b3;
+  --w-sage: #d5dfad;
+  --g-sage: #8c9f55;
+  --w-terra: #b4543f;
+  --w-on: #15171a;
+  --w-on-2: rgb(21 23 26 / 0.62);
+  --w-hatch: rgb(21 23 26 / 0.3);
+  --w-blue-ink: #3f5680;
+  --w-on-blue: #2b3a55;
+  --w-on-blue-2: rgb(43 58 85 / 0.7);
+  --w-butter-on: #4a4630;
+  /* Per-module accents: faint tints on icons only. */
+  --m-daily: #98640f;
+  --m-health: #2b7a4b;
+  --m-financial: #3b62b8;
+  --m-framework: #6a4fb8;
+  --m-progressive: #ad5a22;
+  --r-card: 18px;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --canvas-a: #1a1b1f;
-  --canvas-b: #09090b;
-  --sheet: #111214;
-  --card-a: #23252a;
-  --card-b: #1a1b1f;
-  --card-dim: #17181b;
-  --inset: #0b0c0d;
-  --ink: #f3f4f6;
-  --muted: #9aa0a9;
-  --faint: #5d626a;
+  --canvas-a: #101112;
+  --canvas-b: #101112;
+  --sheet: #131414;
+  --card-a: #1c1c1c;
+  --card-b: #1c1c1c;
+  --card-dim: #222523;
+  --inset: #151616;
+  --ink: #ecece8;
+  --muted: #9a9d98;
+  --faint: #62655f;
   --line: rgb(255 255 255 / 0.09);
   --lime: #d4fa49;
   --lime-ink: #18220a;
   --lime-deep: #b6dc2e;
-  --red: #ff6b70;
-  --amber: #f0b050;
-  --rail: #050506;
-  --rail-ink: #9aa0a9;
-  --pill-bg: #f3f4f6;
-  --pill-ink: #0e0f11;
+  --red: #d9806d;
+  --amber: #d9a95c;
+  --rail: #1a1b1c;
+  --rail-ink: #9a9d98;
+  --pill-bg: #ecece8;
+  --pill-ink: #101112;
   --tick-off: rgb(255 255 255 / 0.14);
-  --sh-sheet: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 0 0 1px rgb(255 255 255 / 0.04), 0 30px 60px -30px rgb(0 0 0 / 0.8);
-  --sh-card: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 0 0 1px rgb(255 255 255 / 0.05), 0 16px 28px -16px rgb(0 0 0 / 0.85), 0 2px 5px rgb(0 0 0 / 0.3);
-  --sh-inset: inset 0 1px 4px rgb(0 0 0 / 0.7), inset 0 0 0 1px rgb(255 255 255 / 0.04), 0 1px 0 rgb(255 255 255 / 0.05);
-  --sh-pill: 0 8px 16px -8px rgb(0 0 0 / 0.8), inset 0 1px 0 rgb(255 255 255 / 0.6);
-  --sh-soft: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.06), 0 4px 8px -4px rgb(0 0 0 / 0.7);
-  --m-daily: #f0b050;
-  --m-health: #5fd08a;
-  --m-financial: #7aa2ff;
-  --m-framework: #b49cff;
-  --m-progressive: #ff9a5c;
+  --w-charcoal: #1c1c1c;
+  --w-charcoal-2: #222523;
+  --w-blue: #c3d4e6;
+  --w-butter: #efdfa5;
+  --w-sage: #d5dfad;
+  --g-sage: #d5dfad;
+  --w-terra: #d9806d;
+  --w-blue-ink: #3f5680;
+  --w-on-blue: #2b3a55;
+  --w-on-blue-2: rgb(43 58 85 / 0.7);
+  --w-butter-on: #4a4630;
+  --m-daily: #e2b25e;
+  --m-health: #6fc592;
+  --m-financial: #86a8f0;
+  --m-framework: #b3a0f0;
+  --m-progressive: #f0a070;
   color-scheme: dark;
 }
 
@@ -88,8 +115,9 @@
   --color-red: var(--red);
   --color-amber: var(--amber);
   --color-inset: var(--inset);
+  --color-terra: var(--w-terra);
   --color-dim: var(--card-dim);
-  --font-sans: "Outfit Variable", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 @custom-variant tall (@media (min-height: 760px));
@@ -101,7 +129,7 @@
   .grid > * { min-width: 0; }
   body {
     margin: 0;
-    background: linear-gradient(180deg, var(--canvas-a), var(--canvas-b)) fixed;
+    background: var(--canvas-a);
     color: var(--ink);
     font-family: var(--font-sans);
     font-size: 14px;
@@ -117,27 +145,27 @@
 }
 
 @layer components {
-  .sheet { background: var(--sheet); box-shadow: var(--sh-sheet); }
-  .panel { background: linear-gradient(180deg, var(--card-a), var(--card-b)); border-radius: var(--r-card); box-shadow: var(--sh-card); }
-  .panel-dim { background: var(--card-dim); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); }
+  .sheet { background: var(--sheet); }
+  .panel { background: var(--card-a); border-radius: var(--r-card); box-shadow: var(--sh-card); }
+  .panel-dim { background: var(--card-dim); border-radius: 14px; box-shadow: none; }
   .inset { background: var(--inset); box-shadow: var(--sh-inset); }
-  .raised { background: linear-gradient(180deg, var(--card-a), var(--card-b)); box-shadow: var(--sh-soft); }
-  .mono { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 450; }
+  .raised { background: var(--card-a); box-shadow: var(--sh-soft); }
+  .mono { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
   .num { font-variant-numeric: tabular-nums; }
-  .display { font-weight: 200; letter-spacing: -0.035em; line-height: 0.95; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 999px; font-weight: 500; font-size: 13px; white-space: nowrap; transition: transform 120ms ease, box-shadow 160ms ease, opacity 160ms ease; }
-  .btn:active { transform: translateY(1px) scale(0.99); }
+  .display { font-weight: 300; letter-spacing: -0.03em; line-height: 1; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 999px; font-weight: 450; font-size: 13px; white-space: nowrap; transition: transform 120ms ease, background-color 160ms ease, opacity 160ms ease; }
+  .btn:active { transform: scale(0.99); }
   .btn:disabled { opacity: 0.4; pointer-events: none; }
-  .btn-primary { background: linear-gradient(180deg, color-mix(in srgb, var(--pill-bg) 88%, white), var(--pill-bg)); color: var(--pill-ink); box-shadow: var(--sh-pill); }
-  .btn-soft { color: var(--ink); background: linear-gradient(180deg, var(--card-a), var(--card-b)); box-shadow: var(--sh-soft); }
+  .btn-primary { background: var(--pill-bg); color: var(--pill-ink); }
+  .btn-soft { color: var(--ink); background: transparent; box-shadow: 0 0 0 1px var(--line); }
   .btn-dash { color: var(--ink); border: 1px dashed color-mix(in srgb, var(--ink) 28%, transparent); background: transparent; }
-  .btn-dash:hover, .btn-soft:hover { box-shadow: var(--sh-soft), 0 0 0 3px color-mix(in srgb, var(--ink) 6%, transparent); }
+  .btn-dash:hover, .btn-soft:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
   .btn-ghost { color: var(--muted); }
   .btn-ghost:hover { color: var(--ink); }
   .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; font-family: var(--font-mono); font-size: 10px; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 16%, transparent); }
   .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 7px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; background: var(--card-dim); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); white-space: nowrap; }
-  .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 500; white-space: nowrap; background: linear-gradient(180deg, var(--card-a), var(--card-b)); box-shadow: var(--sh-soft); }
-  .pill-lime { background: var(--lime); color: var(--lime-ink); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 0 1px rgb(24 34 10 / 0.12); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 450; white-space: nowrap; background: transparent; box-shadow: 0 0 0 1px var(--line); }
+  .pill-lime { background: var(--lime); color: var(--lime-ink); box-shadow: none; }
   .rise { animation: rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   .stagger > * { animation: rise 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   .stagger > *:nth-child(2) { animation-delay: 40ms; } .stagger > *:nth-child(3) { animation-delay: 80ms; }
@@ -146,8 +174,7 @@
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   /* Phone surfaces: one soft layer, no stacked borders or heavy shadows. */
-  .flat { background: var(--card-dim); border-radius: 22px; box-shadow: none; }
-  :root:not([data-theme="dark"]) .flat { background: color-mix(in srgb, var(--card-a) 70%, var(--card-dim)); box-shadow: 0 0 0 1px var(--line); }
+  .flat { background: var(--card-a); border-radius: 18px; box-shadow: 0 0 0 1px var(--line); }
   .hit { min-height: 44px; min-width: 44px; }
   /* iPhone: every button is at least 44 px tall. Wider screens keep the compact sizes. */
   @media (max-width: 767px) { .btn { min-height: 44px; } }

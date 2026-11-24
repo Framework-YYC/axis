@@ -2,6 +2,7 @@ import { ArrowRight, Bell, Plus, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "../lib/data";
+import { AccountMenuButton } from "./AccountMenu";
 import { ContextChips } from "./nav";
 
 import { cx } from "../lib/cx";
@@ -13,7 +14,7 @@ export function Panel({ children, className, id, tabIndex, onKeyDown, label }: {
 }
 
 export function CountBadge({ n }: { n: number }) {
-  return <span className="grid h-5 min-w-5 place-items-center rounded-full bg-lime px-1.5 text-[11px] font-semibold text-lime-ink num">{n}</span>;
+  return <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--card-dim)] px-1.5 text-[11px] font-medium num">{n}</span>;
 }
 
 /** `bare` drops the card chrome on phones, so a list inside it is the only surface. */
@@ -59,6 +60,7 @@ export function HeaderActions({ compact }: { compact?: boolean }) {
   const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < today).length;
   return (
     <div className="flex items-center gap-2">
+      {compact && <AccountMenuButton className="-mr-1" />}
       <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft relative !min-h-11 !w-11 !px-0 md:!min-h-10 md:!w-10">
         <Bell size={16} aria-hidden />
         {attention > 0 && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-red ring-2 ring-[var(--card-a)]" />}
@@ -78,8 +80,8 @@ export function PageHeader({ crumb, title, subtitle, controls, tag }: { crumb: s
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="mono">AXIS / {crumb}</p>
-            <h1 className="display mt-1.5 text-[34px] md:text-[44px]">{title}</h1>
-            {subtitle && <p className="mono mt-2 !normal-case !tracking-[0.02em]">{subtitle}</p>}
+            <h1 className="mt-1 text-[30px] font-[350] leading-none tracking-[-0.025em] md:text-[40px]">{title}</h1>
+            {subtitle && <p className="mt-2 text-[13px] leading-snug text-muted">{subtitle}</p>}
           </div>
           <div className="lg:hidden"><HeaderActions compact /></div>
         </div>
