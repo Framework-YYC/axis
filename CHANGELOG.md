@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Staging deployed through GitHub Actions (tests, additive migration, Worker with static assets, smoke test) using organization-level secrets; repository moved to `Framework-YYC/axis`.
 - Repository published (public, intentional). CI and staging-deploy workflows, Dependabot, public-repository rules in CLAUDE.md, SECURITY.md and ARCHITECTURE.md.
 - Staging D1 `axis-staging` created and migrated; Worker `axis-staging` deployed (interim, no assets) on `axis-staging.frameworktools.ca`; Access applications and owner secret configured.
 - Worker accepts the Access JWT from the `CF_Authorization` cookie on the bypassed `/api/v1` and `/mcp` paths (verified identically).

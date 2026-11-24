@@ -27,7 +27,7 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 - Synthetic data only. No confidential employer information. No banking credentials are ever stored.
 
 ## Staging provisioning status (2026-11-24)
-Done: dedicated D1 `axis-staging` (additive migrations applied), Worker `axis-staging` on `axis-staging.frameworktools.ca`, Access application (owner-only) plus a path-only bypass for `/api/v1` and `/mcp`, `OWNER_EMAIL` secret. The deployed version is interim (no UI assets) and fails closed. Pending: static assets via the GitHub Action (the build session's proxy-held credential cannot upload them). See docs/STAGING_DEPLOYMENT.md.
+Done: dedicated D1 `axis-staging` (additive migrations applied), Worker `axis-staging` on `axis-staging.frameworktools.ca`, Access application (owner-only) plus a path-only bypass for `/api/v1` and `/mcp`, `OWNER_EMAIL` secret. The full build (with static assets) is deployed by the `Deploy staging` workflow, which passed its unauthenticated smoke test. See docs/STAGING_DEPLOYMENT.md.
 
 ## Required before any real data (owner decisions)
 1. Cloudflare Access application for each hostname, policy = owner's identity only, with **bypass** only for `/mcp` and `/api/v1` now (`/oauth/token`, `/oauth/register`, `/.well-known/*` are added when OAuth exists); the Worker enforces those.
