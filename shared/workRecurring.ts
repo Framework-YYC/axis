@@ -6,7 +6,7 @@ export interface WorkRecurring { title: string; priority: "high" | "medium"; rul
 const W = (days: number[], rotation: boolean, interval = 1): Recurrence => ({ freq: "weekly", interval, byWeekday: days, ...(rotation ? { rotation: "on" as const } : {}) });
 
 export const WORK_RECURRING: WorkRecurring[] = [
-  { title: "Send daily headcount", priority: "high", rule: W([1, 2, 3, 4, 5], true), note: "Every working day (Monday to Friday) while on rotation." },
+  { title: "Send daily headcount", priority: "high", rule: W([0, 1, 2, 3, 4, 5, 6], true), note: "Every day, seven days a week, while on rotation." },
   { title: "Distribute REEF EHS meeting minutes", priority: "medium", rule: W([1], true) },
   { title: "Submit top 3 safety observations", priority: "high", rule: W([4], true) },
   { title: "Invite REEF EHS to safety meeting and site walk-down", priority: "medium", rule: W([6], true) },

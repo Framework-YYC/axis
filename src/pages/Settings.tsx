@@ -150,7 +150,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
         </Widget>}
 
         <Widget id="work" title="Work recurring tasks" tag="Rotation-aware">
-          <p className="text-[13.5px] text-muted">Adds the Work module's standing responsibilities (daily headcount, EHS minutes, safety observations, toolbox talks, Progress Meeting minutes and the weekly and monthly KPIs). Anything that already exists is recognised and left alone, so running it again changes nothing. Whether each one follows your work rotation is set on the task.</p>
+          <p className="text-[13.5px] text-muted">Adds the Work module's standing responsibilities (daily headcount seven days a week on rotation, EHS minutes, safety observations, toolbox talks, Progress Meeting minutes and the weekly and monthly KPIs). Anything that already exists is recognised and left alone, so running it again changes nothing. Whether each one follows your work rotation is set on the task.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Btn variant="soft" onClick={() => void setupWork(true)}>Preview</Btn>
             <Btn variant="primary" onClick={() => void setupWork(false)}>Set up Work recurring tasks</Btn>

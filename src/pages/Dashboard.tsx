@@ -107,7 +107,7 @@ export default function Overview() {
 
       {source !== "live" && error && <p role="alert" className="mt-3 rounded-2xl p-3.5 text-[13px]" style={{ boxShadow: "0 0 0 1px var(--line)" }}>{error}</p>}
 
-      <div className="@container mt-3.5"><div className="grid grid-cols-2 gap-2 @[640px]:grid-cols-12 @[640px]:gap-3">
+      <div className="@container mt-3.5"><div className="stagger grid grid-cols-2 gap-2 @[640px]:grid-cols-12 @[640px]:gap-3">
         <Card tone="charcoal" to="/tasks?h=today" label="Daily completion" aria={`Daily completion: ${f.completed} of ${totalToday} tasks, ${f.pct} percent. Open today's tasks`} className="min-h-[232px] items-center @[640px]:order-1 @[640px]:col-span-4 @[1000px]:col-span-3">
           <RadialGauge pct={f.pct} size={122} className="mt-3.5" label={totalToday === 0 ? "No tasks due today" : `${f.pct} percent of today's tasks complete`} />
           <div className="mt-auto text-center">

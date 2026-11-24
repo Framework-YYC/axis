@@ -4,7 +4,7 @@ import { processInbox } from "../worker/services/inbox";
 import { runOperation } from "../worker/services/operations";
 import { assistantActor } from "../worker/services/assistants";
 import { ownerActor, type Ctx } from "../worker/services/types";
-import { nextOccurrence, validateRecurrence } from "../shared/recurrence";
+import { describeRecurrence, nextOccurrence, validateRecurrence } from "../shared/recurrence";
 import { deliveryDeadline, effectiveType } from "../shared/taskTypes";
 import { DEFAULT_ROTATION } from "../shared/rotation";
 
@@ -165,7 +165,7 @@ describe("Work recurring responsibilities setup", () => {
     const open = (await run(owner, "list_tasks", { module: "progressive", type: "recurring", status: ["pending"], limit: 50 })).data.tasks as any[];
     const due = Object.fromEntries(open.map((t) => [t.title, t.dueDate]));
     expect(due).toMatchObject({
-      "Send daily headcount": "2026-11-24", // a working day, on rotation
+      "Send daily headcount": "2026-11-24", // every day while on rotation
       "Distribute REEF EHS meeting minutes": "2026-12-07", // Mon 30 Nov is in the week off
       "Submit top 3 safety observations": "2026-11-26",
       "Invite REEF EHS to safety meeting and site walk-down": "2026-11-28",
@@ -176,7 +176,7 @@ describe("Work recurring responsibilities setup", () => {
     });
     const done = (await run(owner, "get_completed_tasks", { module: "progressive", since: "2026-11-24" })).data.tasks as any[];
     expect(done.map((t) => t.title)).toEqual(["Update Progress Meeting minutes"]); // today's completion is in its history
-    expect(open.find((t) => t.title === "Send daily headcount").recurrence).toMatchObject({ freq: "weekly", byWeekday: [1, 2, 3, 4, 5], rotation: "on" });
+    expect(open.find((t) => t.title === "Send daily headcount").recurrence).toMatchObject({ freq: "weekly", byWeekday: [0, 1, 2, 3, 4, 5, 6], rotation: "on" });
     expect(open.find((t) => t.title === "Complete weekly REEF KPIs").recurrence.rotation).toBeUndefined();
   });
   it("never duplicates: running it again, or when similar tasks already exist, creates nothing new", async () => {
@@ -191,5 +191,15 @@ describe("Work recurring responsibilities setup", () => {
   });
   it("is owner-only", async () => {
     expect((await run(work, "setup_work_recurring", {})).ok).toBe(false);
+  });
+});
+
+describe("daily headcount recurs seven days a week while on rotation", () => {
+  const rule = { freq: "weekly" as const, interval: 1, byWeekday: [0, 1, 2, 3, 4, 5, 6], rotation: "on" as const };
+  it("every day inside an on-rotation block, nothing in the week off", () => {
+    expect(nextOccurrence(rule, "2026-11-28", "2026-11-28", DEFAULT_ROTATION)).toBe("2026-11-29"); // Saturday to Sunday, still on rotation
+    expect(nextOccurrence(rule, "2026-11-29", "2026-11-29", DEFAULT_ROTATION)).toBe("2026-12-07"); // 30 Nov to 6 Dec is the week off
+    expect(nextOccurrence(rule, "2026-12-07", "2026-12-07", DEFAULT_ROTATION)).toBe("2026-12-08");
+    expect(describeRecurrence(rule)).toBe("Every day · on rotation");
   });
 });

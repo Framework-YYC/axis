@@ -137,8 +137,8 @@ export function WorkOverview({ module }: { module: ModuleId }) {
   const ev: CalEvent[] = events.filter((e) => e.module === module && e.status === "scheduled" && e.date >= today && e.date <= addDays(today, 14)).slice(0, 5);
   const tiles: Array<[string, number, boolean]> = [["Due today", dueNow.length - overdue, false], ["Overdue", overdue, overdue > 0], ["Notify soon", notifySoon, notifySoon > 0], ["Action items", actions.length, false]];
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 @[640px]:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.3fr)]">
+    <div className="stagger space-y-3">
+      <div className="stagger grid grid-cols-2 gap-3 @[640px]:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.3fr)]">
         {tiles.map(([l, n, hot]) => <div key={l} className="panel p-3.5"><p className="mono">{l}</p><p className={cx("num mt-1 text-[30px] font-extralight leading-none", hot && "text-red")}>{n}</p></div>)}
         <div className="panel col-span-2 flex items-center justify-between gap-3 p-3.5 @[640px]:col-span-1">
           <div><p className="mono">Rotation</p><p className="mt-1 text-[15px] font-medium">{rot.phase === "on" ? "On" : "Off"} · day {rot.dayInPhase} of {rot.phaseLength}</p></div>
@@ -146,7 +146,7 @@ export function WorkOverview({ module }: { module: ModuleId }) {
         </div>
       </div>
       <div className="grid gap-3 @[960px]:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className="space-y-3">
+        <div className="stagger space-y-3">
           <Widget title="Today's responsibilities" count={dueNow.length}>
             {dueNow.length === 0 ? <Quiet>Nothing due today. Next up is below.</Quiet> : <TaskList tasks={dueNow} today={today} onToggle={toggle} onOpen={setEdit} limit={8} />}
           </Widget>
@@ -157,7 +157,7 @@ export function WorkOverview({ module }: { module: ModuleId }) {
             {manual.length === 0 ? <Quiet>No other outstanding tasks.</Quiet> : <TaskList tasks={manual} today={today} onToggle={toggle} onOpen={setEdit} limit={5} />}
           </Widget>
         </div>
-        <div className="space-y-3">
+        <div className="stagger space-y-3">
           <Widget title="Incoming deliveries" count={deliveries.length} tag="Notify 24 h ahead">
             {deliveries.length === 0 ? <Quiet>No deliveries to notify.</Quiet> : (
               <ul>{deliveries.slice(0, 5).map((t) => (

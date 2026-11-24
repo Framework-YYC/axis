@@ -106,7 +106,8 @@ export function describeRecurrence(r: Recurrence): string {
   if (r.freq === "daily") base = r.interval === 1 ? "Every day" : `${every} day`;
   else if (r.freq === "weekly") {
     const d = r.byWeekday ?? [];
-    if (d.length === 5 && [1, 2, 3, 4, 5].every((x) => d.includes(x))) base = r.interval === 1 ? "Every weekday" : `${every} week, weekdays`;
+    if (d.length === 7) base = r.interval === 1 ? "Every day" : `${every} week, every day`;
+    else if (d.length === 5 && [1, 2, 3, 4, 5].every((x) => d.includes(x))) base = r.interval === 1 ? "Every weekday" : `${every} week, weekdays`;
     else if (d.length === 0) base = r.interval === 1 ? "Weekly" : `${every} week`;
     else base = `${every} ${d.map((x) => DAY_NAMES[x]).join(", ")}`;
   } else if (r.freq === "monthly") base = r.byMonthDay === 31 ? "Last day of the month" : r.byMonthDay ? `Monthly on day ${r.byMonthDay}` : r.interval === 1 ? "Monthly" : `${every} month`;

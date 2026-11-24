@@ -182,3 +182,14 @@ describe("Orbis brand and the Work command centre", () => {
     expect(ed).toContain("Only while on rotation"); expect(ed).toContain("Last day of the month");
   });
 });
+
+describe("glass and staggered card entrance are actually applied", () => {
+  it("floating chrome uses the glass materials and cards cascade in on navigation only", () => {
+    for (const f of ["src/components/Shell.tsx", "src/components/ModuleTabs.tsx", "src/components/forms.tsx", "src/components/EnvSwitch.tsx"]) expect(read(f), f).toMatch(/\bglass(-sheet|-bubble)?\b/);
+    const css = read("src/styles/index.css");
+    expect(css).toMatch(/\.glass \{[^}]*backdrop-filter: blur/); expect(css).toContain("prefers-reduced-transparency"); expect(css).toMatch(/\.stagger > \*:nth-child\(2\)/);
+    expect(read("src/pages/Dashboard.tsx")).toContain('className="stagger grid');
+    expect(read("src/components/WorkViews.tsx").match(/stagger/g)!.length).toBeGreaterThanOrEqual(4);
+    expect(css).toMatch(/\.stagger > \* \{ animation: rise [^;]*backwards/); // backwards fill: no trapped fixed sheets, no replay on data refresh
+  });
+});
