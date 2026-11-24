@@ -14,7 +14,18 @@ export const MODULES_META: Record<ModuleId, ModuleMeta> = {
 export const isModule = (v: unknown): v is ModuleId => typeof v === "string" && (MODULE_IDS as readonly string[]).includes(v);
 export const moduleLabel = (id: string) => (isModule(id) ? MODULES_META[id].label : id);
 /** Display label of the actor an assistant acts as. */
+/** INTERNAL identity of an assistant: stored as the actor label (and source name) on every record it files, so it must never change. */
 export const assistantLabel = (id: ModuleId) => `ChatGPT: ${MODULES_META[id].assistant} assistant`;
+/** What a person sees. Display only: the Work assistant is now called Datum; module ids and stored labels are unchanged. */
+export const ASSISTANT_DISPLAY: Partial<Record<ModuleId, string>> = { progressive: "Datum" };
+export const assistantShortName = (id: ModuleId) => ASSISTANT_DISPLAY[id] ?? MODULES_META[id].assistant;
+/** The assistant's name in a sentence ("the Datum assistant", "the Daily assistant"). */
+export const assistantName = (id: ModuleId) => ASSISTANT_DISPLAY[id] ?? MODULES_META[id].label;
+/** For a stored value of unknown type: the display name when it is a module id, otherwise the value itself. */
+export const assistantNameOf = (v: string): string => (isModule(v) ? assistantName(v) : v);
+export const assistantDisplayLabel = (id: ModuleId) => `ChatGPT: ${assistantShortName(id)} assistant`;
+/** Maps a stored actor label to its display form (only the renamed assistants change). */
+export const shownActor = (label: string): string => { for (const id of Object.keys(ASSISTANT_DISPLAY) as ModuleId[]) if (label === assistantLabel(id)) return assistantDisplayLabel(id); return label; };
 
 /** Every screen a module can show, and the ones each module leads with. Only screens that exist and work. The rest sit under the tab bar's More menu. */
 export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "recurring" | "actions" | "briefing" | "activity" | "metrics";

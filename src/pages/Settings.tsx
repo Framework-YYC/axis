@@ -1,7 +1,7 @@
 import { Check, X } from "lucide-react";
 import { useState } from "react";
 import { MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
-import { assistantLabel } from "../../shared/modules";
+import { assistantDisplayLabel, assistantName, shownActor } from "../../shared/modules";
 import { Field, Select, TextInput } from "../components/forms";
 import { EnvCard } from "../components/EnvSwitch";
 import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
@@ -93,7 +93,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
               const mine = inbox.filter((r) => r.assistant === m);
               return (
                 <li key={m} className="flex items-center justify-between gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0 first:pt-0">
-                  <span>{assistantLabel(m)}</span>
+                  <span>{assistantDisplayLabel(m)}</span>
                   <span className="mono">{mine.length ? `${mine.length} recent request${mine.length > 1 ? "s" : ""} · last ${mine[0].createdAt.slice(5, 16).replace("T", " ")}` : "No requests yet"}</span>
                 </li>
               );
@@ -132,11 +132,11 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           <div className="grid gap-6 md:grid-cols-2">
             <div>
               <p className="mono mb-2">Inbox</p>
-              {inbox.length === 0 ? <Empty>No requests yet.</Empty> : <ul>{inbox.slice(0, 12).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{MODULES_META[r.assistant]?.label} · {r.op}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
+              {inbox.length === 0 ? <Empty>No requests yet.</Empty> : <ul>{inbox.slice(0, 12).map((r) => <li key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{assistantName(r.assistant)} · {r.op}{r.result?.message ? <span className="text-muted"> · {r.result.message}</span> : null}</span><Status tone={r.status === "applied" ? "ok" : r.status === "duplicate" ? "idle" : r.status === "approval_required" ? "lime" : "bad"}>{r.status.replace("_", " ")}</Status></li>)}</ul>}
             </div>
             <div>
               <p className="mono mb-2">Audit trail</p>
-              {activity.length === 0 ? <Empty>No activity.</Empty> : <ul>{activity.slice(0, 12).map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{a.action} <span className="text-muted">· {a.actor}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
+              {activity.length === 0 ? <Empty>No activity.</Empty> : <ul>{activity.slice(0, 12).map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{a.action} <span className="text-muted">· {shownActor(a.actor)}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
             </div>
           </div>
         </Widget>

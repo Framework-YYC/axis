@@ -174,7 +174,7 @@ describe("Orbis brand and the Work command centre", () => {
     expect(PRIMARY_TABS.progressive.slice(0, 4)).toEqual(["overview", "tasks", "recurring", "actions"]);
     const page = read("src/pages/ModulePage.tsx"), views = read("src/components/WorkViews.tsx");
     expect(page).toContain('id === "progressive" && <WorkOverview'); expect(page).toContain("<RecurringView"); expect(page).toContain("<ActionItemsView");
-    for (const section of ["Today's responsibilities", "Action items from email", "Incoming deliveries", "Upcoming recurring", "Manual tasks", "Meetings and events"]) expect(views).toContain(section);
+    for (const section of ["Today's responsibilities", "Action items", "Incoming deliveries", "Upcoming recurring", "Manual tasks", "Meetings and events"]) expect(views).toContain(section);
     expect(views).not.toMatch(/style=\{\{/); expect(views).not.toContain("dangerouslySetInnerHTML");
   });
   it("the task editor exposes rotation awareness and last-day-of-month", () => {
@@ -191,5 +191,26 @@ describe("glass and staggered card entrance are actually applied", () => {
     expect(read("src/pages/Dashboard.tsx")).toContain('className="stagger grid');
     expect(read("src/components/WorkViews.tsx").match(/stagger/g)!.length).toBeGreaterThanOrEqual(4);
     expect(css).toMatch(/\.stagger > \* \{ animation: rise [^;]*backwards/); // backwards fill: no trapped fixed sheets, no replay on data refresh
+  });
+});
+
+describe("task rows are minimal: no source references, Datum is a display name only", () => {
+  it("no task row or list shows a source reference string; the metadata stays on the record", () => {
+    for (const f of ["src/components/TaskLine.tsx", "src/components/WorkViews.tsx", "src/components/TaskGroups.tsx", "src/components/TasksView.tsx", "src/pages/Dashboard.tsx", "src/pages/ModulePage.tsx", "src/pages/Tasks.tsx", "src/pages/Calendar.tsx"]) expect(read(f), f).not.toMatch(/source\??\.ref|sourceRef/);
+    expect(read("src/lib/types.ts")).toContain("source: Source"); // the data is still delivered to the app (and stored) for sync, duplicate prevention and audit
+    expect(read("src/components/WorkViews.tsx")).not.toContain("✉");
+  });
+  it("rows only render a metadata line when there is something to show, and keep recurrence and due dates", () => {
+    const row = read("src/components/TaskLine.tsx");
+    expect(row).toContain("hasMeta &&"); expect(row).toContain("Repeat size={11}"); expect(row).toContain("<DueChip");
+    expect(read("src/components/WorkViews.tsx")).toContain("describeRecurrence(t.recurrence)");
+  });
+  it("Datum is the displayed name of the Work assistant; module ids and stored labels are unchanged", async () => {
+    const m = await import("../shared/modules");
+    expect(m.assistantShortName("progressive")).toBe("Datum"); expect(m.assistantName("progressive")).toBe("Datum"); expect(m.assistantDisplayLabel("progressive")).toBe("ChatGPT: Datum assistant");
+    expect(m.assistantLabel("progressive")).toBe("ChatGPT: Progressive assistant"); // stored on records (source name): the dedupe key, never renamed
+    expect(m.MODULES_META.progressive.assistant).toBe("Progressive"); expect(m.MODULE_IDS).toContain("progressive");
+    expect(m.shownActor("ChatGPT: Progressive assistant")).toBe("ChatGPT: Datum assistant"); expect(m.shownActor("ChatGPT: Daily assistant")).toBe("ChatGPT: Daily assistant"); expect(m.shownActor("Owner")).toBe("Owner");
+    expect(m.assistantNameOf("progressive")).toBe("Datum"); expect(m.assistantNameOf("someone")).toBe("someone");
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MODULES_META } from "../../shared/modules";
+import { assistantShortName, MODULES_META, type ModuleId } from "../../shared/modules";
 import { priorityLevel } from "../../shared/taskViews";
 import type { Tick } from "../../shared/viz";
 import { cx } from "../lib/cx";
@@ -37,7 +37,8 @@ function CheckMark({ done, fresh }: { done: boolean; fresh: boolean }) {
 export function TaskLine({ t, today, onToggle, onOpen, showModule = true, compact = false, detail }: { t: Task; today: string; onToggle: (t: Task) => void; onOpen?: (t: Task) => void; showModule?: boolean; compact?: boolean; detail?: string }) {
   const done = t.status === "completed";
   const bar = PRIORITY_BAR[t.priority];
-  const assistant = t.source.assistant ? (MODULES_META[t.source.assistant as keyof typeof MODULES_META]?.assistant ?? t.source.assistant) : null;
+  const assistant = t.source.assistant ? assistantShortName(t.source.assistant as ModuleId) : null;
+  const hasMeta = showModule || !!t.recurrence || isUnverified(t.source) || (!!assistant && !compact) || t.demo;
   const [fresh, setFresh] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const timers = useRef<number[]>([]);
@@ -49,23 +50,23 @@ export function TaskLine({ t, today, onToggle, onOpen, showModule = true, compac
     timers.current.push(window.setTimeout(() => onToggle(t), 420));
   };
   return (
-    <li className={cx("relative flex items-start gap-1 border-t border-line py-0.5 first:border-t-0 md:items-center md:gap-3", compact ? "md:py-1" : "md:py-3", leaving && "row-leave")} style={leaving ? { animationDelay: "180ms" } : undefined}>
+    <li className={cx("relative flex items-start gap-1 border-t border-line py-0.5 first:border-t-0 md:items-center md:gap-3", compact ? "md:py-0.5" : "md:py-2", leaving && "row-leave")} style={leaving ? { animationDelay: "180ms" } : undefined}>
       {bar && !done && <span aria-hidden className="absolute -left-2 top-3 h-5 w-[3px] rounded-full md:left-[-10px] md:top-1/2 md:-translate-y-1/2" style={{ background: bar }} />}
       <button onClick={toggle} aria-label={done ? `Reopen ${t.title}` : `Mark ${t.title} completed`} aria-pressed={leaving ? !done : done} className="hit press grid shrink-0 place-items-center">
         <CheckMark done={leaving ? !done : done} fresh={fresh} />
       </button>
-      <button onClick={() => onOpen?.(t)} className="hit min-w-0 flex-1 py-1.5 text-left" aria-label={`Open ${t.title}`}>
+      <button onClick={() => onOpen?.(t)} className="hit min-w-0 flex-1 py-1.5 text-left md:py-1" aria-label={`Open ${t.title}`}>
         <span className={cx("break-words text-[14.5px] leading-snug [overflow-wrap:anywhere] line-clamp-2", done && "text-muted line-through")}>{t.title}</span>
-        {detail && <span className="mono mt-0.5 block truncate !normal-case !tracking-normal">{detail}</span>}
-        <span className="mt-1 flex min-w-0 items-center gap-1.5">
+        {detail && <span className="mono mt-px block truncate !normal-case !tracking-normal">{detail}</span>}
+        {hasMeta && <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
           {showModule && <ModuleIcon id={t.module} size={18} />}
           {showModule && !compact && <span className="mono hidden md:inline">{MODULES_META[t.module].label}</span>}
           {t.recurrence && <Repeat size={11} aria-label="Repeats" className="shrink-0 text-faint" />}
           {isUnverified(t.source) && <ProvenanceMark />}
           {assistant && !compact && <span className="mono hidden truncate md:inline">via {assistant}</span>}
           {t.demo && <SyntheticMark />}
-          {t.priority === "critical" || t.priority === "high" ? <span className="sr-only">{t.priority} priority</span> : null}
-        </span>
+        </span>}
+        {t.priority === "critical" || t.priority === "high" ? <span className="sr-only">{t.priority} priority</span> : null}
       </button>
       <div className={cx("flex shrink-0 items-center self-center pr-1", !compact && "md:hidden")}><DueChip t={t} today={today} /></div>
       {!done && !compact && <SegBar ticks={prioTicks(t.priority)} label={`Priority ${t.priority}`} height={12} className="hidden w-14 shrink-0 md:flex" />}

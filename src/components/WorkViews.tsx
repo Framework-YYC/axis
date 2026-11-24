@@ -28,7 +28,6 @@ export function taskDetail(t: Task, today: string): string | undefined {
     const l = topicLabel(t); if (l) bits.push(l);
   }
   if (t.recurrence) bits.push(describeRecurrence(t.recurrence));
-  if (t.source.ref) bits.push(`✉ ${t.source.ref}`);
   void today;
   return bits.length ? bits.join(" · ") : undefined;
 }
@@ -61,7 +60,7 @@ export function ActionItemsView({ module }: { module: ModuleId }) {
   const closed = mt.filter((t) => t.type === "action_item" && t.status === "completed").sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "")).slice(0, 8);
   return (
     <div className="space-y-3">
-      <p className="mono !normal-case !tracking-normal">Tasks your assistants identified from email summaries and conversations. Each carries its source; repeating a review never duplicates them, and anything you complete stays completed.</p>
+      <p className="mono !normal-case !tracking-normal">Tasks your assistants identified from email summaries and conversations. Repeating a review never duplicates them, and anything you complete stays completed.</p>
       {items.length === 0 && <Widget title="Action items"><Empty>No open action items. Your assistant adds them when an email asks something of you.</Empty></Widget>}
       {deliveries.length > 0 && (
         <Widget title="Incoming deliveries" count={deliveries.length} tag="Notify REEF 24 h ahead"><TaskList tasks={deliveries} today={today} onToggle={toggle} onOpen={setEdit} /></Widget>
@@ -105,7 +104,7 @@ export function RecurringView({ module }: { module: ModuleId }) {
           {series.map((s) => (
             <Widget key={s.key} title={s.latest.title} tag={s.latest.recurrence ? describeRecurrence(s.latest.recurrence) : undefined} className="!p-3.5">
               {s.next ? <ul><TaskLine t={s.next} today={today} onToggle={toggle} onOpen={setEdit} showModule={false} compact detail={`Next ${pretty(s.next.dueDate ?? today)} · ${relative(s.next.dueDate ?? today, today)}`} /></ul> : <Quiet>Series ended. No further occurrences.</Quiet>}
-              <button onClick={() => setShown(shown === s.key ? null : s.key)} aria-expanded={shown === s.key} className="hit mono mt-1 inline-flex items-center gap-1 self-start !normal-case">
+              <button onClick={() => setShown(shown === s.key ? null : s.key)} aria-expanded={shown === s.key} className="hit mono mt-1 inline-flex items-center gap-1 self-start !normal-case md:!min-h-0">
                 History · {s.done.length} completed{s.done[0]?.completedAt ? ` · last ${pretty(s.done[0].completedAt.slice(0, 10))}` : ""}
                 <ChevronDown size={13} className={cx("transition-transform", shown === s.key && "rotate-180")} aria-hidden />
               </button>
@@ -150,7 +149,7 @@ export function WorkOverview({ module }: { module: ModuleId }) {
           <Widget title="Today's responsibilities" count={dueNow.length}>
             {dueNow.length === 0 ? <Quiet>Nothing due today. Next up is below.</Quiet> : <TaskList tasks={dueNow} today={today} onToggle={toggle} onOpen={setEdit} limit={8} />}
           </Widget>
-          <Widget title="Action items from email" count={actions.length} action={<ViewAll tab="actions" />}>
+          <Widget title="Action items" count={actions.length} action={<ViewAll tab="actions" />}>
             {actions.length === 0 ? <Quiet>No open action items.</Quiet> : <TaskList tasks={actions} today={today} onToggle={toggle} onOpen={setEdit} limit={5} />}
           </Widget>
           <Widget title="Manual tasks" count={manual.length} action={<ViewAll tab="tasks" />}>
@@ -163,7 +162,7 @@ export function WorkOverview({ module }: { module: ModuleId }) {
               <ul>{deliveries.slice(0, 5).map((t) => (
                 <li key={t.id} className="flex items-start gap-2.5 border-t border-line py-2 first:border-t-0">
                   <Truck size={15} strokeWidth={1.5} className="mt-0.5 shrink-0 text-muted" aria-hidden />
-                  <button onClick={() => setEdit(t)} className="hit min-w-0 flex-1 text-left"><span className="line-clamp-2 text-[14px]">{t.title}</span><span className="mono mt-0.5 block truncate !normal-case !tracking-normal">{taskDetail(t, today)}</span></button>
+                  <button onClick={() => setEdit(t)} className="hit min-w-0 flex-1 text-left md:!min-h-0"><span className="line-clamp-2 text-[14px]">{t.title}</span><span className="mono mt-0.5 block truncate !normal-case !tracking-normal">{taskDetail(t, today)}</span></button>
                   {t.dueDate ? <Status tone={t.dueDate < today ? "bad" : "neutral"}>{`Notify ${relative(t.dueDate, today)}${t.dueTime ? ` ${t.dueTime}` : ""}`}</Status> : <Status tone="lime">Needs date</Status>}
                 </li>))}</ul>
             )}
@@ -171,9 +170,9 @@ export function WorkOverview({ module }: { module: ModuleId }) {
           <Widget title="Upcoming recurring" count={recurring.length} action={<ViewAll tab="recurring" />}>
             {recurring.length === 0 ? <Quiet>No recurring deadlines in the next two weeks.</Quiet> : (
               <ul>{recurring.slice(0, 6).map((t) => (
-                <li key={t.id} className="flex items-center gap-3 border-t border-line py-2 text-[13.5px] first:border-t-0">
+                <li key={t.id} className="flex items-center gap-3 border-t border-line py-1 text-[13.5px] first:border-t-0 md:py-1.5">
                   <span className="mono w-[74px] shrink-0">{pretty(t.dueDate!)}</span>
-                  <button onClick={() => setEdit(t)} className="hit min-w-0 flex-1 truncate text-left">{t.title}</button>
+                  <button onClick={() => setEdit(t)} className="hit min-w-0 flex-1 truncate text-left md:!min-h-0">{t.title}</button>
                 </li>))}</ul>
             )}
           </Widget>
@@ -190,5 +189,5 @@ export function WorkOverview({ module }: { module: ModuleId }) {
 import { useSearchParams } from "react-router-dom";
 function ViewAll({ tab }: { tab: string }) {
   const [, setSp] = useSearchParams();
-  return <button onClick={() => setSp((p) => { const n = new URLSearchParams(p); n.set("tab", tab); return n; }, { replace: true })} className="hit mono !normal-case underline-offset-2 hover:underline">View all</button>;
+  return <button onClick={() => setSp((p) => { const n = new URLSearchParams(p); n.set("tab", tab); return n; }, { replace: true })} className="hit mono !normal-case underline-offset-2 hover:underline md:!min-h-0">View all</button>;
 }
