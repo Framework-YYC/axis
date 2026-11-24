@@ -19,6 +19,8 @@ No data is copied between the two databases. Production starts empty.
 ## Cron trigger capacity
 The account allows five Cron Triggers; other Workers use four. The fifth moved from staging to production (staging's `triggers.crons` is empty). Staging applies the inbox and refreshes stale briefings when the owner opens or polls the app. No other Worker was touched.
 
+A newly registered Cron Trigger can take several minutes to fire for the first time (observed: about six). After a first deploy, wait for the first `cron` invocation before testing the inbox.
+
 ## Release procedure (repeatable)
 1. The commit is on `staging`, CI and *Deploy staging* are green, and the owner has approved the release.
 2. Fast-forward `main` to that commit (`main` only moves by approved release).
