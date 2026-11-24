@@ -23,7 +23,7 @@ concurrency:
 jobs:
   test:
     name: Tests
-    if: github.repository == 'frameworkyyc/axis' && github.ref == 'refs/heads/staging'
+    if: github.repository == 'Framework-YYC/axis' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -41,7 +41,7 @@ jobs:
   deploy:
     name: Migrate and deploy staging
     needs: test
-    if: github.repository == 'frameworkyyc/axis' && github.ref == 'refs/heads/staging'
+    if: github.repository == 'Framework-YYC/axis' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: staging

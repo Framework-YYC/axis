@@ -10,9 +10,9 @@ Private personal operating system. Separate from Framework's website, Nexus and 
 - **No paid or extra services** without approval.
 
 ## Public repository (intentional decision, 2026-11-24)
-`frameworkyyc/axis` is **public on purpose** (free GitHub Actions; personal, non-commercial project). Security never depends on the source being secret.
+`Framework-YYC/axis` (transferred from `frameworkyyc/axis`, 2026-11-24) is **public on purpose** (free GitHub Actions; personal, non-commercial project). Security never depends on the source being secret.
 - Never commit credentials, tokens, keys, `.env`/`.dev.vars`, personal information, database exports/backups or real user data. Only `.dev.vars.example` with `example.invalid` values. Synthetic data only, in code, tests, fixtures and screenshots.
-- Secrets live in Cloudflare Secrets (runtime) or the GitHub `staging` environment (deploy credentials). Identifiers (database id, hostnames) are not secrets; the owner's email, Access audience tag values for production, tokens and account credentials are handled as in docs/SECURITY.md.
+- Secrets live in Cloudflare Secrets (runtime) or GitHub Actions secrets (deploy credentials: organization-level `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which must be limited to this repository; see docs/SECURITY.md). Identifiers (database id, hostnames) are not secrets; the owner's email, Access audience tag values for production, tokens and account credentials are handled as in docs/SECURITY.md.
 - Workflows: never `pull_request_target`; deploy workflows run only on `staging` (or manual on `staging`) in the `staging` environment; no secrets in PR-triggered jobs; pin actions to commit SHAs.
 - Every endpoint and page stays behind authentication; assume an attacker has read all source and the API schema.
 - Before every push: `git diff --cached` review for secrets/personal data. Never paste tokens into commands that get logged.

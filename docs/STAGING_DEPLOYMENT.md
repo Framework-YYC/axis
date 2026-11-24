@@ -11,7 +11,7 @@ Target: `axis-staging.frameworktools.ca`, Worker `axis-staging`, D1 `axis-stagin
 | Cloudflare Access: bypass application for `/api/v1` and `/mcp` only | **done** (the Worker authenticates these) |
 | `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` (in `wrangler.jsonc`, not secrets); `OWNER_EMAIL` Worker secret | **done** (email stored only in Cloudflare) |
 | Static assets (the UI) | **pending**: the build session's proxy-held credential cannot upload them; needs the GitHub Action below |
-| GitHub environment `staging` with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | **owner, still to do** |
+| Repository moved to `Framework-YYC/axis`; deploy credentials as organization Actions secrets | **done** (owner); see SECURITY.md for the recommended hardening |
 
 Verified live (unauthenticated): `/` and every page/asset redirect to the Access login; `/api/v1/*` and `/mcp` answer 401 without a valid token; a bogus bearer gets 401. Verified live with a short-lived synthetic staging token (revoked afterwards): MCP initialize and tools/list, create_task with idempotent retry, status read, briefing, audit trail, read-only scope refused, bulk request held for approval, revocation immediate.
 
