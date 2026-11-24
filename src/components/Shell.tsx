@@ -1,124 +1,231 @@
-import { Bot, CalendarDays, CheckSquare, HeartPulse, LayoutDashboard, type LucideIcon, Monitor, MoreHorizontal, Moon, Settings, Sun, Target, Wallet, X } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { cx } from "./ui";
+import { ChevronsUpDown, MoreHorizontal, Monitor, Moon, Search, Sun, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { cx } from "../lib/cx";
+import { useData } from "../lib/data";
 import { useTheme, type ThemeMode } from "../lib/theme";
+import { MODULES, useIsActive, useNavModel, type NavGroup } from "./nav";
+import { Btn } from "./ui";
 
-interface Item { to: string; label: string; icon: LucideIcon }
-export const NAV: Item[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/tasks", label: "Tasks", icon: CheckSquare },
-  { to: "/finance", label: "Finance", icon: Wallet },
-  { to: "/health", label: "Health", icon: HeartPulse },
-  { to: "/calendar", label: "Calendar", icon: CalendarDays },
-  { to: "/goals", label: "Goals", icon: Target },
-  { to: "/intelligence", label: "Intelligence", icon: Bot },
-  { to: "/settings", label: "Settings", icon: Settings },
-];
-const PRIMARY = NAV.slice(0, 4);
-const MORE = NAV.slice(4);
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 
-const THEME_ICON: Record<ThemeMode, LucideIcon> = { system: Monitor, light: Sun, dark: Moon };
-function ThemeButton({ compact }: { compact?: boolean }) {
+export function LogoMark({ size = 36 }: { size?: number }) {
+  return (
+    <span className="grid shrink-0 place-items-center rounded-[11px] bg-[var(--rail)] text-white shadow-[0_6px_12px_-6px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.16)]" style={{ width: size, height: size }} aria-hidden>
+      <svg viewBox="0 0 24 24" width={size * 0.56} height={size * 0.56} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19 12 5l7 14" /><path d="M8.2 14h7.6" /></svg>
+    </span>
+  );
+}
+
+/** Vertical 24-hour scale in the rail: elapsed hours dark, now in lime. Updates every minute. */
+function DayScale() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(t); }, []);
+  const h = now.getHours();
+  return (
+    <div className="panel flex min-h-0 flex-1 flex-col items-center rounded-[22px] px-1.5 py-3" aria-label={`Day progress, hour ${h} of 24`} role="img">
+      <span className="mono !text-[9px]">24h</span>
+      <div className="mt-2 flex min-h-0 w-full flex-1 gap-1">
+        <div className="flex flex-1 flex-col items-end justify-between py-0.5">
+          {Array.from({ length: 24 }, (_, i) => (
+            <i key={i} className="block rounded-full" style={{ width: i === h ? 22 : i % 6 === 0 ? 16 : 9, height: i === h ? 5 : 2, background: i === h ? "var(--lime)" : i < h ? "var(--ink)" : "var(--tick-off)", boxShadow: i === h ? "0 0 0 1.5px var(--ink)" : undefined }} />
+          ))}
+        </div>
+        <span className="mono self-center !text-[8.5px] [writing-mode:vertical-rl] rotate-180 tracking-[0.18em] whitespace-nowrap">Axis · by Framework</span>
+      </div>
+    </div>
+  );
+}
+
+function ThemeButton({ className }: { className?: string }) {
   const { mode, cycle } = useTheme();
   const Icon = THEME_ICON[mode];
   return (
-    <button onClick={cycle} aria-label={`Appearance: ${mode}. Tap to change.`} className={cx("flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm text-muted hover:text-ink", compact && "justify-center px-0")}>
+    <button onClick={cycle} aria-label={`Appearance: ${mode}. Tap to change.`} title={`Appearance: ${mode}`} className={cx("grid place-items-center", className)}>
       <Icon size={18} aria-hidden />
-      {!compact && <span className="capitalize">{mode}</span>}
     </button>
   );
 }
 
-function SideLink({ item, compact }: { item: Item; compact: boolean }) {
+function Rail() {
   return (
-    <NavLink
-      to={item.to}
-      end={item.to === "/"}
-      className={({ isActive }) =>
-        cx("flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors", compact && "flex-col justify-center gap-0.5 px-1 py-2 text-[10px]", isActive ? "bg-surface text-ink shadow-card" : "text-muted hover:text-ink")
-      }
-    >
-      <item.icon size={compact ? 20 : 18} aria-hidden />
-      <span>{item.label}</span>
-    </NavLink>
+    <aside aria-label="Primary" className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
+      <div className="flex flex-col items-center gap-1.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 shadow-[0_22px_34px_-16px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.04)]">
+        <Link to="/" aria-label="Axis home" className="mb-2"><LogoMark size={36} /></Link>
+        {MODULES.map((m) => (
+          <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-11 place-items-center rounded-[14px] transition-colors", isActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
+            {({ isActive }) => (
+              <>
+                {isActive && <span className="absolute -left-[7px] top-3 h-5 w-[3px] rounded-full bg-lime" />}
+                <m.icon size={19} strokeWidth={1.7} aria-hidden />
+              </>
+            )}
+          </NavLink>
+        ))}
+      </div>
+      <div className="hidden min-h-0 flex-1 tall:flex"><DayScale /></div>
+      <div className="flex-1 tall:hidden" />
+      <ThemeButton className="h-12 w-full rounded-[18px] bg-[var(--rail)] text-white shadow-[0_14px_24px_-12px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12)]" />
+    </aside>
   );
 }
 
-export function Shell({ children, who }: { children: ReactNode; who: string }) {
+function NavGroupView({ group, gi }: { group: NavGroup; gi: number }) {
+  const active = useIsActive();
+  return (
+    <div className="mt-4 first:mt-0">
+      <p className="mono mb-1.5 px-2.5 !text-[9.5px]">{group.label}</p>
+      <ul className="space-y-0.5">
+        {group.items.map((it, i) => {
+          const on = gi === 0 && active(it.to, i);
+          return (
+            <li key={it.to}>
+              <Link to={it.to} aria-current={on ? "page" : undefined} className={cx("flex h-9 items-center gap-2.5 rounded-[12px] px-2.5 text-[13px]", on ? "raised font-medium text-ink" : "text-muted hover:text-ink")}>
+                {it.dot && <i className={cx("block size-2 rounded-[3px]", it.dot === "ok" && "border-2 border-[var(--lime-deep)]", it.dot === "bad" && "bg-red", it.dot === "warn" && "bg-amber", it.dot === "idle" && "border-2 border-faint")} />}
+                <span className="min-w-0 flex-1 truncate">{it.label}</span>
+                {it.count !== undefined && (it.hot ? (it.count > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-lime px-1.5 text-[11px] font-semibold text-lime-ink num">{it.count}</span> : null) : <span className="mono num !text-[10.5px]">{it.count}</span>)}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function Identity({ compact }: { compact?: boolean }) {
+  const { me } = useData();
+  const initials = me.signedIn ? me.label.slice(0, 2).toUpperCase() : "··";
+  return (
+    <div className={cx("flex items-center gap-2.5", !compact && "panel-dim p-2.5")}>
+      <span className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-[var(--rail)] text-[12px] font-semibold text-white">{initials}</span>
+      <div className="min-w-0">
+        <p className="truncate text-[13px] font-medium">{me.label}</p>
+        <p className="mono truncate !text-[9.5px]">{me.signedIn ? `Signed in · ${me.environment}` : me.environment === "preview" ? "Local preview · demo data" : "Checking sign-in…"}</p>
+      </div>
+    </div>
+  );
+}
+
+function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputElement | null> }) {
+  const { groups } = useNavModel();
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const v = q.trim();
+    if (v) navigate(`/tasks?view=all&q=${encodeURIComponent(v)}`);
+  };
+  return (
+    <aside aria-label="Section" className="panel sticky top-4 hidden h-[calc(100dvh-2rem)] w-[240px] shrink-0 flex-col rounded-[22px] p-3 xl:flex">
+      <div className="raised flex items-center gap-2.5 rounded-[14px] p-2">
+        <LogoMark size={34} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-medium leading-tight">Axis</p>
+          <p className="mono truncate !text-[9.5px]">By Framework</p>
+        </div>
+        <ChevronsUpDown size={14} className="text-faint" aria-hidden />
+      </div>
+      <form onSubmit={submit} role="search" className="inset mt-3 flex h-10 items-center gap-2 rounded-[12px] px-3">
+        <Search size={14} className="shrink-0 text-muted" aria-hidden />
+        <input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search tasks" placeholder="Search tasks" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted" />
+        <kbd className="kbd text-muted">⌘K</kbd>
+      </form>
+      <nav className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
+        {groups.map((g, gi) => <NavGroupView key={g.label} group={g} gi={gi} />)}
+      </nav>
+      <Identity />
+    </aside>
+  );
+}
+
+function Dock() {
   const [more, setMore] = useState(false);
   const { pathname } = useLocation();
+  const { me } = useData();
   useEffect(() => setMore(false), [pathname]);
-  const moreActive = MORE.some((m) => pathname.startsWith(m.to));
-
+  const primary = MODULES.slice(0, 4);
+  const rest = MODULES.slice(4);
+  const moreActive = rest.some((m) => pathname.startsWith(m.to));
+  const Item = ({ to, label, icon: Icon, on, end }: { to: string; label: string; icon: (typeof MODULES)[number]["icon"]; on?: boolean; end?: boolean }) => (
+    <NavLink to={to} end={end} className={({ isActive }) => cx("relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", (on ?? isActive) ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
+      <Icon size={20} strokeWidth={1.7} aria-hidden />
+      {label}
+    </NavLink>
+  );
   return (
-    <div className="flex min-h-full">
-      {/* iPad portrait: icon rail. iPad landscape and desktop: full sidebar. Phone: bottom bar. */}
-      <aside className="safe-t sticky top-0 hidden h-dvh w-[76px] shrink-0 flex-col border-r border-line bg-bg px-2 py-5 md:flex lg:w-60 lg:px-3" aria-label="Primary">
-        <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold tracking-tight">
-          <span className="grid size-8 place-items-center rounded-lg bg-ink text-sm text-bg">A</span>
-          <span className="hidden lg:inline">Axis</span>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((n) => (
-            <div key={n.to}>
-              <div className="lg:hidden"><SideLink item={n} compact /></div>
-              <div className="hidden lg:block"><SideLink item={n} compact={false} /></div>
-            </div>
-          ))}
-        </nav>
-        <div className="lg:hidden"><ThemeButton compact /></div>
-        <div className="hidden lg:block">
-          <ThemeButton />
-          <p className="mt-2 truncate px-3 text-xs text-muted" title={who}>{who}</p>
-        </div>
-      </aside>
-
-      <main className="safe-t min-w-0 flex-1 px-4 pt-5 pb-28 sm:px-6 md:pt-8 md:pb-10 lg:px-10">
-        <div className="mx-auto max-w-6xl">{children}</div>
-      </main>
-
-      <nav aria-label="Primary" className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/90 backdrop-blur md:hidden">
-        <ul className="mx-auto grid max-w-lg grid-cols-5">
-          {PRIMARY.map((n) => (
-            <li key={n.to}>
-              <NavLink to={n.to} end={n.to === "/"} className={({ isActive }) => cx("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium", isActive ? "text-accent" : "text-muted")}>
-                <n.icon size={22} aria-hidden />
-                {n.label}
-              </NavLink>
-            </li>
-          ))}
+    <>
+      <nav aria-label="Primary" className="safe-b fixed inset-x-3 bottom-3 z-30 md:hidden">
+        <ul className="grid grid-cols-5 gap-1 rounded-[30px] bg-[var(--rail)] p-1.5 shadow-[0_24px_40px_-14px_rgb(0_0_0/0.7),inset_0_1px_0_rgb(255_255_255/0.12)]">
+          {primary.map((m) => <li key={m.to}><Item to={m.to} label={m.label} icon={m.icon} end={m.to === "/"} /></li>)}
           <li>
-            <button onClick={() => setMore(true)} aria-haspopup="dialog" className={cx("flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium", moreActive ? "text-accent" : "text-muted")}>
-              <MoreHorizontal size={22} aria-hidden />
-              More
+            <button onClick={() => setMore(true)} aria-haspopup="dialog" className={cx("flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10px] font-medium", moreActive ? "bg-white/12 text-white" : "text-[var(--rail-ink)]")}>
+              <MoreHorizontal size={20} strokeWidth={1.7} aria-hidden />More
             </button>
           </li>
         </ul>
       </nav>
-
       {more && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More">
-          <button className="absolute inset-0 bg-black/40" aria-label="Close" onClick={() => setMore(false)} />
-          <div className="safe-b rise absolute inset-x-0 bottom-0 rounded-t-3xl bg-surface p-4 shadow-card">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold">More</span>
-              <button onClick={() => setMore(false)} aria-label="Close" className="grid size-10 place-items-center rounded-full bg-surface-2"><X size={18} /></button>
+          <button className="absolute inset-0 bg-black/45" aria-label="Close" onClick={() => setMore(false)} />
+          <div className="panel safe-b rise absolute inset-x-2 bottom-2 rounded-[28px] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="mono">More</span>
+              <button onClick={() => setMore(false)} aria-label="Close" className="inset grid size-9 place-items-center rounded-full"><X size={16} /></button>
             </div>
             <ul className="grid grid-cols-2 gap-2">
-              {MORE.map((n) => (
-                <li key={n.to}>
-                  <NavLink to={n.to} className="flex min-h-14 items-center gap-3 rounded-2xl bg-surface-2 px-4 text-sm font-medium">
-                    <n.icon size={20} aria-hidden />
-                    {n.label}
-                  </NavLink>
+              {rest.map((m) => (
+                <li key={m.to}>
+                  <NavLink to={m.to} className="raised flex h-14 items-center gap-3 rounded-[18px] px-4 text-[14px] font-medium"><m.icon size={19} strokeWidth={1.7} aria-hidden />{m.label}</NavLink>
                 </li>
               ))}
             </ul>
-            <div className="mt-2 flex items-center justify-between px-1"><span className="truncate text-xs text-muted">{who}</span><ThemeButton /></div>
+            <div className="mt-4 flex items-center justify-between gap-3"><Identity compact /><ThemeSwitch /></div>
+            <p className="sr-only">{me.label}</p>
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+function ThemeSwitch() {
+  const { mode, cycle } = useTheme();
+  const Icon = THEME_ICON[mode as ThemeMode];
+  return <Btn onClick={cycle} icon={Icon} variant="soft" label={`Appearance: ${mode}`}><span className="capitalize">{mode}</span></Btn>;
+}
+
+export function Shell({ children }: { children: ReactNode }) {
+  const searchRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const { source, error } = useData();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (searchRef.current && searchRef.current.offsetParent !== null) searchRef.current.focus();
+        else navigate("/tasks?view=all");
+      }
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [navigate]);
+
+  return (
+    <div className="safe-t mx-auto flex w-full max-w-[1800px] gap-3 p-3 pb-28 md:gap-4 md:p-4 md:pb-4 lg:p-5">
+      <Rail />
+      <SecondaryPanel searchRef={searchRef} />
+      <main className="min-w-0 flex-1 rounded-[28px] md:min-h-[calc(100dvh-2rem)] md:bg-[var(--sheet)] md:p-5 md:shadow-[var(--sh-sheet)] lg:min-h-[calc(100dvh-2.5rem)] lg:p-7">
+        {source === "offline" && (
+          <div role="alert" className="panel-dim mb-4 flex flex-wrap items-center justify-between gap-3 p-3.5 text-[13px]">
+            <span><i className="mr-2 inline-block size-2 rounded-full bg-red align-middle" />{error}</span>
+            <Btn variant="primary" onClick={() => location.reload()}>Reload</Btn>
+          </div>
+        )}
+        {children}
+      </main>
+      <Dock />
     </div>
   );
 }

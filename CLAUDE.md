@@ -21,7 +21,7 @@ Private personal operating system. Separate from Framework's website, Nexus and 
 - Every capability is an entry in `worker/services/operations.ts`. REST and MCP are adapters only; the UI uses REST. Do not put business logic in routes or components.
 - Money is integer minor units. Transfers are one record with a counter-account.
 - Mutations write their audit row and history row in the same batch.
-- Reuse `src/components/ui.tsx` and the tokens in `src/styles/index.css` before adding markup or styles; no inline scripts.
+- Reuse `src/components/ui.tsx`, `charts.tsx` and the tokens in `src/styles/index.css` before adding markup or styles; follow docs/DESIGN_SYSTEM.md (silver canvas, raised/inset layers, black pills, lime only as a restrained accent, Outfit + mono). No inline scripts, no `data:` fonts, no third-party font or asset hosts (strict CSP).
 
 ## Workflow
 `npm test` and `npm run typecheck` before every commit. Work on `staging`; `main` only by approved release. Update README, CHANGELOG and the relevant `docs/` page with each change.

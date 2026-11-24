@@ -1,16 +1,33 @@
-import { Badge, DemoBadge, PageHeader, Progress, Widget } from "../components/ui";
+import { SegBar } from "../components/charts";
+import { DemoTag, PageHeader, Widget } from "../components/ui";
 import { goals, habits } from "../data/synthetic";
+import { fillTicks, type Tick } from "../../shared/viz";
 
 export default function Goals() {
   return (
     <>
-      <PageHeader title="Goals & habits" subtitle="Targets, milestones and daily consistency" actions={<DemoBadge />} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Widget title="Goals">
-          <ul className="space-y-4">{goals.map((g) => <li key={g.name}><div className="mb-1 flex items-center justify-between gap-2"><span className="text-sm font-medium">{g.name}</span><Badge>{g.area}</Badge></div><Progress label={g.name} value={g.progress} tone="good" /><div className="mt-1 flex justify-between text-xs text-muted"><span>{g.progress}% complete</span><span>Target {g.due}</span></div></li>)}</ul>
+      <PageHeader crumb="GOALS" title="Goals & habits" subtitle="Targets, milestones and daily consistency" tag={<DemoTag />} />
+      <div className="stagger grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2">
+        <Widget id="goals" title="Goals" tag="Synthetic">
+          <ul className="space-y-5">
+            {goals.map((g) => (
+              <li key={g.name}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3"><span className="text-[14px]">{g.name}</span><span className="num text-[13px] font-medium">{g.progress}%</span></div>
+                <SegBar ticks={fillTicks(32, g.progress, 100)} label={`${g.name}: ${g.progress}% complete`} height={16} />
+                <p className="mono mt-1.5">{g.area} · target {g.due}</p>
+              </li>
+            ))}
+          </ul>
         </Widget>
-        <Widget title="Habits · last 7 days">
-          <ul className="space-y-4">{habits.map((h) => <li key={h.name}><div className="mb-2 flex items-center justify-between text-sm"><span className="font-medium">{h.name}</span><span className="text-xs text-muted">{h.streak}-day streak</span></div><div className="flex gap-1.5" role="img" aria-label={`${h.week.filter(Boolean).length} of 7 days completed`}>{h.week.map((d, i) => <span key={i} className={`h-7 flex-1 rounded-lg ${d ? "bg-good" : "bg-surface-2"}`} />)}</div></li>)}</ul>
+        <Widget id="habits" title="Habits" tag="Last 7 days · synthetic">
+          <ul className="space-y-5">
+            {habits.map((h) => (
+              <li key={h.name}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3"><span className="text-[14px]">{h.name}</span><span className="mono">{h.streak}-day streak</span></div>
+                <SegBar ticks={h.week.map((d): Tick => (d ? "on" : "off"))} label={`${h.name}: ${h.week.filter(Boolean).length} of 7 days`} height={22} />
+              </li>
+            ))}
+          </ul>
         </Widget>
       </div>
     </>

@@ -1,33 +1,40 @@
-import { Lock, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
-import { Badge, Card, PageHeader, Row, Segmented, Widget } from "../components/ui";
+import { SegBar } from "../components/charts";
+import { PageHeader, Row, Segmented, Status, Tag, Widget } from "../components/ui";
+import { localToday } from "../lib/dates";
 import { useTheme, type ThemeMode } from "../lib/theme";
 import { DEFAULT_ROTATION } from "../../shared/rotation";
+import { rotationTicks } from "../../shared/viz";
 
-export default function Settings({ who, environment }: { who: string; environment: string }) {
+export default function Settings({ who, environment, signedIn }: { who: string; environment: string; signedIn: boolean }) {
   const { mode, setMode } = useTheme();
   const [units, setUnits] = useState<"metric" | "imperial">("metric");
   return (
     <>
-      <PageHeader title="Settings" subtitle="Preferences are local to this preview until the settings API ships" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Widget title="Appearance">
+      <PageHeader crumb="SETTINGS" title="Settings" subtitle="Appearance is saved on this device. The rest arrives with the settings API." />
+      <div className="stagger grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2">
+        <Widget id="appearance" title="Appearance">
           <Segmented<ThemeMode> label="Appearance" value={mode} onChange={setMode} options={[{ value: "system", label: "Automatic" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />
-          <p className="mt-2 flex items-center gap-3 text-xs text-muted"><Monitor size={14} aria-hidden />Automatic follows the device <Sun size={14} aria-hidden /> <Moon size={14} aria-hidden /></p>
+          <p className="mono mt-3 !normal-case">Automatic follows this device and changes with it.</p>
         </Widget>
-        <Widget title="Units & currency">
+        <Widget id="units" title="Units & currency" tag="Preview">
           <Segmented label="Unit system" value={units} onChange={setUnits} options={[{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }]} />
-          <ul className="mt-3"><Row left="Currency" right="CAD" /><Row left="Timezone" right="Device (automatic)" /></ul>
+          <ul className="mt-4"><Row left="Currency" right="CAD" /><Row left="Time zone" right="This device (automatic)" /></ul>
         </Widget>
-        <Widget title="Work rotation"><ul><Row left="Pattern" right={`${DEFAULT_ROTATION.onDays} on / ${DEFAULT_ROTATION.offDays} off`} /><Row left="Current block started" right={DEFAULT_ROTATION.anchorDate} /></ul></Widget>
-        <Widget title="Account security" icon={Lock}>
+        <Widget id="rotation" title="Work rotation" tag="Preview">
+          <SegBar ticks={rotationTicks(localToday(), DEFAULT_ROTATION)} label="Current rotation cycle" height={22} />
+          <ul className="mt-4"><Row left="Pattern" right={`${DEFAULT_ROTATION.onDays} on / ${DEFAULT_ROTATION.offDays} off`} /><Row left="Current block started" right={DEFAULT_ROTATION.anchorDate} /></ul>
+        </Widget>
+        <Widget id="security" title="Account security">
           <ul>
-            <Row left="Signed in as" right={who} />
-            <Row left="Environment" right={<Badge tone={environment === "production" ? "warn" : "accent"}>{environment}</Badge>} />
-            <Row left="Sign-in" sub="Cloudflare Access, validated again by the Worker" right={<Badge tone="good">Enforced</Badge>} />
+            <Row left="Signed in as" right={signedIn ? who : "Not signed in"} />
+            <Row left="Environment" right={<Tag>{environment || "…"}</Tag>} />
+            <Row left="Sign-in" sub="Cloudflare Access, checked again by the Worker" right={signedIn ? <Status tone="ok">Enforced</Status> : <Status tone="idle">Local preview</Status>} />
           </ul>
         </Widget>
-        <Card className="p-5 lg:col-span-2"><h2 className="mb-1 text-sm font-semibold">Data, backup and integrations</h2><p className="text-sm text-muted">Export, deletion, backup and recovery procedures are documented in docs/SECURITY.md. Integration tokens and OAuth connections, categories and notification preferences arrive in the next phase.</p></Card>
+        <Widget id="data" title="Data, backup and integrations" className="lg:col-span-2">
+          <p className="max-w-3xl text-[13.5px] text-muted">Export, deletion, backup and recovery procedures are documented in docs/SECURITY.md. Integration tokens and OAuth connections are managed in Intelligence. Categories and notification preferences arrive in the next phase.</p>
+        </Widget>
       </div>
     </>
   );

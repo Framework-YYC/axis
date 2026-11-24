@@ -45,7 +45,7 @@ export async function handleApi(request: Request, env: Env, ctx: Ctx): Promise<R
     return json({ status: db ? "ok" : "degraded", environment: env.ENVIRONMENT, database: db });
   }
   if (pathname === "/api/v1/me" && request.method === "GET") {
-    return json({ actor: ctx.actor.label, type: ctx.actor.type, channel: ctx.actor.channel, scopes: [...ctx.actor.scopes], environment: env.ENVIRONMENT });
+    return json({ success: true, data: { actor: ctx.actor.label, type: ctx.actor.type, channel: ctx.actor.channel, scopes: [...ctx.actor.scopes], environment: env.ENVIRONMENT } });
   }
 
   for (const [method, re, op] of ROUTES) {

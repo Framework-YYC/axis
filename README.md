@@ -28,6 +28,6 @@ The response contains a one-time `axk_…` token. Use it as `Authorization: Bear
 ## Docs
 docs/ARCHITECTURE.md · PRODUCT_REQUIREMENTS.md · ROADMAP.md · DESIGN_SYSTEM.md · SECURITY.md · CHATGPT_INTEGRATION.md · CHANGELOG.md · migrations/README.md
 
-Screenshots (synthetic data): docs/screenshots/.
+Screenshots (synthetic data): docs/screenshots/ (light and dark, desktop, iPad landscape and portrait, iPhone). Design: docs/DESIGN_SYSTEM.md.
 
 `scripts/make-icons.mjs` regenerates the PNG icons (needs Playwright).

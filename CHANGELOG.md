@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Visual redesign to the new Axis direction: silver canvas, layered raised and inset surfaces, floating black rail with a contextual panel (iPad: chips; iPhone: floating dock), lime accent, black pill actions, Outfit + JetBrains Mono (self-hosted), dot-matrix / fine-line / bar charts, segmented tick indicators, asymmetric dashboard, dark theme in the same system. See docs/DESIGN_SYSTEM.md.
+- The attention queue and Intelligence page now use the real approvals, integrations and audit APIs (approve, decline, revoke).
+- Fixed: the sign-in footer always read "Design preview" because `/api/v1/me` did not use the standard `{success, data}` envelope (now it does). The UI no longer silently shows demo data on a deployed host when the API is unreachable.
+- Build: assets are never inlined as `data:` URIs (the strict CSP blocks them).
+- Dependencies: `@fontsource-variable/outfit`, `@fontsource-variable/jetbrains-mono` (OFL fonts served from our own origin).
 - Staging deployed through GitHub Actions (tests, additive migration, Worker with static assets, smoke test) using organization-level secrets; repository moved to `Framework-YYC/axis`.
 - Repository published (public, intentional). CI and staging-deploy workflows, Dependabot, public-repository rules in CLAUDE.md, SECURITY.md and ARCHITECTURE.md.
 - Staging D1 `axis-staging` created and migrated; Worker `axis-staging` deployed (interim, no assets) on `axis-staging.frameworktools.ca`; Access applications and owner secret configured.

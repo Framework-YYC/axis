@@ -1,70 +1,37 @@
-import { Check, Plus } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
-import { Badge, Button, Card, DemoBadge, Empty, PageHeader, Segmented } from "../components/ui";
-import type { Task } from "../lib/api";
-import { localToday, pretty, relative, shift } from "../lib/dates";
-import { useTasks } from "../lib/useTasks";
+import { Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
+import { TaskLine } from "../components/TaskLine";
+import { Btn, DemoTag, PageHeader, Panel, Segmented, Tag, cx } from "../components/ui";
+import { CATEGORIES, categoryName } from "../lib/categories";
+import { useData } from "../lib/data";
+import { localToday, pretty } from "../lib/dates";
+import { countViews, filterTasks, isView, type ViewId } from "../../shared/taskViews";
 
-const VIEWS = [
-  { value: "today", label: "Today" }, { value: "tomorrow", label: "Tomorrow" }, { value: "week", label: "This week" },
-  { value: "month", label: "This month" }, { value: "later", label: "Long-term" }, { value: "inbox", label: "Inbox" },
-  { value: "overdue", label: "Overdue" }, { value: "done", label: "Completed" },
-] as const;
-type View = (typeof VIEWS)[number]["value"];
-
-const PRIORITY_TONE = { critical: "bad", high: "warn", medium: "neutral", low: "neutral" } as const;
-const STATUS_LABEL = { pending: "Pending", in_progress: "In progress", waiting: "Waiting", completed: "Completed" } as const;
-
-export function filterTasks(tasks: Task[], view: View, today: string): Task[] {
-  const open = tasks.filter((t) => t.status !== "completed" && !t.archivedAt);
-  const d = (t: Task) => t.dueDate;
-  switch (view) {
-    case "today": return open.filter((t) => d(t) === today);
-    case "tomorrow": return open.filter((t) => d(t) === shift(today, 1));
-    case "week": return open.filter((t) => d(t) && d(t)! >= today && d(t)! <= shift(today, 7));
-    case "month": return open.filter((t) => d(t) && d(t)! >= today && d(t)! <= shift(today, 30));
-    case "later": return open.filter((t) => d(t) && d(t)! > shift(today, 30));
-    case "inbox": return open.filter((t) => !t.dueDate && !t.scheduledDate);
-    case "overdue": return open.filter((t) => d(t) && d(t)! < today);
-    case "done": return tasks.filter((t) => t.status === "completed" && !t.archivedAt).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
-  }
-}
-
-export function TaskRow({ t, onToggle, today }: { t: Task; onToggle: (t: Task) => void; today: string }) {
-  const done = t.status === "completed";
-  const fromAssistant = t.source.kind === "integration";
-  return (
-    <li className="flex items-start gap-3 border-t border-line py-3 first:border-t-0">
-      <button
-        onClick={() => onToggle(t)}
-        aria-label={done ? `Reopen ${t.title}` : `Mark ${t.title} completed`}
-        aria-pressed={done}
-        className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border-2 transition-colors ${done ? "border-good bg-good text-bg" : "border-line text-transparent hover:border-muted"}`}
-      >
-        <Check size={16} aria-hidden />
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className={`text-[15px] ${done ? "text-muted line-through" : ""}`}>{t.title}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
-          {t.dueDate && <span className={t.dueDate < today && !done ? "font-medium text-bad" : ""}>{relative(t.dueDate, today)}</span>}
-          {t.category && <Badge>{t.category}</Badge>}
-          {!done && <Badge tone={PRIORITY_TONE[t.priority]}>{t.priority}</Badge>}
-          {t.status === "in_progress" || t.status === "waiting" ? <Badge tone="accent">{STATUS_LABEL[t.status]}</Badge> : null}
-          {fromAssistant && <Badge tone="accent">via {t.source.name}</Badge>}
-          {done && t.completedAt && <span>Completed {pretty(t.completedAt.slice(0, 10))}</span>}
-        </div>
-      </div>
-    </li>
-  );
-}
+const MAIN_VIEWS: Array<[ViewId, string]> = [["today", "Today"], ["tomorrow", "Tomorrow"], ["week", "This week"], ["month", "This month"], ["later", "Long-term"], ["inbox", "Inbox"], ["overdue", "Overdue"], ["done", "Completed"]];
+const EXTRA: Partial<Record<ViewId, string>> = { all: "All open", active: "In progress", waiting: "Waiting" };
 
 export default function Tasks() {
-  const { tasks, source, loading, error, complete, reopen, add } = useTasks();
-  const [view, setView] = useState<View>("today");
-  const [title, setTitle] = useState("");
+  const { tasks, source, loading, error, complete, reopen, add } = useData();
+  const [sp, setSp] = useSearchParams();
+  const raw = sp.get("view");
+  const view: ViewId = isView(raw) ? raw : "today";
+  const category = sp.get("category");
+  const q = sp.get("q");
   const today = localToday();
-  const shown = useMemo(() => filterTasks(tasks, view, today), [tasks, view, today]);
-  const counts = useMemo(() => ({ overdue: filterTasks(tasks, "overdue", today).length }), [tasks, today]);
+  const [title, setTitle] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+
+  const set = (key: string, value: string | null) => {
+    const next = new URLSearchParams(sp);
+    if (value) next.set(key, value); else next.delete(key);
+    next.delete("add");
+    setSp(next, { replace: true });
+  };
+  useEffect(() => { if (sp.get("add")) input.current?.focus(); }, [sp]);
+
+  const shown = useMemo(() => filterTasks(tasks, view, today, { category, q }), [tasks, view, today, category, q]);
+  const counts = useMemo(() => countViews(tasks, today), [tasks, today]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,20 +43,45 @@ export default function Tasks() {
 
   return (
     <>
-      <PageHeader title="Tasks" subtitle={pretty(today, { weekday: "long", month: "long", day: "numeric" })} actions={source === "demo" ? <DemoBadge /> : <Badge tone="good">Live</Badge>} />
-      <form onSubmit={submit} className="mb-4 flex gap-2">
+      <PageHeader
+        crumb="TASKS"
+        title="Tasks"
+        subtitle={pretty(today, { weekday: "long", day: "numeric", month: "long" })}
+        controls={<Segmented<ViewId> label="Task views" value={view} onChange={(v) => set("view", v)} options={MAIN_VIEWS.map(([value, label]) => ({ value, label: value === "overdue" && counts.overdue ? `Overdue · ${counts.overdue}` : label }))} />}
+        tag={source === "demo" ? <DemoTag text="Local preview · synthetic data" /> : source === "live" ? <Tag>Live from Axis</Tag> : undefined}
+      />
+
+      <form onSubmit={submit} className="mb-3 flex gap-2">
         <label className="sr-only" htmlFor="new-task">New task</label>
-        <input id="new-task" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add a task to your inbox" maxLength={300} className="min-h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-[15px] outline-none placeholder:text-muted focus:border-accent" />
-        <Button type="submit" variant="primary" icon={Plus} label="Add task">Add</Button>
+        <div className="inset flex h-12 flex-1 items-center gap-3 rounded-full px-4">
+          <Plus size={16} className="shrink-0 text-muted" aria-hidden />
+          <input id="new-task" ref={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add a task to your inbox" maxLength={300} className="min-w-0 flex-1 bg-transparent text-[14.5px] outline-none placeholder:text-muted" />
+        </div>
+        <Btn type="submit" variant="primary" kbd="↵" className="!min-h-12 !px-5">Add</Btn>
       </form>
-      <div className="mb-4"><Segmented label="Task views" value={view} onChange={setView} options={VIEWS.map((v) => ({ value: v.value, label: v.value === "overdue" && counts.overdue ? `Overdue · ${counts.overdue}` : v.label }))} /></div>
-      {error && <p role="alert" className="mb-3 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{error}</p>}
-      <Card className="p-4 sm:p-5">
-        {loading ? <Empty>Loading…</Empty> : shown.length === 0 ? <Empty>Nothing here.</Empty> : (
-          <ul>{shown.map((t) => <TaskRow key={t.id} t={t} today={today} onToggle={(x) => (x.status === "completed" ? reopen(x.id) : complete(x.id))} />)}</ul>
+
+      <nav aria-label="Categories" className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto pb-1 xl:hidden">
+        {[["", "All categories"] as const, ...CATEGORIES].map(([id, name]) => (
+          <button key={id || "all"} onClick={() => set("category", id || null)} className={cx("h-8 shrink-0 rounded-full px-3.5 text-[12.5px] font-medium", (category ?? "") === id ? "raised text-ink" : "inset text-muted")}>{name}</button>
+        ))}
+      </nav>
+
+      {(EXTRA[view] || category || q) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {EXTRA[view] && <span className="pill">{EXTRA[view]}<button aria-label="Clear view filter" onClick={() => set("view", "today")}><X size={12} /></button></span>}
+          {category && <span className="pill">{categoryName(category)}<button aria-label="Clear category filter" onClick={() => set("category", null)}><X size={12} /></button></span>}
+          {q && <span className="pill"><Search size={12} aria-hidden />“{q}”<button aria-label="Clear search" onClick={() => set("q", null)}><X size={12} /></button></span>}
+        </div>
+      )}
+
+      {error && <p role="alert" className="panel-dim mb-3 p-3 text-[13px] text-red">{error}</p>}
+      <Panel className="p-4 md:p-5">
+        <div className="mb-1 flex items-center justify-between"><span className="mono">{shown.length} {shown.length === 1 ? "task" : "tasks"}</span><span className="mono">Priority · status</span></div>
+        {loading ? <p className="mono py-8 text-center">Loading…</p> : shown.length === 0 ? <p className="mono py-10 text-center !normal-case">Nothing here.</p> : (
+          <ul>{shown.map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={(x) => (x.status === "completed" ? void reopen(x.id) : void complete(x.id))} />)}</ul>
         )}
-      </Card>
-      <p className="mt-3 text-xs text-muted">Tasks added or completed by an assistant appear here automatically. Recurring tasks, subtasks and reminders arrive in the next phase.</p>
+      </Panel>
+      <p className="mono mt-3 !normal-case">Tasks an assistant adds or completes appear here automatically. Recurring tasks, subtasks and reminders arrive in the next phase.</p>
     </>
   );
 }

@@ -22,6 +22,24 @@ export function demoTasks(): Task[] {
   ];
 }
 
+export interface ApprovalItem { id: string; summary: string; requestedBy: string; channel: string; status: string; createdAt: string }
+export function demoApprovals(): ApprovalItem[] {
+  const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+  return [
+    { id: "demo-a1", summary: "Create 14 tasks from weekly review", requestedBy: "ChatGPT: Personal assistant", channel: "mcp", status: "pending", createdAt: ago(12) },
+    { id: "demo-a2", summary: "Archive task “Sort receipts”", requestedBy: "ChatGPT: Personal assistant", channel: "mcp", status: "pending", createdAt: ago(34) },
+  ];
+}
+export const demoIntegrations = [
+  { id: "demo-i1", name: "ChatGPT: Personal assistant", scopes: ["tasks:read", "tasks:write", "activity:read"], lastUsedAt: new Date(Date.now() - 180_000).toISOString(), revokedAt: null },
+  { id: "demo-i2", name: "Apple Shortcut: Log water", scopes: ["health:write"], lastUsedAt: null, revokedAt: null },
+];
+export const demoActivity = [
+  { at: "09:02", actor: "ChatGPT: Personal assistant", channel: "mcp", action: "task.create" },
+  { at: "09:41", actor: "Owner", channel: "web", action: "task.complete" },
+  { at: "09:42", actor: "ChatGPT: Personal assistant", channel: "mcp", action: "read:get_daily_summary" },
+];
+
 export const accounts = [
   { name: "Everyday chequing", kind: "Bank", balance: 482_315 },
   { name: "Savings", kind: "Bank", balance: 1_850_000 },
@@ -29,7 +47,6 @@ export const accounts = [
   { name: "Index fund", kind: "Investment", balance: 4_120_000 },
   { name: "Vehicle loan", kind: "Loan", balance: -1_240_000 },
 ];
-
 export const netWorthTrend = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov"].map((m, i) => ({ m, v: (4_200_000 + i * 118_000 + (i % 2) * 40_000) / 100 }));
 
 export const budget = [
@@ -53,10 +70,11 @@ export const nextPayday = () => shift(localToday(), 6);
 
 export const weight = [82.4, 82.1, 82.2, 81.8, 81.6, 81.7, 81.3, 81.0].map((kg, i) => ({ d: `W${i + 1}`, kg }));
 export const steps = [6200, 8400, 10150, 7300, 9100, 11800, 5600].map((s, i) => ({ d: ["M", "T", "W", "T", "F", "S", "S"][i], s }));
+export const stepsGoal = 8000;
 export const workouts = [
-  { name: "Upper body (demo)", detail: "5 exercises · 52 min", when: "Yesterday" },
-  { name: "Easy run (demo)", detail: "6.2 km · 36 min", when: "2 days ago" },
-  { name: "Lower body (demo)", detail: "6 exercises · 58 min", when: "4 days ago" },
+  { name: "Upper body", detail: "5 exercises · 52 min", when: "Yesterday" },
+  { name: "Easy run", detail: "6.2 km · 36 min", when: "2 days ago" },
+  { name: "Lower body", detail: "6 exercises · 58 min", when: "4 days ago" },
 ];
 export const waterGoalMl = 2500;
 export const waterStartMl = 1250;
@@ -73,11 +91,15 @@ export const habits = [
   { name: "No screens after 10pm", streak: 3, week: [0, 1, 1, 1, 0, 0, 1] },
 ];
 
-export function events() {
+export type EventKind = "Work" | "Personal" | "Training" | "Health" | "Finance" | "Travel";
+export interface CalEvent { day: string; time: string; title: string; kind: EventKind }
+export function events(): CalEvent[] {
   const t = localToday();
   return [
     { day: t, time: "09:00", title: "Planning block", kind: "Work" },
+    { day: t, time: "11:30", title: "Client call", kind: "Work" },
     { day: t, time: "12:30", title: "Lunch with a friend", kind: "Personal" },
+    { day: t, time: "15:00", title: "Review sprint", kind: "Work" },
     { day: t, time: "17:30", title: "Strength training", kind: "Training" },
     { day: shift(t, 1), time: "10:00", title: "Dentist", kind: "Health" },
     { day: shift(t, 2), time: "—", title: "Internet bill due", kind: "Finance" },
@@ -85,3 +107,10 @@ export function events() {
     { day: shift(t, 6), time: "—", title: "Payday", kind: "Finance" },
   ];
 }
+
+/** Items per hour of today by category, for the schedule dot-matrix (synthetic). */
+export const scheduleLoad = {
+  Work: [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 4, 2, 2, 3, 3, 2, 1, 0, 0, 0, 0, 0, 0],
+  Personal: [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 2, 1, 0, 0, 0, 1, 2, 2, 1, 1, 0, 0],
+  Training: [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0],
+};

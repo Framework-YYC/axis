@@ -19,6 +19,7 @@ describe("worker", () => {
   it("API responses are never cacheable and carry security headers", async () => {
     const res = await worker.fetch(new Request(`${L}/api/v1/me`), dev);
     expect(res.status).toBe(200);
+    expect(await res.clone().json()).toMatchObject({ success: true, data: { actor: "Owner", environment: "development" } });
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(res.headers.get("Content-Security-Policy")).toContain("script-src 'self'");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
