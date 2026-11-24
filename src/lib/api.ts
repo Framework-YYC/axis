@@ -1,4 +1,4 @@
-/** Thin client for the Axis REST API (/api/v1). The same service layer the assistants use. */
+/** Thin client for the Orbis REST API (/api/v1). The same service layer the assistants use. */
 export type Envelope<T> = { success: true; data: T; duplicate?: boolean } | { success: false; error: { code: string; message: string } };
 
 export class ApiUnavailable extends Error {}

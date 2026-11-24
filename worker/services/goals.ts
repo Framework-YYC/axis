@@ -112,7 +112,7 @@ export const createGoal = (ctx: Ctx, raw: unknown, idempotencyKey?: string): Pro
   guard(async () => {
     const n = parseNew(ctx, raw);
     return withIdempotency(ctx, "create_goal", idempotencyKey, raw, async () => {
-      const src = ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Axis", assistant: null };
+      const src = ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Orbis", assistant: null };
       const today = await resolveToday(ctx, (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>, v);
       if (n.externalId) {
         const dup = await ctx.db.prepare("SELECT id FROM goals WHERE source_name = ? AND external_id = ?").bind(src.name, n.externalId).first<{ id: string }>();

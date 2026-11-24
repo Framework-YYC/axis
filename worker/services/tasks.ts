@@ -1,6 +1,7 @@
 import { addDays } from "../../shared/rotation";
 import { HORIZONS, horizonOf, horizonRange, isHorizon, type Horizon } from "../../shared/horizons";
 import { nextOccurrence, type Recurrence } from "../../shared/recurrence";
+import { deliveryDeadline, effectiveType, TASK_TYPES, TOPICS, type TaskType } from "../../shared/taskTypes";
 import { assertModule, canAccessModule, defaultModule, Forbidden, moduleFilter } from "./access";
 import { auditStmt } from "./audit";
 import { write } from "./db";
@@ -19,7 +20,7 @@ export interface TaskRow {
   id: string; title: string; description: string | null; notes: string | null; module: string; category_id: string | null; project: string | null;
   priority: string; status: string; due_date: string | null; due_time: string | null; scheduled_date: string | null; recurrence: string | null; recurrence_parent_id: string | null;
   goal_id: string | null; completed_at: string | null; archived_at: string | null; source_kind: string; source_name: string; source_assistant: string | null; source_ref: string | null;
-  external_id: string | null; demo: number; created_at: string; updated_at: string; created_by: string; updated_by: string; version: number;
+  external_id: string | null; task_type: string | null; topic: string | null; related_date: string | null; related_time: string | null; supplier: string | null; demo: number; created_at: string; updated_at: string; created_by: string; updated_by: string; version: number;
 }
 
 export interface Task {
@@ -27,6 +28,7 @@ export interface Task {
   priority: string; status: string; dueDate: string | null; dueTime: string | null; scheduledDate: string | null; recurrence: Recurrence | null; recurrenceParentId: string | null;
   goalId: string | null; completedAt: string | null; archivedAt: string | null; horizon: Horizon | null;
   source: { kind: string; name: string; assistant: string | null; ref: string | null }; externalId: string | null; demo: boolean;
+  type: TaskType; topic: string | null; relatedDate: string | null; relatedTime: string | null; supplier: string | null;
   createdAt: string; updatedAt: string; createdBy: string; updatedBy: string; version: number;
 }
 
@@ -38,6 +40,7 @@ export function toTask(r: TaskRow, horizon: Horizon | null = null): Task {
     dueDate: r.due_date, dueTime: r.due_time, scheduledDate: r.scheduled_date, recurrence, recurrenceParentId: r.recurrence_parent_id, goalId: r.goal_id,
     completedAt: r.completed_at, archivedAt: r.archived_at, horizon,
     source: { kind: r.source_kind, name: r.source_name, assistant: r.source_assistant, ref: r.source_ref }, externalId: r.external_id, demo: r.demo === 1,
+    type: effectiveType(r), topic: r.topic, relatedDate: r.related_date, relatedTime: r.related_time, supplier: r.supplier,
     createdAt: r.created_at, updatedAt: r.updated_at, createdBy: r.created_by, updatedBy: r.updated_by, version: r.version,
   };
 }
@@ -75,7 +78,7 @@ function eventStmt(ctx: Ctx, taskId: string, event: string, changed: string[]) {
 
 function sourceOf(ctx: Ctx) {
   // The origin comes from the authenticated actor, never from request content.
-  return ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Axis", assistant: null };
+  return ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Orbis", assistant: null };
 }
 
 // ---------- create ----------
@@ -83,6 +86,7 @@ function sourceOf(ctx: Ctx) {
 interface NewTask {
   title: string; description?: string; notes?: string; module: string; category: string | null; project?: string; priority: string; status: string;
   dueDate?: string; dueTime?: string; scheduledDate?: string; recurrence: Recurrence | null; externalId?: string; sourceRef?: string; goalId?: string; demo: boolean;
+  taskType?: TaskType; topic?: string; relatedDate?: string; relatedTime?: string; supplier?: string;
 }
 
 async function parseNew(ctx: Ctx, raw: unknown): Promise<NewTask> {
@@ -108,6 +112,11 @@ async function parseNew(ctx: Ctx, raw: unknown): Promise<NewTask> {
     sourceRef: v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }),
     goalId: v.text(i.goalId, "goalId", { max: 100, optional: true }),
     demo: v.bool(i.demo, "demo") === true,
+    taskType: v.oneOf(i.type, "type", TASK_TYPES),
+    topic: v.oneOf(i.topic, "topic", TOPICS),
+    relatedDate: v.date(i.relatedDate, "relatedDate"),
+    relatedTime: v.time(i.relatedTime, "relatedTime"),
+    supplier: v.text(i.supplier, "supplier", { max: 200, optional: true }),
   };
   if (n.dueTime && !n.dueDate) throw new v.InvalidInput("dueTime needs a dueDate");
   if (n.recurrence && !n.dueDate) throw new v.InvalidInput("a recurring task needs a dueDate for its first occurrence");
@@ -118,10 +127,11 @@ async function parseNew(ctx: Ctx, raw: unknown): Promise<NewTask> {
 function insertStmt(ctx: Ctx, id: string, n: NewTask, parent: string | null, src: ReturnType<typeof sourceOf>, at: string) {
   return ctx.db
     .prepare(
-      "INSERT INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by,task_type,topic,related_date,related_time,supplier) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     )
     .bind(id, n.title, n.description ?? null, n.notes ?? null, n.module, n.category, n.project ?? null, n.priority, n.status, n.dueDate ?? null, n.dueTime ?? null, n.scheduledDate ?? null,
-      n.recurrence ? JSON.stringify(n.recurrence) : null, parent, n.goalId ?? null, src.kind, src.name, src.assistant, n.sourceRef ?? null, n.externalId ?? null, n.demo ? 1 : 0, at, at, ctx.actor.label, ctx.actor.label);
+      n.recurrence ? JSON.stringify(n.recurrence) : null, parent, n.goalId ?? null, src.kind, src.name, src.assistant, n.sourceRef ?? null, n.externalId ?? null, n.demo ? 1 : 0, at, at, ctx.actor.label, ctx.actor.label,
+      n.recurrence ? "recurring" : (n.taskType === "recurring" ? "manual" : n.taskType ?? (ctx.actor.type === "integration" ? "action_item" : "manual")), n.topic ?? null, n.relatedDate ?? null, n.relatedTime ?? null, n.supplier ?? null);
 }
 
 async function insertTask(ctx: Ctx, n: NewTask): Promise<Result<Task>> {
@@ -217,6 +227,16 @@ export const listTasks = (ctx: Ctx, raw: unknown, forced: ListOptions = {}): Pro
     if (asked && allowed && mods && mods.length < asked.length) throw new Forbidden("This connection cannot access that module");
     if (mods) { where.push(mods.length ? `module IN (${mods.map(() => "?").join(",")})` : "0 = 1"); args.push(...mods); }
     if (i.category !== undefined) { where.push("category_id = ?"); args.push(await resolveCategory(ctx, i.category)); }
+    const types = v.stringList(i.type, "type", TASK_TYPES);
+    if (types?.length) {
+      const t: string[] = [];
+      if (types.includes("recurring")) t.push("recurrence IS NOT NULL");
+      if (types.includes("action_item")) t.push("(recurrence IS NULL AND (task_type = 'action_item' OR (task_type IS NULL AND source_kind != 'manual')))");
+      if (types.includes("manual")) t.push("(recurrence IS NULL AND (task_type = 'manual' OR task_type = 'recurring' OR (task_type IS NULL AND source_kind = 'manual')))");
+      where.push(`(${t.join(" OR ")})`);
+    }
+    const topics = v.stringList(i.topic, "topic", TOPICS);
+    if (topics?.length) { where.push(`topic IN (${topics.map(() => "?").join(",")})`); args.push(...topics); }
     const goalId = v.text(i.goalId, "goalId", { max: 100, optional: true }); if (goalId) { where.push("goal_id = ?"); args.push(goalId); }
     const from = v.date(i.dueFrom, "dueFrom"); if (from) { where.push("due_date >= ?"); args.push(from); }
     const to = v.date(i.dueTo, "dueTo"); if (to) { where.push("due_date <= ?"); args.push(to); }
@@ -324,6 +344,10 @@ export const updateTask = (ctx: Ctx, raw: unknown): Promise<Result<Task>> =>
       set("recurrence", "recurrence", r ? JSON.stringify(r) : null);
       if (r && !row.recurrence_parent_id) { sets.push("recurrence_parent_id = ?"); args.push(row.id); }
     }
+    if ("topic" in i) set("topic", "topic", i.topic === null ? null : v.oneOf(i.topic, "topic", TOPICS));
+    if ("relatedDate" in i) set("related_date", "relatedDate", v.date(i.relatedDate, "relatedDate"));
+    if ("relatedTime" in i) set("related_time", "relatedTime", v.time(i.relatedTime, "relatedTime"));
+    if ("supplier" in i) set("supplier", "supplier", i.supplier === null ? null : v.text(i.supplier, "supplier", { max: 200 }));
     if ("goalId" in i) { const g = i.goalId === null ? null : v.text(i.goalId, "goalId", { max: 100 })!; await checkGoal(ctx, g, module); set("goal_id", "goalId", g); }
     if (!sets.length) return fail("invalid_input", "Nothing to update");
     await write(ctx.db, [
@@ -350,13 +374,13 @@ async function transition(ctx: Ctx, raw: unknown, kind: "completed" | "reopened"
         let rule: Recurrence | null = null;
         try { rule = JSON.parse(row.recurrence); } catch { rule = null; }
         const todayLocal = await resolveToday(ctx, (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>, v);
-        const date = rule ? nextOccurrence(rule, row.due_date ?? todayLocal, todayLocal) : null;
+        const date = rule ? nextOccurrence(rule, row.due_date ?? todayLocal, todayLocal, (await prefsOf(ctx)).rotation) : null;
         if (rule && date) {
           const parent = row.recurrence_parent_id ?? row.id;
           const nid = `tsk_${crypto.randomUUID()}`;
           // INSERT OR IGNORE plus the unique index on (series, due date) makes a duplicate occurrence impossible, even if this runs twice.
           stmts.push(ctx.db.prepare(
-            "INSERT OR IGNORE INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by) SELECT ?,title,description,notes,module,category_id,project,priority,'pending',?,due_time,NULL,recurrence,?,goal_id,source_kind,source_name,source_assistant,source_ref,NULL,demo,?,?,?,? FROM tasks WHERE id = ?",
+            "INSERT OR IGNORE INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by,task_type,topic,supplier) SELECT ?,title,description,notes,module,category_id,project,priority,'pending',?,due_time,NULL,recurrence,?,goal_id,source_kind,source_name,source_assistant,source_ref,NULL,demo,?,?,?,?,task_type,topic,supplier FROM tasks WHERE id = ?",
           ).bind(nid, date, parent, at, at, ctx.actor.label, ctx.actor.label, id));
           stmts.push(ctx.db.prepare("INSERT INTO task_events (task_id, at, event, actor_type, actor_label, channel, changed) SELECT ?,?,'created',?,?,?,'[\"recurrence\"]' WHERE EXISTS (SELECT 1 FROM tasks WHERE id = ?)").bind(nid, at, ctx.actor.type, ctx.actor.label, ctx.actor.channel, nid));
           next = { id: nid, dueDate: date };
@@ -394,4 +418,111 @@ export const taskHistory = (ctx: Ctx, raw: unknown) =>
     if (!(await fetchRow(ctx, id))) return fail("not_found", "No such task");
     const { results } = await ctx.db.prepare("SELECT at, event, actor_type AS actorType, actor_label AS actorLabel, channel, changed FROM task_events WHERE task_id = ? ORDER BY id").bind(id).all();
     return ok({ events: results });
+  });
+
+// ---------- action items (assistant email reviews and conversations) ----------
+
+export type ActionOutcome = "created" | "updated" | "unchanged" | "completed_unchanged" | "cancelled" | "already_cancelled" | "nothing_to_cancel";
+
+/**
+ * The one idempotent write an assistant needs for email-derived work: "this item exists, in this state". The assistant's own stable key
+ * (e.g. work:email:<thread>:bolts) decides identity, so repeating a review never duplicates, new information updates the open task,
+ * a completed task is never reopened or changed, and a cancellation hides the task without deleting anything.
+ * A delivery gets its notification deadline from the arrival (24 hours before); with no arrival date it gets none.
+ */
+export const upsertActionItem = (ctx: Ctx, raw: unknown): Promise<Result<Task & { outcome: ActionOutcome; needsNewNotification?: boolean }>> =>
+  guard(async () => {
+    const i = v.obj(raw, "input");
+    const key = v.text(i.key, "key", { max: 200 })!;
+    const state = v.oneOf(i.state, "state", ["open", "cancelled"] as const, "open")!;
+    const src = sourceOf(ctx);
+    const finish = async (id: string, outcome: ActionOutcome, extra: { needsNewNotification?: boolean } = {}, dup = false) =>
+      ok({ ...toTask((await fetchRow(ctx, id))!), outcome, ...extra }, dup ? { duplicate: true } : {});
+    let row = await ctx.db.prepare("SELECT * FROM tasks WHERE source_name = ? AND external_id = ?").bind(src.name, key).first<TaskRow>();
+    if (row && !canAccessModule(ctx.actor, row.module)) throw new Forbidden(`This connection cannot access the ${row.module} module`);
+
+    const delivery = i.delivery === undefined || i.delivery === null ? null : v.obj(i.delivery, "delivery");
+    const arrivalDate = delivery ? v.date(delivery.arrivalDate, "delivery.arrivalDate") : undefined;
+    const arrivalTime = delivery ? v.time(delivery.arrivalTime, "delivery.arrivalTime") : undefined;
+    if (arrivalTime && !arrivalDate) throw new v.InvalidInput("delivery.arrivalTime needs delivery.arrivalDate");
+
+    if (state === "cancelled") {
+      if (!row) return fail("not_found", "Nothing to cancel: no action item has this key");
+      if (row.status === "completed") return finish(row.id, "completed_unchanged", {}, true);
+      if (row.archived_at) return finish(row.id, "already_cancelled", {}, true);
+      const at = ctx.now().toISOString();
+      const note = [row.notes, `Cancelled${v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }) ? ` (source: ${i.sourceRef})` : ""} on ${at.slice(0, 10)}.`].filter(Boolean).join("\n");
+      await write(ctx.db, [
+        ctx.db.prepare("UPDATE tasks SET archived_at=?, notes=?, updated_at=?, updated_by=?, version=version+1 WHERE id=?").bind(at, note.slice(0, 5000), at, ctx.actor.label, row.id),
+        eventStmt(ctx, row.id, "archived", ["cancelled"]), auditStmt(ctx, "task.cancel", "task", row.id),
+      ]);
+      return finish(row.id, "cancelled");
+    }
+
+    // The deadline for a delivery follows its arrival; an explicit dueDate is used for everything else.
+    const deadline = delivery ? deliveryDeadline(arrivalDate) && deliveryDeadline(arrivalDate, arrivalTime) : null;
+    const topic = delivery ? "delivery" : v.oneOf(i.topic, "topic", TOPICS);
+    const wanted = {
+      title: v.text(i.title, "title", { max: 300, optional: !!row }),
+      description: i.description === undefined ? undefined : v.text(i.description, "description", { max: 5000, optional: true, allowNewlines: true }),
+      priority: v.oneOf(i.priority, "priority", PRIORITIES),
+      topic,
+      supplier: delivery ? v.text(delivery.supplier, "delivery.supplier", { max: 200, optional: true }) : undefined,
+      sourceRef: v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }),
+      dueDate: delivery ? (arrivalDate ? deadline!.dueDate : undefined) : v.date(i.dueDate, "dueDate"),
+      dueTime: delivery ? (arrivalDate ? deadline!.dueTime ?? undefined : undefined) : v.time(i.dueTime, "dueTime"),
+      relatedDate: delivery ? arrivalDate : v.date(i.relatedDate, "relatedDate"),
+      relatedTime: delivery ? arrivalTime : v.time(i.relatedTime, "relatedTime"),
+    };
+    const missingArrival = !!delivery && !arrivalDate;
+
+    if (!row) {
+      const module = v.moduleId(i.module) ?? defaultModule(ctx.actor);
+      assertModule(ctx.actor, module);
+      const notes = missingArrival ? "Arrival date not yet confirmed: no notification deadline is set. Confirm the date, then update this item." : undefined;
+      // A same-titled open action item with a different key is the same work item seen in another email: adopt it instead of duplicating.
+      const twin = await ctx.db.prepare("SELECT * FROM tasks WHERE module = ? AND lower(title) = lower(?) AND status != 'completed' AND archived_at IS NULL AND external_id IS NULL").bind(module, wanted.title!).first<TaskRow>();
+      if (twin) {
+        const at = ctx.now().toISOString();
+        await write(ctx.db, [ctx.db.prepare("UPDATE tasks SET external_id=?, updated_at=?, updated_by=?, version=version+1 WHERE id=?").bind(key, at, ctx.actor.label, twin.id), eventStmt(ctx, twin.id, "updated", ["externalId"]), auditStmt(ctx, "task.update", "task", twin.id)]);
+        row = (await fetchRow(ctx, twin.id))!;
+      } else {
+        const created = await insertTask(ctx, {
+          title: wanted.title!, description: wanted.description ?? undefined, notes, module, category: null, priority: wanted.priority ?? (missingArrival || delivery ? "high" : "medium"), status: "pending",
+          dueDate: wanted.dueDate, dueTime: wanted.dueTime, recurrence: null, externalId: key, sourceRef: wanted.sourceRef, demo: false,
+          taskType: "action_item", topic: wanted.topic, relatedDate: wanted.relatedDate, relatedTime: wanted.relatedTime, supplier: wanted.supplier, scheduledDate: undefined,
+        });
+        if (!created.ok) return created as Result<never>;
+        return ok({ ...created.data, outcome: "created" as const }, created.duplicate ? { duplicate: true } : {});
+      }
+    }
+
+    if (row.status === "completed") {
+      const moved = !!delivery && (row.related_date ?? null) !== (arrivalDate ?? row.related_date ?? null);
+      return finish(row.id, "completed_unchanged", moved ? { needsNewNotification: true } : {}, true);
+    }
+    if (row.archived_at) return finish(row.id, "already_cancelled", {}, true);
+
+    // Update only what the new information actually changes. Missing information never erases what is already known.
+    const sets: string[] = []; const args: unknown[] = []; const changed: string[] = [];
+    const diff = (col: string, field: string, cur: unknown, next: unknown) => { if (next !== undefined && next !== (cur ?? undefined)) { sets.push(`${col} = ?`); args.push(next); changed.push(field); } };
+    diff("title", "title", row.title, wanted.title);
+    diff("description", "description", row.description, wanted.description ?? undefined);
+    diff("priority", "priority", row.priority, wanted.priority);
+    diff("topic", "topic", row.topic, wanted.topic);
+    diff("supplier", "supplier", row.supplier, wanted.supplier);
+    diff("source_ref", "sourceRef", row.source_ref, wanted.sourceRef);
+    diff("due_date", "dueDate", row.due_date, wanted.dueDate);
+    diff("due_time", "dueTime", row.due_time, wanted.dueTime);
+    diff("related_date", "relatedDate", row.related_date, wanted.relatedDate);
+    diff("related_time", "relatedTime", row.related_time, wanted.relatedTime);
+    if (delivery && arrivalDate && !wanted.dueTime && row.due_time) { sets.push("due_time = ?"); args.push(null); changed.push("dueTime"); } // arrival time no longer known: the deadline is date-only again
+    if (delivery && arrivalDate && row.notes?.startsWith("Arrival date not yet confirmed")) { sets.push("notes = ?"); args.push(null); changed.push("notes"); }
+    if (!changed.length) return finish(row.id, "unchanged", {}, true);
+    const at = ctx.now().toISOString();
+    await write(ctx.db, [
+      ctx.db.prepare(`UPDATE tasks SET ${sets.join(", ")}, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?`).bind(...args, at, ctx.actor.label, row.id),
+      eventStmt(ctx, row.id, "updated", changed), auditStmt(ctx, "task.update", "task", row.id),
+    ]);
+    return finish(row.id, "updated");
   });

@@ -12,7 +12,7 @@ export function useApi<T>(path: string | null, key: unknown = null) {
       const r = await api<T>(path);
       if (r.success) { setData(r.data); setError(null); } else setError(r.error.message);
     } catch (e) {
-      if (e instanceof ApiUnavailable) setError("Can't reach Axis");
+      if (e instanceof ApiUnavailable) setError("Can't reach Orbis");
     } finally { setLoading(false); }
   }, [path]);
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -105,7 +105,7 @@ export const createHabit = (ctx: Ctx, raw: unknown, idempotencyKey?: string): Pr
       externalId: v.text(i.externalId, "externalId", { max: 200, optional: true }), sourceRef: v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }), demo: v.bool(i.demo, "demo") === true,
     };
     return withIdempotency(ctx, "create_habit", idempotencyKey, raw, async () => {
-      const src = ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Axis", assistant: null };
+      const src = ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Orbis", assistant: null };
       if (n.externalId) {
         const dup = await ctx.db.prepare("SELECT * FROM habits WHERE source_name = ? AND external_id = ?").bind(src.name, n.externalId).first<HabitRow>();
         if (dup) return ok((await load(ctx, [dup], today))[0], { duplicate: true });

@@ -1,4 +1,4 @@
-// Minimal service worker: makes Axis installable and caches ONLY content-hashed build assets.
+// Minimal service worker: makes Orbis installable and caches ONLY content-hashed build assets.
 // It never touches /api, /mcp or page navigations, so no personal data is ever stored by the worker.
 const CACHE = "axis-assets-v1";
 self.addEventListener("install", () => self.skipWaiting());

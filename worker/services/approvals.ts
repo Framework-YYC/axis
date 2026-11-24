@@ -15,7 +15,7 @@ export async function requestApproval(ctx: Ctx, action: string, summary: string,
       .bind(id, action, summary, JSON.stringify(payload), ctx.actor.id, ctx.actor.label, ctx.actor.channel, ctx.now().toISOString()),
     auditStmt(ctx, `approval.requested:${action}`, "approval", id, "approval_required"),
   ]);
-  return fail("approval_required", `${summary} needs the owner's approval in the Axis app. Nothing was changed. Approval id: ${id}`, id);
+  return fail("approval_required", `${summary} needs the owner's approval in the Orbis app. Nothing was changed. Approval id: ${id}`, id);
 }
 
 export async function listApprovals(ctx: Ctx) {

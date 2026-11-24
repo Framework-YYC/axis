@@ -10,6 +10,7 @@ import { SegBar, Spark } from "../components/charts";
 import { isTab, type TabId } from "../components/nav";
 import { ModuleTabs } from "../components/ModuleTabs";
 import { TasksView } from "../components/TasksView";
+import { ActionItemsView, RecurringView, WorkOverview } from "../components/WorkViews";
 import { Calendar } from "./Calendar";
 import { GoalList, HabitList } from "../components/compact";
 import { TaskLine } from "../components/TaskLine";
@@ -54,7 +55,11 @@ function Module({ id }: { id: ModuleId }) {
       <ModuleTabs module={id} tab={tab} counts={{ tasks: open.length, goals: mg.length, habits: mh.length }} />
 
       <div key={tab} className="tab-in">
-      {tab === "overview" && (
+      {tab === "overview" && id === "progressive" && <WorkOverview module={id} />}
+      {tab === "recurring" && <RecurringView module={id} />}
+      {tab === "actions" && <ActionItemsView module={id} />}
+
+      {tab === "overview" && id !== "progressive" && (
         <div className="grid gap-3 @[960px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
@@ -92,7 +97,7 @@ function Module({ id }: { id: ModuleId }) {
 
       {tab === "briefing" && (
         <Widget title="Briefing" tag={briefing.data ? `as of ${briefing.data.asOf.slice(11, 16)} UTC` : undefined}>
-          <p className="mono mb-3 !normal-case !tracking-normal">Computed by Axis from this module's live records. The {meta.label} assistant reads the same briefing, so completing a task anywhere updates it everywhere.</p>
+          <p className="mono mb-3 !normal-case !tracking-normal">Computed by Orbis from this module's live records. The {meta.label} assistant reads the same briefing, so completing a task anywhere updates it everywhere.</p>
           {briefing.loading ? <Empty>Loading…</Empty> : !briefing.data ? <Empty>{briefing.error ?? "No briefing."}</Empty> : (
             <div className="grid gap-5 @[640px]:grid-cols-2">
               <div>

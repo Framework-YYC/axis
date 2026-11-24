@@ -14,7 +14,7 @@ const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 export function LogoMark({ size = 36 }: { size?: number }) {
   return (
     <span className="grid shrink-0 place-items-center rounded-[11px] bg-[var(--rail)] text-white shadow-[0_6px_12px_-6px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.16)]" style={{ width: size, height: size }} aria-hidden>
-      <svg viewBox="0 0 24 24" width={size * 0.56} height={size * 0.56} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19 12 5l7 14" /><path d="M8.2 14h7.6" /></svg>
+      <svg viewBox="136 136 752 752" width={size * 0.7} height={size * 0.7} fill="none" stroke="var(--g-lime, #D5DFB3)" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round"><circle cx="512" cy="512" r="358" /><ellipse cx="512" cy="512" rx="358" ry="113" /><ellipse cx="512" cy="512" rx="358" ry="153" transform="rotate(-50 512 512)" /><circle cx="512" cy="512" r="40" fill="var(--g-lime, #D5DFB3)" stroke="none" /></svg>
     </span>
   );
 }
@@ -33,7 +33,7 @@ function DayScale() {
             <i key={i} className="block rounded-full" style={{ width: i === h ? 22 : i % 6 === 0 ? 16 : 9, height: i === h ? 5 : 2, background: i === h ? "var(--lime)" : i < h ? "var(--ink)" : "var(--tick-off)", boxShadow: i === h ? "0 0 0 1.5px var(--ink)" : undefined }} />
           ))}
         </div>
-        <span className="mono self-center !text-[8.5px] [writing-mode:vertical-rl] rotate-180 tracking-[0.18em] whitespace-nowrap">Axis · by Framework</span>
+        <span className="mono self-center !text-[8.5px] [writing-mode:vertical-rl] rotate-180 tracking-[0.18em] whitespace-nowrap">Orbis · by Framework</span>
       </div>
     </div>
   );
@@ -63,7 +63,7 @@ function Rail() {
     <aside aria-label="Primary" className="sticky top-4 z-30 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
       <div ref={host} className="glass relative flex flex-col items-center gap-0.5 rounded-[22px] px-1.5 py-3">
         {indicator}
-        <Link to="/" aria-label="Axis home" className="press relative z-10 mb-1.5"><LogoMark size={36} /><RailStagingDot /></Link>
+        <Link to="/" aria-label="Orbis home" className="press relative z-10 mb-1.5"><LogoMark size={36} /><RailStagingDot /></Link>
         {env === "staging" && <span className="relative z-10 -mt-0.5 mb-1.5 font-mono text-[7.5px] font-medium tracking-[0.1em]" style={{ color: "var(--amber)" }}>STAGING</span>}
         {[...DESTINATIONS, null, ...UTILITY].map((m, i) => m === null ? <i key={`sep${i}`} aria-hidden className="my-1.5 block h-px w-6" style={{ background: "var(--glass-border)" }} /> : (
           <Link key={m.to} to={m.to} data-ikey={m.to} aria-label={m.label} title={m.label} aria-current={active === m.to ? "page" : undefined} className={cx("nav-item press relative z-10 grid size-10 place-items-center rounded-[13px]", active === m.to ? "text-[var(--dock-ink-on)]" : "text-[var(--dock-ink)] hover:text-[var(--dock-ink-on)]")}>
@@ -171,7 +171,7 @@ function Dock() {
 function PhoneStagingRow() {
   const { env } = useEnvironment();
   if (env !== "staging") return null;
-  return <div className="mb-1 flex items-center gap-2 px-1 md:hidden"><LogoMark size={22} /><span className="mono !text-[10px]">Axis</span><StagingTag /></div>;
+  return <div className="mb-1 flex items-center gap-2 px-1 md:hidden"><LogoMark size={22} /><span className="mono !text-[10px]">Orbis</span><StagingTag /></div>;
 }
 
 export function Shell({ children }: { children: ReactNode }) {

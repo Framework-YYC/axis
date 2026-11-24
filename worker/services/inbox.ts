@@ -35,7 +35,7 @@ function summarize(r: Result<unknown>): { status: InboxStatus; result: Record<st
     const entity = (d.task ?? d) as Record<string, unknown>;
     const result: Record<string, unknown> = { ok: true, duplicate: !!r.duplicate };
     if (items) Object.assign(result, { created: d.created, duplicates: d.duplicates, failed: d.failed, ids: items.filter((x) => x.ok).map((x) => (x.task as { id?: string } | undefined)?.id), errors: items.filter((x) => !x.ok).map((x) => ({ index: x.index, error: x.error })) });
-    else Object.assign(result, { id: entity.id ?? null, version: entity.version ?? null, status: entity.status ?? null, next: (d as { next?: unknown }).next ?? null });
+    else Object.assign(result, { id: entity.id ?? null, outcome: (d as { outcome?: unknown }).outcome ?? null, needsNewNotification: (d as { needsNewNotification?: unknown }).needsNewNotification ?? undefined, version: entity.version ?? null, status: entity.status ?? null, next: (d as { next?: unknown }).next ?? null });
     return { status: r.duplicate ? "duplicate" : "applied", result };
   }
   const e = r.error;
@@ -70,12 +70,14 @@ export async function processInbox(db: D1Database, opts: { now?: Date; limit?: n
       if (spec.creates) payload = row.op === "task.create_many" ? { ...payload, tasks: Array.isArray(payload.tasks) ? (payload.tasks as Array<Record<string, unknown>>).map(stamp) : payload.tasks } : stamp(payload);
       if (row.op === "briefing.refresh") payload = { module: assistant };
       const ctx: Ctx = { db, actor: assistantActor(assistant), requestId: `inbox-${row.id}`, now: () => now };
-      const r = await runOperation(ctx, spec.operation, payload, `inbox:${row.id}`);
+      // A task.create that carries a `key` is the idempotent action-item upsert (the inbox trigger allows only fixed request names, so no new name is needed).
+      const operation = row.op === "task.create" && typeof payload.key === "string" ? "upsert_action_item" : spec.operation;
+      const r = await runOperation(ctx, operation, payload, `inbox:${row.id}`);
       outcome = summarize(r);
       touched.add(assistant);
     } catch (e) {
       const code = (e as { code?: string }).code ?? "internal_error";
-      outcome = { status: code === "internal_error" ? "error" : "rejected", result: { ok: false, code, message: code === "internal_error" ? "Axis could not apply this request. Nothing was changed." : (e as Error).message } };
+      outcome = { status: code === "internal_error" ? "error" : "rejected", result: { ok: false, code, message: code === "internal_error" ? "Orbis could not apply this request. Nothing was changed." : (e as Error).message } };
     }
     await write(db, [db.prepare("UPDATE assistant_inbox SET status = ?, result = ?, processed_at = ?, approval_id = ? WHERE id = ?").bind(outcome.status, JSON.stringify(outcome.result), now.toISOString(), outcome.approvalId ?? null, row.id)]);
     processed++;

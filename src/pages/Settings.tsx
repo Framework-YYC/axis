@@ -39,9 +39,14 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
     if (r.success) { setFresh({ name, token: r.data.token }); setRev((n) => n + 1); setMsg(null); } else setMsg(r.error.message);
   };
   const revoke = async (id: string) => { const r = await post(`/integrations/${id}/revoke`, {}); setMsg(r.success ? "Connection revoked. Its token stops working immediately." : r.error.message); setRev((n) => n + 1); };
+  const [work, setWork] = useState<Array<{ title: string; outcome: string; dueDate: string | null; existingTitle?: string }> | null>(null);
+  const setupWork = async (dryRun: boolean) => {
+    const r = await mutate(() => post<{ items: NonNullable<typeof work>; created: number }>("/work/recurring/setup", { today, dryRun }));
+    if (r && r.success) { setWork(r.data.items); setMsg(dryRun ? "Preview only: nothing was changed." : `${r.data.created} recurring responsibilities added to Work.`); } else setMsg(r && !r.success ? r.error.message : "Could not reach Orbis.");
+  };
   const demoAction = async (path: "load" | "clear") => {
     const r = await mutate(() => post(`/demo/${path}`, { today }));
-    setMsg(r && r.success ? (path === "load" ? "Synthetic demonstration data loaded." : "Synthetic demonstration data removed.") : r && !r.success ? r.error.message : "Could not reach Axis.");
+    setMsg(r && r.success ? (path === "load" ? "Synthetic demonstration data loaded." : "Synthetic demonstration data removed.") : r && !r.success ? r.error.message : "Could not reach Orbis.");
   };
 
   return (
@@ -137,12 +142,21 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
         </Widget>
 
         {!production && <Widget id="data" title="Demonstration data" tag={demo ? `${demo} synthetic records` : "None loaded"}>
-          <p className="text-[13.5px] text-muted">Axis starts empty. You can load a small, clearly labelled synthetic set (every title ends "(synthetic)") to see the screens populated, and remove it again at any time. It never touches records you or an assistant create.</p>
+          <p className="text-[13.5px] text-muted">Orbis starts empty. You can load a small, clearly labelled synthetic set (every title ends "(synthetic)") to see the screens populated, and remove it again at any time. It never touches records you or an assistant create.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Btn variant="soft" onClick={() => void demoAction("load")} disabled={demo > 0}>Load demonstration data</Btn>
             <Btn variant="soft" onClick={() => void demoAction("clear")} disabled={demo === 0}>Remove demonstration data</Btn>
           </div>
         </Widget>}
+
+        <Widget id="work" title="Work recurring tasks" tag="Rotation-aware">
+          <p className="text-[13.5px] text-muted">Adds the Work module's standing responsibilities (daily headcount, EHS minutes, safety observations, toolbox talks, Progress Meeting minutes and the weekly and monthly KPIs). Anything that already exists is recognised and left alone, so running it again changes nothing. Whether each one follows your work rotation is set on the task.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Btn variant="soft" onClick={() => void setupWork(true)}>Preview</Btn>
+            <Btn variant="primary" onClick={() => void setupWork(false)}>Set up Work recurring tasks</Btn>
+          </div>
+          {work && <ul className="mt-3 text-[13px]">{work.map((w) => <li key={w.title} className="flex justify-between gap-3 border-t border-line py-1.5 first:border-t-0"><span className="min-w-0 truncate">{w.title}</span><span className="mono shrink-0 !normal-case">{w.outcome === "exists" ? `exists: ${w.existingTitle}` : `${w.outcome === "created" ? "added" : "would add"}${w.dueDate ? ` · next ${w.dueDate}` : ""}`}</span></li>)}</ul>}
+        </Widget>
 
         <Widget id="security" title="Security">
           <ul className="space-y-2 text-[13.5px]">

@@ -24,7 +24,7 @@ function useSave(onDone: () => void) {
     setSaving(true); setErr(null);
     const r = await mutate(req);
     setSaving(false);
-    if (r && r.success) onDone(); else setErr(r && !r.success ? r.error.message : "Could not reach Axis. Nothing was saved.");
+    if (r && r.success) onDone(); else setErr(r && !r.success ? r.error.message : "Could not reach Orbis. Nothing was saved.");
   };
   return { err, saving, run, today };
 }
@@ -36,12 +36,12 @@ export function TaskEditor({ task, defaults, onClose }: { task?: Task; defaults?
     title: task?.title ?? "", description: task?.description ?? "", notes: task?.notes ?? "", module: (task?.module ?? defaults?.module ?? "daily") as ModuleId,
     priority: (task?.priority ?? "medium") as Priority, status: (task?.status === "completed" ? "pending" : task?.status ?? "pending") as "pending" | "in_progress" | "waiting",
     dueDate: task?.dueDate ?? defaults?.dueDate ?? "", dueTime: task?.dueTime ?? "", scheduledDate: task?.scheduledDate ?? "", project: task?.project ?? "", goalId: task?.goalId ?? defaults?.goalId ?? "",
-    freq: (task?.recurrence?.freq ?? "none") as "none" | Recurrence["freq"], interval: String(task?.recurrence?.interval ?? 1), weekdays: task?.recurrence?.byWeekday ?? [],
+    freq: (task?.recurrence?.freq ?? "none") as "none" | Recurrence["freq"], interval: String(task?.recurrence?.interval ?? 1), weekdays: task?.recurrence?.byWeekday ?? [], monthDay: (task?.recurrence?.byMonthDay === 31 ? "last" : "same") as "same" | "last", rotation: (task?.recurrence?.rotation === "on" ? "on" : "any") as "any" | "on",
   });
   const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
   const hist = useApi<{ events: Array<{ at: string; event: string; actorLabel: string; channel: string }> }>(task ? `/tasks/${task.id}/history` : null);
   const modGoals = goals.filter((g) => g.module === f.module && g.status === "active");
-  const recurrence = f.freq === "none" ? null : clean({ freq: f.freq, interval: n(f.interval) ?? 1, byWeekday: f.freq === "weekly" && f.weekdays.length ? f.weekdays : undefined });
+  const recurrence = f.freq === "none" ? null : clean({ freq: f.freq, interval: n(f.interval) ?? 1, byWeekday: f.freq === "weekly" && f.weekdays.length ? f.weekdays : undefined, byMonthDay: f.freq === "monthly" && f.monthDay === "last" ? 31 : undefined, rotation: f.rotation === "on" ? "on" : undefined });
   const save = () => {
     if (!f.title.trim()) return;
     const body = {
@@ -71,6 +71,8 @@ export function TaskEditor({ task, defaults, onClose }: { task?: Task; defaults?
         <Field label="Repeats">{(id) => <Select id={id} value={f.freq} onChange={set("freq")} options={FREQ} />}</Field>
         {f.freq !== "none" && <Field label="Every (interval)">{(id) => <TextInput id={id} inputMode="numeric" value={f.interval} onChange={set("interval")} />}</Field>}
         {f.freq === "weekly" && <Field label="On" className="md:col-span-2">{() => <Chips label="Weekdays" value={f.weekdays} onChange={set("weekdays")} options={WEEKDAYS} />}</Field>}
+        {f.freq === "monthly" && <Field label="Day of month">{(id) => <Select id={id} value={f.monthDay} onChange={set("monthDay")} options={[{ value: "same", label: "Same date each month" }, { value: "last", label: "Last day of the month" }]} />}</Field>}
+        {f.freq !== "none" && <Field label="Work rotation">{(id) => <Select id={id} value={f.rotation} onChange={set("rotation")} options={[{ value: "any", label: "Ignore the rotation" }, { value: "on", label: "Only while on rotation" }]} />}</Field>}
         <Field label="Goal">{(id) => <Select id={id} value={f.goalId} onChange={set("goalId")} options={[{ value: "", label: "None" }, ...modGoals.map((g) => ({ value: g.id, label: g.title }))]} />}</Field>
         <Field label="Project">{(id) => <TextInput id={id} value={f.project} onChange={set("project")} maxLength={120} />}</Field>
         <Field label="Description" className="md:col-span-2">{(id) => <TextArea id={id} value={f.description} onChange={set("description")} />}</Field>

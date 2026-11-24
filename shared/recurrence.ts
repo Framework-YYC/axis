@@ -1,4 +1,4 @@
-import { addDays, toDays } from "./rotation";
+import { addDays, rotationStatus, toDays, type RotationConfig } from "./rotation";
 
 export interface Recurrence {
   freq: "daily" | "weekly" | "monthly" | "yearly";
@@ -8,6 +8,8 @@ export interface Recurrence {
   /** monthly: day of month 1-31, clamped to the month's length (default: the first occurrence's day). */
   byMonthDay?: number;
   until?: string;
+  /** "on": only occurs while on rotation; an occurrence that would fall in an off-rotation week moves to the next on-rotation date of the same rule. Absent = ignores the rotation. */
+  rotation?: "on";
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -30,6 +32,10 @@ export function validateRecurrence(v: unknown): Recurrence {
     if (typeof r.until !== "string" || !DATE.test(r.until)) throw new RangeError("recurrence.until must be YYYY-MM-DD");
     out.until = r.until;
   }
+  if (r.rotation !== undefined) {
+    if (r.rotation !== "on") throw new RangeError('recurrence.rotation must be "on" when set');
+    out.rotation = "on";
+  }
   return out;
 }
 
@@ -45,7 +51,17 @@ const weekIndex = (d: string) => Math.floor((toDays(d) - ((dowOf(d) + 6) % 7)) /
  * so completing a task late never produces an occurrence in the past, and the same inputs always give the same date
  * (which is what makes duplicate occurrences impossible). Returns null when the series has ended.
  */
-export function nextOccurrence(rule: Recurrence, anchor: string, notBefore: string): string | null {
+export function nextOccurrence(rule: Recurrence, anchor: string, notBefore: string, rotation?: RotationConfig): string | null {
+  let from = notBefore;
+  for (let i = 0; i < 200; i++) {
+    const d = baseOccurrence(rule, anchor, from);
+    if (!d || !rule.rotation || !rotation || rotationStatus(d, rotation).phase === "on") return d;
+    from = d; // off-rotation: take the following occurrence of the same rule
+  }
+  return null;
+}
+
+function baseOccurrence(rule: Recurrence, anchor: string, notBefore: string): string | null {
   const floor = anchor > notBefore ? anchor : notBefore;
   let next: string | null = null;
   const [ay, am, ad] = parts(anchor);
@@ -79,4 +95,21 @@ export function nextOccurrence(rule: Recurrence, anchor: string, notBefore: stri
   if (!next) return null;
   if (rule.until && next > rule.until) return null;
   return next;
+}
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** A short human description of a rule: "Every working day", "Every 2nd Tuesday", "Last day of the month". */
+export function describeRecurrence(r: Recurrence): string {
+  const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10 < 4 ? n % 10 : 0]}`;
+  const every = r.interval === 1 ? "Every" : `Every ${ord(r.interval)}`;
+  let base: string;
+  if (r.freq === "daily") base = r.interval === 1 ? "Every day" : `${every} day`;
+  else if (r.freq === "weekly") {
+    const d = r.byWeekday ?? [];
+    if (d.length === 5 && [1, 2, 3, 4, 5].every((x) => d.includes(x))) base = r.interval === 1 ? "Every weekday" : `${every} week, weekdays`;
+    else if (d.length === 0) base = r.interval === 1 ? "Weekly" : `${every} week`;
+    else base = `${every} ${d.map((x) => DAY_NAMES[x]).join(", ")}`;
+  } else if (r.freq === "monthly") base = r.byMonthDay === 31 ? "Last day of the month" : r.byMonthDay ? `Monthly on day ${r.byMonthDay}` : r.interval === 1 ? "Monthly" : `${every} month`;
+  else base = r.interval === 1 ? "Yearly" : `${every} year`;
+  return r.rotation === "on" ? `${base} · on rotation` : base;
 }

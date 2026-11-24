@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ALL_TABS, DESTINATION_ORDER, MODULE_IDS, MODULES_META, PRIMARY_TABS } from "../shared/modules";
 
@@ -16,7 +16,7 @@ describe("module-first navigation", () => {
     for (const gone of ["Assistants", "More"]) expect(read("src/components/Shell.tsx")).not.toMatch(new RegExp(`label="${gone}"`));
   });
   it("each module's contextual tabs match the plan and only name screens that exist", () => {
-    expect(PRIMARY_TABS).toEqual({ daily: ["overview", "tasks", "goals", "calendar"], health: ["overview", "tasks", "goals", "habits"], financial: ["overview", "tasks", "goals"], framework: ["overview", "tasks", "goals"], progressive: ["overview", "tasks", "goals", "habits"] });
+    expect(PRIMARY_TABS).toEqual({ daily: ["overview", "tasks", "goals", "calendar"], health: ["overview", "tasks", "goals", "habits"], financial: ["overview", "tasks", "goals"], framework: ["overview", "tasks", "goals"], progressive: ["overview", "tasks", "recurring", "actions"] });
     for (const tabs of Object.values(PRIMARY_TABS)) for (const t of tabs) expect(ALL_TABS).toContain(t);
     const page = read("src/pages/ModulePage.tsx");
     for (const t of ALL_TABS) expect(page, `module page renders the ${t} tab`).toContain(`tab === "${t}"`);
@@ -147,5 +147,38 @@ describe("design system", () => {
     const t = read("src/components/TasksView.tsx");
     for (const f of ["Pick label=\"Module\"", "Pick label=\"Time horizon\"", "title=\"Filters\"", "Priority", "Project"]) expect(t).toContain(f);
     expect(t).toContain("isModule(rawModule) ? rawModule : defaultModule"); // opened from a module: that module's filter; from Home: all
+  });
+});
+
+describe("Orbis brand and the Work command centre", () => {
+  it("the PWA identity is Orbis with real icons, a maskable icon and an Apple touch icon", () => {
+    const m = JSON.parse(read("public/manifest.webmanifest"));
+    expect(m.name).toBe("Orbis"); expect(m.short_name).toBe("Orbis"); expect(m.description).toBe("Your world. One system.");
+    expect(m.icons.map((i: { purpose: string }) => i.purpose)).toEqual(["any", "any", "maskable"]);
+    const html = read("index.html");
+    expect(html).toContain('<title>Orbis</title>'); expect(html).toContain('apple-mobile-web-app-title" content="Orbis"'); expect(html).toContain('rel="apple-touch-icon" sizes="180x180"');
+    for (const f of ["apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon.ico", "icon.svg"]) expect(existsSync(`public/${f}`), f).toBe(true);
+    expect(statSync("public/apple-touch-icon.png").size).toBeGreaterThan(1000);
+  });
+  it("no user-facing 'Axis' remains in the app source (infrastructure identifiers are deliberately unchanged)", () => {
+    for (const f of ["src/components/Shell.tsx", "src/components/ui.tsx", "src/pages/Settings.tsx", "src/pages/ModulePage.tsx", "index.html", "public/manifest.webmanifest"]) expect(read(f), f).not.toMatch(/\bAxis\b|AXIS \//);
+  });
+  it("the brand package has the required kinds and colourways", () => {
+    const svgs = readdirSync("branding/orbis/svg");
+    for (const kind of ["mark", "wordmark", "lockup-horizontal", "lockup-stacked", "icon"]) expect(svgs.some((f) => f.includes(`orbis-${kind}`)), kind).toBe(true);
+    for (const cw of ["on-dark", "on-light", "mono-black", "mono-white"]) expect(svgs.some((f) => f.endsWith(`${cw}.svg`)), cw).toBe(true);
+    expect(readdirSync("branding/orbis/png").length).toBe(svgs.length); expect(readdirSync("branding/orbis/pdf").length).toBe(svgs.length);
+    expect(svgs.every((f) => !/<text/.test(readFileSync(`branding/orbis/svg/${f}`, "utf8")))).toBe(true); // type is outlined
+  });
+  it("Work leads with the command centre and has dedicated Recurring and Action items views", () => {
+    expect(PRIMARY_TABS.progressive.slice(0, 4)).toEqual(["overview", "tasks", "recurring", "actions"]);
+    const page = read("src/pages/ModulePage.tsx"), views = read("src/components/WorkViews.tsx");
+    expect(page).toContain('id === "progressive" && <WorkOverview'); expect(page).toContain("<RecurringView"); expect(page).toContain("<ActionItemsView");
+    for (const section of ["Today's responsibilities", "Action items from email", "Incoming deliveries", "Upcoming recurring", "Manual tasks", "Meetings and events"]) expect(views).toContain(section);
+    expect(views).not.toMatch(/style=\{\{/); expect(views).not.toContain("dangerouslySetInnerHTML");
+  });
+  it("the task editor exposes rotation awareness and last-day-of-month", () => {
+    const ed = read("src/components/editors.tsx");
+    expect(ed).toContain("Only while on rotation"); expect(ed).toContain("Last day of the month");
   });
 });

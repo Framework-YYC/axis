@@ -45,6 +45,7 @@ const ROUTES: Array<[string, RegExp, string]> = [
   ["PATCH", /^\/api\/v1\/events\/(?<id>[\w-]+)$/, "update_event"],
   ["GET", /^\/api\/v1\/settings$/, "get_settings"],
   ["POST", /^\/api\/v1\/settings$/, "set_setting"],
+  ["POST", /^\/api\/v1\/work\/recurring\/setup$/, "setup_work_recurring"],
   ["POST", /^\/api\/v1\/demo\/load$/, "load_demo_data"],
   ["POST", /^\/api\/v1\/demo\/clear$/, "clear_demo_data"],
   ["GET", /^\/api\/v1\/inbox$/, "list_inbox"],

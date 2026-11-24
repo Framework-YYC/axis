@@ -1,4 +1,4 @@
-# Axis
+# Orbis by Framework
 
 A private personal operating system organised around five assistants (Daily, Health, Financial, Framework, Progressive): one task list with computed time horizons, goals, habits, calendar, per-module briefings, and a controlled write path for ChatGPT projects. Installable app (iPhone, iPad, desktop). Built on Cloudflare Workers + D1, React + TypeScript + Tailwind. Single user, Cloudflare Access protected. ChatGPT and other automations use the same service layer through REST and MCP.
 

@@ -3,12 +3,12 @@
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 
 /* ------------------------------------------------------------------------------------------------
-   Axis design tokens. Cool silver canvas, layered raised surfaces, inset controls, black pills,
+   Orbis design tokens. Cool silver canvas, layered raised surfaces, inset controls, black pills,
    one restrained lime accent. Light is the reference theme; dark keeps the same dimensional hierarchy.
    The theme is always resolved to data-theme="light|dark" (public/theme-init.js before paint, useTheme after).
    ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------
-   Axis design tokens: premium industrial minimalism. Near-black canvas, charcoal instrument surfaces, three muted
+   Orbis design tokens: premium industrial minimalism. Near-black canvas, charcoal instrument surfaces, three muted
    data colours (powder blue, butter, sage), terracotta for warnings, one restrained lime brand accent.
    Surfaces are flat with hairline borders; no gradients or glows. Dark is the reference theme; light is its complement.
    The theme is always resolved to data-theme="light|dark" (public/theme-init.js before paint, useTheme after).

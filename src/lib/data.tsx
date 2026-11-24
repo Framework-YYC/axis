@@ -85,7 +85,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       if (!(e instanceof ApiUnavailable)) throw e;
-      setState((s) => ({ ...s, loading: false, source: LOCAL ? "no-api" : "offline", error: LOCAL ? "No API behind this page. Run `npm run dev:worker` (local Worker and database) to work with live data." : "Can't reach Axis. You may be offline or your sign-in expired. Reload to sign in again." }));
+      setState((s) => ({ ...s, loading: false, source: LOCAL ? "no-api" : "offline", error: LOCAL ? "No API behind this page. Run `npm run dev:worker` (local Worker and database) to work with live data." : "Can't reach Orbis. You may be offline or your sign-in expired. Reload to sign in again." }));
     }
   }, []);
 
@@ -105,7 +105,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await refresh();
       return r;
     } catch {
-      setState((s) => ({ ...s, error: "Could not reach Axis. Your change was not saved." }));
+      setState((s) => ({ ...s, error: "Could not reach Orbis. Your change was not saved." }));
       return null;
     }
   }, [refresh]);

@@ -52,7 +52,7 @@ export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; go
   await T("framework", "1", { title: "Send proposal draft (synthetic)", priority: "critical", dueDate: d(0), status: "in_progress" });
   await T("framework", "2", { title: "Follow up with a prospect (synthetic)", priority: "high", dueDate: d(-1) });
   await T("framework", "3", { title: "Publish a case study (synthetic)", dueDate: d(12) });
-  await G("framework", "1", { title: "Launch Axis staging (synthetic)", targetDate: d(30), milestones: [{ title: "Design approved" }, { title: "Assistants connected" }, { title: "Real data loaded" }] });
+  await G("framework", "1", { title: "Launch Orbis staging (synthetic)", targetDate: d(30), milestones: [{ title: "Design approved" }, { title: "Assistants connected" }, { title: "Real data loaded" }] });
   await H("framework", "1", { title: "Send 3 outreach messages (synthetic)", targetCount: 3, daysOfWeek: [1, 2, 3, 4, 5] }, [1, 2, 3, 4]);
 
   await T("progressive", "1", { title: "Confirm procurement schedule (synthetic)", priority: "high", dueDate: d(1) });

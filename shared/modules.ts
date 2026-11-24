@@ -17,14 +17,14 @@ export const moduleLabel = (id: string) => (isModule(id) ? MODULES_META[id].labe
 export const assistantLabel = (id: ModuleId) => `ChatGPT: ${MODULES_META[id].assistant} assistant`;
 
 /** Every screen a module can show, and the ones each module leads with. Only screens that exist and work. The rest sit under the tab bar's More menu. */
-export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "briefing" | "activity" | "metrics";
-export const ALL_TABS: readonly TabId[] = ["overview", "tasks", "goals", "habits", "calendar", "briefing", "activity", "metrics"];
+export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "recurring" | "actions" | "briefing" | "activity" | "metrics";
+export const ALL_TABS: readonly TabId[] = ["overview", "tasks", "recurring", "actions", "goals", "habits", "calendar", "briefing", "activity", "metrics"];
 export const PRIMARY_TABS: Record<ModuleId, readonly TabId[]> = {
   daily: ["overview", "tasks", "goals", "calendar"],
   health: ["overview", "tasks", "goals", "habits"],
   financial: ["overview", "tasks", "goals"],
   framework: ["overview", "tasks", "goals"],
-  progressive: ["overview", "tasks", "goals", "habits"],
+  progressive: ["overview", "tasks", "recurring", "actions"],
 };
 /** The permanent navigation order: Home, then the five modules. */
 export const DESTINATION_ORDER = ["home", "daily", "health", "financial", "framework", "progressive"] as const;

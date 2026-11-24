@@ -1,5 +1,5 @@
 /**
- * The two approved Axis environments. Switching is plain navigation to one of exactly these hostnames:
+ * The two approved Orbis environments. Switching is plain navigation to one of exactly these hostnames:
  * no data, token, cookie or session is passed. Each host has its own Cloudflare Access sign-in and its own database.
  */
 export const ENVIRONMENTS = {

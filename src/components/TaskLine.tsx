@@ -34,7 +34,7 @@ function CheckMark({ done, fresh }: { done: boolean; fresh: boolean }) {
  * One task. Phone: tap target, wrapped title, module icon and a compact due chip. Wider screens keep the status pill and priority ticks.
  * Completing (or reopening) plays the check animation, then the row eases out before the list updates, so it never just vanishes.
  */
-export function TaskLine({ t, today, onToggle, onOpen, showModule = true, compact = false }: { t: Task; today: string; onToggle: (t: Task) => void; onOpen?: (t: Task) => void; showModule?: boolean; compact?: boolean }) {
+export function TaskLine({ t, today, onToggle, onOpen, showModule = true, compact = false, detail }: { t: Task; today: string; onToggle: (t: Task) => void; onOpen?: (t: Task) => void; showModule?: boolean; compact?: boolean; detail?: string }) {
   const done = t.status === "completed";
   const bar = PRIORITY_BAR[t.priority];
   const assistant = t.source.assistant ? (MODULES_META[t.source.assistant as keyof typeof MODULES_META]?.assistant ?? t.source.assistant) : null;
@@ -49,13 +49,14 @@ export function TaskLine({ t, today, onToggle, onOpen, showModule = true, compac
     timers.current.push(window.setTimeout(() => onToggle(t), 420));
   };
   return (
-    <li className={cx("relative flex items-start gap-1 border-t border-line py-0.5 first:border-t-0 md:items-center md:gap-3 md:py-3", leaving && "row-leave")} style={leaving ? { animationDelay: "180ms" } : undefined}>
+    <li className={cx("relative flex items-start gap-1 border-t border-line py-0.5 first:border-t-0 md:items-center md:gap-3", compact ? "md:py-1" : "md:py-3", leaving && "row-leave")} style={leaving ? { animationDelay: "180ms" } : undefined}>
       {bar && !done && <span aria-hidden className="absolute -left-2 top-3 h-5 w-[3px] rounded-full md:left-[-10px] md:top-1/2 md:-translate-y-1/2" style={{ background: bar }} />}
       <button onClick={toggle} aria-label={done ? `Reopen ${t.title}` : `Mark ${t.title} completed`} aria-pressed={leaving ? !done : done} className="hit press grid shrink-0 place-items-center">
         <CheckMark done={leaving ? !done : done} fresh={fresh} />
       </button>
       <button onClick={() => onOpen?.(t)} className="hit min-w-0 flex-1 py-1.5 text-left" aria-label={`Open ${t.title}`}>
         <span className={cx("break-words text-[14.5px] leading-snug [overflow-wrap:anywhere] line-clamp-2", done && "text-muted line-through")}>{t.title}</span>
+        {detail && <span className="mono mt-0.5 block truncate !normal-case !tracking-normal">{detail}</span>}
         <span className="mt-1 flex min-w-0 items-center gap-1.5">
           {showModule && <ModuleIcon id={t.module} size={18} />}
           {showModule && !compact && <span className="mono hidden md:inline">{MODULES_META[t.module].label}</span>}

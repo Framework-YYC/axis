@@ -58,7 +58,7 @@ export const createEvent = (ctx: Ctx, raw: unknown, idempotencyKey?: string): Pr
     if (start && end && end < start) throw new v.InvalidInput("endTime must be after startTime");
     const n = { title: v.text(i.title, "title", { max: 200 })!, description: v.text(i.description, "description", { max: 2000, optional: true, allowNewlines: true }), location: v.text(i.location, "location", { max: 200, optional: true }), externalId: v.text(i.externalId, "externalId", { max: 200, optional: true }), sourceRef: v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }), demo: v.bool(i.demo, "demo") === true };
     return withIdempotency(ctx, "create_event", idempotencyKey, raw, async () => {
-      const src = ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Axis", assistant: null };
+      const src = ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Orbis", assistant: null };
       if (n.externalId) {
         const dup = await ctx.db.prepare("SELECT * FROM events WHERE source_name = ? AND external_id = ?").bind(src.name, n.externalId).first<EventRow>();
         if (dup) return ok(toEvent(dup), { duplicate: true });

@@ -21,7 +21,7 @@ export function EnvDot({ env, size = 10 }: { env: CurrentEnv; size?: number }) {
   return <i aria-hidden className="block shrink-0 rounded-full" style={{ width: size, height: size, background: DOT[env], boxShadow: env === "development" ? "none" : `0 0 0 3px color-mix(in srgb, ${DOT[env]} 28%, transparent)` }} />;
 }
 
-/** Shown beside the Axis branding when viewing staging, so it is never mistaken for production. */
+/** Shown beside the Orbis branding when viewing staging, so it is never mistaken for production. */
 export function StagingTag({ className }: { className?: string }) {
   const { env } = useEnvironment();
   if (env !== "staging") return null;

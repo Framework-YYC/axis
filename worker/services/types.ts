@@ -8,7 +8,7 @@ export const SCOPES = [
 ] as const;
 export type Scope = (typeof SCOPES)[number];
 
-/** inbox = a request an assistant added to assistant_inbox and Axis applied through the service layer. */
+/** inbox = a request an assistant added to assistant_inbox and Orbis applied through the service layer. */
 export type Channel = "web" | "rest" | "mcp" | "inbox";
 
 export interface Actor {

@@ -62,12 +62,12 @@ export function Btn({ children, onClick, variant = "soft", icon: Icon, kbd, disa
 export function HeaderActions({ onNew }: { onNew?: () => void }) {
   const { approvals, tasks, today } = useData();
   const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < today).length;
-  const cls = "btn btn-primary press !min-h-11 !w-11 !px-0 @[560px]:!min-h-10 @[560px]:!w-auto @[560px]:!px-[18px]";
+  const cls = "btn btn-primary press !min-h-11 !w-11 !px-0 md:!min-h-10 @[560px]:!w-auto @[560px]:!px-[18px]";
   const inner = <><Plus size={17} strokeWidth={1.6} aria-hidden /><span className="sr-only @[560px]:not-sr-only">New task</span></>;
   return (
     <div className="flex items-center gap-2">
       <AccountMenuButton className="md:hidden" />
-      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft press relative !min-h-11 !w-11 !px-0 @[560px]:!min-h-10 @[560px]:!w-10">
+      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft press relative !min-h-11 !w-11 !px-0 md:!min-h-10 md:!w-10">
         <Bell size={16} strokeWidth={1.5} aria-hidden />
         {attention > 0 && <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full" style={{ background: "var(--w-terra)" }} />}
       </Link>
@@ -81,7 +81,7 @@ export function PageHeader({ crumb, title, subtitle, controls, tag, onNew }: { c
     <header className="@container mb-4 md:mb-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="mono">AXIS / {crumb}</p>
+          <p className="mono">ORBIS / {crumb}</p>
           <h1 className="mt-1 text-[30px] font-[350] leading-none tracking-[-0.025em] md:text-[40px]">{title}</h1>
           {subtitle && <p className="mt-2 max-w-[60ch] text-[13px] leading-snug text-muted">{subtitle}</p>}
         </div>

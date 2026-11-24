@@ -13,6 +13,7 @@ export interface Task {
   priority: Priority; status: TaskStatus; dueDate: string | null; dueTime: string | null; scheduledDate: string | null; recurrence: Recurrence | null; recurrenceParentId: string | null;
   goalId: string | null; completedAt: string | null; archivedAt: string | null; horizon: Horizon | null; source: Source; externalId: string | null; demo: boolean;
   createdAt: string; updatedAt: string; createdBy: string; updatedBy: string; version: number;
+  type: "manual" | "recurring" | "action_item"; topic: string | null; relatedDate: string | null; relatedTime: string | null; supplier: string | null;
 }
 export interface Milestone { id: string; title: string; targetDate: string | null; targetValue: number | null; done: boolean; doneAt: string | null }
 export interface Goal {

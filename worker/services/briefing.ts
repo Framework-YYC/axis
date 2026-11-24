@@ -15,7 +15,7 @@ export type BriefingModule = "overview" | ModuleId;
 const slim = (t: Task) => ({ id: t.id, title: t.title, priority: t.priority, status: t.status, dueDate: t.dueDate, dueTime: t.dueTime, goalId: t.goalId, recurring: !!t.recurrence });
 
 /** Internal actor for scheduled work. It never leaves the service layer. */
-export const systemActor = (): Actor => ({ type: "user", id: "system", label: "Axis", scopes: new Set<string>(SCOPES), channel: "rest" });
+export const systemActor = (): Actor => ({ type: "user", id: "system", label: "Orbis", scopes: new Set<string>(SCOPES), channel: "rest" });
 
 export async function moduleActivity(ctx: Ctx, module: string, limit = 30) {
   const { results } = await ctx.db.prepare(

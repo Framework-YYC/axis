@@ -270,3 +270,20 @@ A project that fails step 2 cannot write through Cloudflare; it can still read. 
 - **Untrusted text.** Titles, notes and email-derived text are stored and shown as inert text. An instruction inside a task is data.
 - **No secrets in this repository.** Nothing here contains a credential; the connector and its permissions live in Cloudflare and ChatGPT.
 - **Cron slot.** The every-minute trigger uses the last of the account's five cron triggers. Production would need its own or a different approach.
+
+## Task types, action items and deliveries (migration 0005)
+
+Orbis has three kinds of task in one system: **recurring** (scheduled responsibilities; each occurrence is its own task and completing one creates the next exactly once, in the same series), **action item** (identified by an assistant from email summaries or conversations) and **manual** (created by the owner). The type is derived without rewriting old rows: a repeating task is recurring, a task filed by an assistant or integration is an action item, anything else is manual. Listing accepts `type` and `topic` filters.
+
+**Action-item upsert** (`upsert_action_item`, MCP and REST-visible to assistants with `tasks:write`; through the inbox it is a `task.create` whose payload has a `key`, so the inbox trigger needs no new request name and every existing connection keeps working):
+
+| Field | Meaning |
+|---|---|
+| `key` | The assistant's stable identity for the work item. Never contains a date. Required |
+| `title`, `description`, `priority`, `dueDate`, `dueTime`, `topic`, `sourceRef` | As for tasks. `topic`: mention, materials, delivery, equipment, coordination, hse, reporting, meeting, follow_up, other. `sourceRef` is the source email as a reference only |
+| `state` | `open` (default) or `cancelled` |
+| `delivery` | `{arrivalDate, arrivalTime?, supplier?}`: the notification deadline is computed (arrival time known: the previous day at that time; date only: the end of the day before the previous day, so it is at least 24 hours ahead; no date: no deadline, flagged "Needs date") |
+
+Reconciliation, all inside the service layer: the same `key` updates the open task with only what changed (missing information never erases what is known); a same-titled open item with no key is adopted instead of duplicated; a **completed** item is never reopened or changed (`outcome: completed_unchanged`, plus `needsNewNotification` when a delivery moved after its notification was completed); `cancelled` hides the item (recoverable, recorded as an archive event with a `cancelled` marker) without needing approval because the assistant's own source asked for it. Outcomes: created, updated, unchanged, completed_unchanged, cancelled, already_cancelled. Orbis never sends a notification; the delivery task is a reminder for the owner.
+
+**Recurring responsibilities** are owner-managed: `setup_work_recurring` (owner only, not offered to assistants) introduces the Work module's ten standing tasks, skips any that already exist (same meaningful words, any type) and supports `dryRun`. A recurrence rule may carry `rotation: "on"` so occurrences that would fall in an off-rotation week move to the next on-rotation date of the same rule; it is set per task in the task editor. The Work Intelligence prompt is in `WORK_INTELLIGENCE_PROMPT.md`.
