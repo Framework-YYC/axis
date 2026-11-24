@@ -1,10 +1,11 @@
-import { ChevronsUpDown, Monitor, Moon, Search, Sun } from "lucide-react";
+import { Monitor, Moon, Search, Sun } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
+import { useSlidingIndicator } from "../lib/motion";
 import { useTheme } from "../lib/theme";
-import { DESTINATIONS, dockActive, UTILITY, useIsActive, useNavModel, type NavGroup } from "./nav";
+import { DESTINATIONS, dockActive, moduleOf, UTILITY, useIsActive, useNavModel, type NavGroup } from "./nav";
 import { Btn } from "./ui";
 import { EnvCard, EnvRailButton, StagingTag, useEnvironment } from "./EnvSwitch";
 
@@ -54,25 +55,26 @@ function RailStagingDot() {
 }
 
 function Rail() {
+  const { pathname } = useLocation();
+  const active = moduleOf(pathname).to;
+  const { host, indicator } = useSlidingIndicator<HTMLDivElement>(active, { className: "glass-bubble rounded-[13px]" });
+  const { env } = useEnvironment();
   return (
     <aside aria-label="Primary" className="sticky top-4 z-30 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
-      <div className="flex flex-col items-center gap-0.5 rounded-[22px] bg-[var(--rail)] px-1.5 py-3 ring-1 ring-white/[0.06]">
-        <Link to="/" aria-label="Axis home" className="relative mb-1.5"><LogoMark size={36} /><RailStagingDot /></Link>
-        {[...DESTINATIONS, null, ...UTILITY].map((m, i) => m === null ? <i key={`sep${i}`} aria-hidden className="my-1.5 block h-px w-6 bg-white/10" /> : (
-          <NavLink key={m.to} to={m.to} end={m.to === "/"} aria-label={m.label} title={m.label} className={({ isActive }) => cx("relative grid size-10 place-items-center rounded-[13px] transition-colors", isActive ? "bg-white/10 text-white" : "text-[var(--rail-ink)] hover:text-white")}>
-            {({ isActive }) => (
-              <>
-                {isActive && <span className="absolute -left-[7px] top-3 h-5 w-[2px] rounded-full bg-[var(--lime)]" />}
-                <m.icon size={18} strokeWidth={1.4} aria-hidden />
-              </>
-            )}
-          </NavLink>
+      <div ref={host} className="glass relative flex flex-col items-center gap-0.5 rounded-[22px] px-1.5 py-3">
+        {indicator}
+        <Link to="/" aria-label="Axis home" className="press relative z-10 mb-1.5"><LogoMark size={36} /><RailStagingDot /></Link>
+        {env === "staging" && <span className="relative z-10 -mt-0.5 mb-1.5 font-mono text-[7.5px] font-medium tracking-[0.1em]" style={{ color: "var(--amber)" }}>STAGING</span>}
+        {[...DESTINATIONS, null, ...UTILITY].map((m, i) => m === null ? <i key={`sep${i}`} aria-hidden className="my-1.5 block h-px w-6" style={{ background: "var(--glass-border)" }} /> : (
+          <Link key={m.to} to={m.to} data-ikey={m.to} aria-label={m.label} title={m.label} aria-current={active === m.to ? "page" : undefined} className={cx("nav-item press relative z-10 grid size-10 place-items-center rounded-[13px]", active === m.to ? "text-[var(--dock-ink-on)]" : "text-[var(--dock-ink)] hover:text-[var(--dock-ink-on)]")}>
+            <m.icon size={18} strokeWidth={1.4} aria-hidden />
+          </Link>
         ))}
       </div>
       <div className="hidden min-h-0 flex-1 tall:flex"><DayScale /></div>
       <div className="flex-1 tall:hidden" />
       <EnvRailButton />
-      <ThemeButton className="h-12 w-full rounded-[18px] bg-[var(--rail)] text-white shadow-[0_14px_24px_-12px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12)]" />
+      <ThemeButton className="glass h-12 w-full rounded-[18px] text-[var(--dock-ink-on)]" />
     </aside>
   );
 }
@@ -125,15 +127,7 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
   };
   return (
     <aside aria-label="Section" className="panel sticky top-4 hidden h-[calc(100dvh-2rem)] w-[240px] shrink-0 flex-col rounded-[22px] p-3 xl:flex">
-      <div className="raised flex items-center gap-2.5 rounded-[14px] p-2">
-        <LogoMark size={34} />
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-[14px] font-medium leading-tight">Axis<StagingTag /></p>
-          <p className="mono truncate !text-[9.5px]">By Framework</p>
-        </div>
-        <ChevronsUpDown size={14} className="text-faint" aria-hidden />
-      </div>
-      <form onSubmit={submit} role="search" className="inset mt-3 flex h-10 items-center gap-2 rounded-[12px] px-3">
+      <form onSubmit={submit} role="search" className="inset flex h-10 items-center gap-2 rounded-[12px] px-3">
         <Search size={14} className="shrink-0 text-muted" aria-hidden />
         <input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search tasks" placeholder="Search tasks" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted" />
         <kbd className="kbd text-muted">⌘K</kbd>
@@ -147,23 +141,25 @@ function SecondaryPanel({ searchRef }: { searchRef: React.RefObject<HTMLInputEle
   );
 }
 
-/** The persistent floating dock: six permanent destinations. Icon-only below 360 px; labels stay available to screen readers. */
+/** The persistent floating dock: six permanent destinations on a glass material with one animated selection bubble. Icon-only below 360 px. */
 function Dock() {
   const { pathname } = useLocation();
   const { approvals } = useData();
   const here = dockActive(pathname);
+  const { host, indicator } = useSlidingIndicator<HTMLUListElement>(here, { inset: 0, className: "glass-bubble rounded-[20px]" });
   return (
     <nav aria-label="Primary" className="safe-b fixed inset-x-2.5 bottom-2.5 z-30 md:hidden">
-      <ul className="grid grid-cols-6 gap-0.5 rounded-[26px] bg-[var(--rail)] p-1 ring-1 ring-white/[0.07]">
+      <ul ref={host} className="glass relative grid grid-cols-6 gap-0.5 rounded-[26px] p-1">
+        {indicator}
         {DESTINATIONS.map((m) => {
           const on = here === m.to;
           return (
-            <li key={m.to}>
-              <NavLink to={m.to} end={m.to === "/"} aria-label={m.label} aria-current={on ? "page" : undefined} className={cx("relative flex h-[52px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[20px] transition-colors", on ? "bg-white/[0.1] text-[#f1f1ee]" : "text-[var(--rail-ink)]")}>
+            <li key={m.to} className="relative z-10">
+              <Link to={m.to} data-ikey={m.to} aria-label={m.label} aria-current={on ? "page" : undefined} className={cx("nav-item press relative flex h-[52px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[20px]", on ? "text-[var(--dock-ink-on)]" : "text-[var(--dock-ink)]")}>
                 <m.icon size={19} strokeWidth={1.3} aria-hidden />
                 <span className="max-w-full truncate text-[9.5px] font-normal leading-none tracking-[0.01em] max-[359px]:sr-only">{m.label}</span>
                 {m.to === "/" && approvals.length > 0 && <i aria-hidden className="absolute right-2.5 top-2 size-1.5 rounded-full" style={{ background: "var(--w-terra)" }} />}
-              </NavLink>
+              </Link>
             </li>
           );
         })}
@@ -182,6 +178,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { source, error } = useData();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -207,7 +204,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         )}
         <PhoneStagingRow />
-        {children}
+        <div key={moduleOf(pathname).to} className="page-in">{children}</div>
       </main>
       <Dock />
     </div>

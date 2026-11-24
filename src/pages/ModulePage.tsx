@@ -48,21 +48,14 @@ function Module({ id }: { id: ModuleId }) {
   const briefing = useApi<Briefing>(tab === "briefing" ? `/briefing/${id}?today=${today}` : null, tasks.length + goals.length + habits.length);
   const rows: ActivityRow[] = Array.isArray(activity.data) ? activity.data : activity.data?.activity ?? activity.data?.events ?? [];
   const mine = inbox.filter((r) => r.assistant === id);
-  const addButton = (
-    <div className="flex gap-2 max-md:hidden">
-      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "task" })}>Task</Btn>
-      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "goal" })}>Goal</Btn>
-      <Btn variant="soft" icon={Plus} onClick={() => setEdit({ kind: "habit" })}>Habit</Btn>
-    </div>
-  );
-
   return (
-    <div>
-      <PageHeader crumb={meta.label.toUpperCase()} title={meta.label} subtitle={meta.blurb} controls={addButton} />
+    <div className="@container">
+      <PageHeader crumb={meta.label.toUpperCase()} title={meta.label} subtitle={meta.blurb} onNew={() => setEdit({ kind: "task" })} />
       <ModuleTabs module={id} tab={tab} counts={{ tasks: open.length, goals: mg.length, habits: mh.length }} />
 
+      <div key={tab} className="tab-in">
       {tab === "overview" && (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="grid gap-3 @[960px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               {[["Open", open.length], ["Due today", hz.today], ["Overdue", hz.overdue]].map(([l, n]) => (
@@ -101,7 +94,7 @@ function Module({ id }: { id: ModuleId }) {
         <Widget title="Briefing" tag={briefing.data ? `as of ${briefing.data.asOf.slice(11, 16)} UTC` : undefined}>
           <p className="mono mb-3 !normal-case !tracking-normal">Computed by Axis from this module's live records. The {meta.label} assistant reads the same briefing, so completing a task anywhere updates it everywhere.</p>
           {briefing.loading ? <Empty>Loading…</Empty> : !briefing.data ? <Empty>{briefing.error ?? "No briefing."}</Empty> : (
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-5 @[640px]:grid-cols-2">
               <div>
                 {(["overdue", "today", "tomorrow", "this_week", "in_progress"] as const).map((k) => (
                   <div key={k} className="mb-3"><p className="mono mb-1">{k === "in_progress" ? "In progress" : k === "this_week" ? "This week" : k[0].toUpperCase() + k.slice(1)} · {briefing.data!.tasks[k]?.length ?? 0}</p>
@@ -119,7 +112,7 @@ function Module({ id }: { id: ModuleId }) {
       )}
 
       {tab === "activity" && (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid gap-3 @[960px]:grid-cols-2">
           <Widget title="Activity history" tag="Audited changes">
             {activity.loading ? <Empty>Loading…</Empty> : rows.length === 0 ? <Empty>No activity yet.</Empty> : <ul>{rows.map((a, i) => <li key={i} className="flex items-center justify-between gap-3 border-t border-line py-2 text-[13px] first:border-t-0"><span className="min-w-0 truncate">{a.action} <span className="text-muted">· {a.actor}{a.via ? ` via ${a.via}` : ""}</span></span><span className="mono shrink-0">{a.at.slice(5, 16).replace("T", " ")}</span></li>)}</ul>}
           </Widget>
@@ -130,7 +123,7 @@ function Module({ id }: { id: ModuleId }) {
       )}
 
       {tab === "metrics" && (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 @[640px]:grid-cols-2">
           <Widget title="Completed per day" tag="Last 14 days">
             {(() => { const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13)); const vals = days.map((d) => done.filter((t) => t.completedAt?.slice(0, 10) === d).length); return <><Spark values={vals} label="Tasks completed per day" /><p className="mono mt-2 !normal-case">{vals.reduce((a, b) => a + b, 0)} completed in 14 days</p></>; })()}
           </Widget>
@@ -146,6 +139,8 @@ function Module({ id }: { id: ModuleId }) {
           </Widget>
         </div>
       )}
+
+      </div>
 
       {edit?.kind === "task" && <TaskEditor task={edit.task} defaults={{ module: id }} onClose={() => setEdit(null)} />}
       {edit?.kind === "goal" && <GoalEditor goal={edit.goal} defaultModule={id} onClose={() => setEdit(null)} />}

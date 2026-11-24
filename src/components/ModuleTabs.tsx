@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ModuleId } from "../../shared/modules";
 import { cx } from "../lib/cx";
+import { useSlidingIndicator } from "../lib/motion";
 import { moreTabs, primaryTabs, TAB_LABEL, type TabId } from "./nav";
 
 /** Contextual tabs under a module heading: the module's main screens, plus a More menu for the rest. */
@@ -11,6 +12,7 @@ export function ModuleTabs({ module, tab, counts }: { module: ModuleId; tab: Tab
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const primary = primaryTabs(module), more = moreTabs(module);
+  const { host, indicator } = useSlidingIndicator<HTMLDivElement>(primary.includes(tab) ? tab : null, { inset: 0, className: "rounded-full bg-[var(--pill-bg)]" });
   const go = (t: TabId) => { setSp((p) => { const n = new URLSearchParams(p); n.set("tab", t); n.delete("h"); return n; }, { replace: true }); setMenu(false); };
   useEffect(() => {
     if (!menu) return;
@@ -23,9 +25,10 @@ export function ModuleTabs({ module, tab, counts }: { module: ModuleId; tab: Tab
   const base = "hit inline-flex items-center gap-1.5 rounded-full px-3 text-[12.5px] whitespace-nowrap transition-colors";
   return (
     <div ref={ref} className="relative mb-4 flex items-center gap-1.5">
-      <div role="tablist" aria-label="Sections" className="no-scrollbar flex min-w-0 flex-1 gap-0.5 overflow-x-auto rounded-full p-0.5" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
+      <div ref={host} role="tablist" aria-label="Sections" className="no-scrollbar relative flex min-w-0 flex-1 gap-0.5 overflow-x-auto rounded-full p-0.5" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
+        {indicator}
         {primary.map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => go(t)} className={cx(base, tab === t ? "bg-[var(--pill-bg)] text-[var(--pill-ink)]" : "text-muted hover:text-[var(--ink)]")}>
+          <button key={t} role="tab" data-ikey={t} aria-selected={tab === t} onClick={() => go(t)} className={cx(base, "nav-item press relative z-10", tab === t ? "text-[var(--pill-ink)]" : "text-muted hover:text-[var(--ink)]")}>
             {TAB_LABEL[t]}{counts?.[t] ? <span className="num hidden text-[11px] opacity-70 min-[430px]:inline">{counts[t]}</span> : null}
           </button>
         ))}
@@ -34,7 +37,7 @@ export function ModuleTabs({ module, tab, counts }: { module: ModuleId; tab: Tab
         {inMore ? TAB_LABEL[tab] : "More"}<ChevronDown size={14} strokeWidth={1.5} aria-hidden />
       </button>
       {menu && (
-        <ul role="menu" className="panel rise absolute right-0 top-[calc(100%+6px)] z-30 w-48 p-1.5">
+        <ul role="menu" className="glass pop-in absolute right-0 top-[calc(100%+6px)] z-30 w-48 rounded-[18px] p-1.5">
           {more.map((t) => <li key={t} role="none"><button role="menuitem" onClick={() => go(t)} className={cx("hit flex w-full items-center rounded-xl px-3 text-left text-[14px]", tab === t ? "bg-[var(--card-dim)]" : "hover:bg-[var(--card-dim)]")}>{TAB_LABEL[t]}</button></li>)}
         </ul>
       )}

@@ -81,7 +81,7 @@ export function Calendar({ module }: { module?: ModuleId } = {}) {
               </ul>
             )}
             {evOn(focus).length + taskOn(focus).length === 0 && nextEvents.length > 0 && (
-              <ul className="flat mt-2 px-3 py-1">{nextEvents.map((e) => <li key={e.id} className="flex items-center gap-3 py-2.5 text-[13.5px]"><ModuleIcon id={e.module} size={24} /><button className="min-w-0 flex-1 truncate text-left" onClick={() => setFocus(e.date)}>{e.title}</button><span className="num text-[12px] text-muted">{pretty(e.date, { weekday: "short", day: "numeric" })}</span></li>)}</ul>
+              <ul className="flat mt-2 px-3 py-1">{nextEvents.map((e) => <li key={e.id} className="flex items-center gap-3 py-2.5 text-[13.5px]"><ModuleIcon id={e.module} size={24} /><button className="hit min-w-0 flex-1 truncate py-1 text-left" onClick={() => setFocus(e.date)}>{e.title}</button><span className="num text-[12px] text-muted">{pretty(e.date, { weekday: "short", day: "numeric" })}</span></li>)}</ul>
             )}
           </section>
         </div>

@@ -15,6 +15,7 @@ npm run build && npm run db:migrate:local && npm run dev:worker   # full app on 
 npm test                    # unit + integration + security + acceptance tests
 npm run typecheck
 npm run ui:check            # responsive layout check (needs Playwright and a local Worker with synthetic data)
+# also: scripts/responsive-sweep.cjs, motion-check.cjs, nav-check.cjs, env-check.cjs (same requirements)
 ```
 Local sign-in is a loopback-only development identity; deployed environments require Cloudflare Access.
 

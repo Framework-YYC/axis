@@ -45,11 +45,11 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
   };
 
   return (
-    <div>
+    <div className="@container">
       <PageHeader crumb="SETTINGS" title="Settings" subtitle={signedIn ? `${who} · ${environment}` : "Not signed in"} />
       {msg && <p role="status" className="panel-dim mb-3 p-3 text-[13px]">{msg}</p>}
-      <div className="grid gap-3 xl:grid-cols-2">
-        <div id="environment" className="xl:col-span-2"><EnvCard /></div>
+      <div className="grid gap-3 @[1000px]:grid-cols-2">
+        <div id="environment" className="@[1000px]:col-span-2"><EnvCard /></div>
 
         <Widget id="preferences" title="Preferences">
           <div className="grid gap-3.5 md:grid-cols-2">
@@ -123,7 +123,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           )}
         </Widget>
 
-        <Widget id="activity" title="Assistant requests and audit" tag="Newest first" className="xl:col-span-2">
+        <Widget id="activity" title="Assistant requests and audit" tag="Newest first" className="@[1000px]:col-span-2">
           <div className="grid gap-6 md:grid-cols-2">
             <div>
               <p className="mono mb-2">Inbox</p>

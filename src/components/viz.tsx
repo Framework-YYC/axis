@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { type ActivityBar, completionArcs, dotRing, fanSegments, pieSector, polar, radialTicks, splitParts } from "../../shared/gauges";
 import { cx } from "../lib/cx";
+import { useTween, useTweenList } from "../lib/motion";
 
 /** Instrument-style data graphics. Every figure is a prop; nothing here invents data. Colours are CSS variables so both themes work. */
 
@@ -18,7 +19,7 @@ function Hatch({ id, color, gap = 4.5, width = 0.8, angle = 45 }: { id: string; 
  */
 export function RadialGauge({ pct, size = 124, fill = "var(--g-sage)", ink = "var(--ink)", hatch = "var(--muted)", label, className }: { pct: number; size?: number; fill?: string; ink?: string; hatch?: string; label: string; className?: string }) {
   const id = useId().replace(/:/g, "");
-  const C = 80, arcs = completionArcs(pct);
+  const C = 80, shown = useTween(pct, 320), arcs = completionArcs(shown);
   return (
     <svg role="img" aria-label={label} viewBox="0 0 160 160" width={size} height={size} className={cx("block shrink-0", className)}>
       <defs><Hatch id={id} color={hatch} gap={4.2} width={0.7} /></defs>
@@ -41,7 +42,8 @@ export function RadialGauge({ pct, size = 124, fill = "var(--g-sage)", ink = "va
 export function FanGauge({ values, size = 168, ink = "var(--w-blue-ink)", pale = "var(--w-on-blue-2)", label, children, className }: { values: readonly number[]; size?: number; ink?: string; pale?: string; label: string; children?: ReactNode; className?: string }) {
   const id = useId().replace(/:/g, "");
   const CX = 92, CY = 96, R0 = 46, RMAX = 84;
-  const segs = fanSegments(values, CX, CY, R0, RMAX, 2.2);
+  const tweened = useTweenList(values, 320);
+  const segs = fanSegments(tweened, CX, CY, R0, RMAX, 2.2);
   const h = (size * 104) / 184;
   return (
     <div className={cx("relative", className)} style={{ width: size, height: h }}>
@@ -63,14 +65,16 @@ export function FanGauge({ values, size = 168, ink = "var(--w-blue-ink)", pale =
  * Dot-matrix bar chart: every bar is a block of fine dots whose height is the day's value relative to the tallest bar, topped by a fine
  * horizontal cap. Future days are ghosted; days with no completions show a baseline cap only. Labels are weekday names.
  */
-export function DotMatrixBars({ bars, maxRows = 20, ink = "var(--w-butter-on)", label, className }: { bars: readonly ActivityBar[]; maxRows?: number; ink?: string; label: string; className?: string }) {
-  const W = 330, H = 132, base = 104, colW = W / bars.length, cols = 9, pitch = 3.5, r = 0.95;
-  const max = Math.max(0, ...bars.map((b) => b.count));
-  const rowsFor = (n: number) => (n <= 0 || max === 0 ? 0 : Math.max(2, Math.round((n / max) * maxRows)));
+export function DotMatrixBars({ bars, maxRows = 20, tall = false, ink = "var(--w-butter-on)", label, className }: { bars: readonly ActivityBar[]; maxRows?: number; tall?: boolean; ink?: string; label: string; className?: string }) {
+  const rowsMax = tall ? 40 : maxRows;
+  const W = 330, H = tall ? 232 : 132, base = H - 28, colW = W / bars.length, cols = 9, pitch = 3.5, r = 0.95;
+  const counts = useTweenList(bars.map((b) => b.count), 320);
+  const max = Math.max(0, ...counts);
+  const rowsFor = (n: number) => (n <= 0 || max === 0 ? 0 : Math.max(2, Math.round((n / max) * rowsMax)));
   return (
     <svg role="img" aria-label={label} viewBox={`0 0 ${W} ${H}`} className={cx("block w-full", className)}>
       {bars.map((b, i) => {
-        const cx0 = colW * i + colW / 2, rows = rowsFor(b.count), left = cx0 - ((cols - 1) * pitch) / 2, capY = base - rows * pitch - 2;
+        const cx0 = colW * i + colW / 2, rows = rowsFor(counts[i] ?? b.count), left = cx0 - ((cols - 1) * pitch) / 2, capY = base - rows * pitch - 2;
         return (
           <g key={b.date} opacity={b.future ? 0.38 : 1}>
             {Array.from({ length: rows }, (_, rr) => Array.from({ length: cols }, (_, c) => <circle key={`${rr}-${c}`} cx={left + c * pitch} cy={base - rr * pitch} r={r} fill={ink} opacity={b.isToday ? 1 : 0.82} />))}
@@ -89,7 +93,7 @@ export function SplitBar({ parts, height = 9, track = "var(--tick-off)", label, 
   const used = widths.reduce((a, b) => a + b, 0);
   return (
     <div role="img" aria-label={label} className={cx("flex w-full overflow-hidden rounded-full", className)} style={{ height, background: track }}>
-      {parts.map((p, i) => widths[i] > 0 && <i key={i} className="block h-full" style={{ width: `${widths[i]}%`, background: p.color, marginRight: i < parts.length - 1 && used > widths[i] ? 2 : 0, borderRadius: 999 }} />)}
+      {parts.map((p, i) => widths[i] > 0 && <i key={i} className="block h-full" style={{ width: `${widths[i]}%`, transition: "width 300ms cubic-bezier(0.2, 0.7, 0.2, 1)", background: p.color, marginRight: i < parts.length - 1 && used > widths[i] ? 2 : 0, borderRadius: 999 }} />)}
     </div>
   );
 }
@@ -106,7 +110,8 @@ export function SegmentedProgress({ value, total, segments = 14, color = "var(--
 
 /** A small dial: an outer ring of fine ticks (lit for `pct`), an inner ring and a centre dot. `pct` null = no data, an unlit dial. */
 export function TickRing({ pct, size = 54, ink = "var(--ink)", accent = "var(--g-sage)", label }: { pct: number | null; size?: number; ink?: string; accent?: string; label: string }) {
-  const ticks = radialTicks(48, pct ?? 0, 30, 30, 24, 29);
+  const shown = useTween(pct ?? 0, 320);
+  const ticks = radialTicks(48, shown, 30, 30, 24, 29);
   return (
     <svg role="img" aria-label={label} viewBox="0 0 60 60" width={size} height={size} className="block shrink-0">
       {ticks.map((t, i) => <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={t.on ? accent : ink} strokeWidth={t.on ? 1.2 : 0.8} strokeLinecap="round" opacity={t.on ? 1 : 0.4} />)}

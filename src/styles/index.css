@@ -61,6 +61,25 @@
   --m-financial: #3b62b8;
   --m-framework: #6a4fb8;
   --m-progressive: #ad5a22;
+  /* Glass (floating navigation, menus, sheets): translucent, blurred, with an edge highlight. Cards stay solid. */
+  --glass-bg: rgb(250 250 249 / 0.62);
+  --glass-solid: #f4f4f2;
+  --glass-sheet: rgb(250 250 249 / 0.9);
+  --glass-border: rgb(21 23 26 / 0.09);
+  --glass-edge: rgb(255 255 255 / 0.9);
+  --glass-shadow: 0 14px 34px -12px rgb(21 23 26 / 0.28), 0 2px 8px rgb(21 23 26 / 0.07);
+  --glass-bubble: rgb(255 255 255 / 0.92);
+  --glass-bubble-edge: rgb(255 255 255 / 1);
+  --glass-bubble-shadow: 0 3px 10px -2px rgb(21 23 26 / 0.18), 0 0 0 0.5px rgb(21 23 26 / 0.08);
+  --dock-ink: #5d6166;
+  --dock-ink-on: #15171a;
+  --glass-blur: 24px;
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-spring: cubic-bezier(0.32, 1.25, 0.4, 1);
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 340ms;
   --r-card: 18px;
   color-scheme: light;
 }
@@ -102,6 +121,17 @@
   --m-financial: #86a8f0;
   --m-framework: #b3a0f0;
   --m-progressive: #f0a070;
+  --glass-bg: rgb(38 39 40 / 0.56);
+  --glass-solid: #232425;
+  --glass-sheet: rgb(30 31 32 / 0.88);
+  --glass-border: rgb(255 255 255 / 0.1);
+  --glass-edge: rgb(255 255 255 / 0.16);
+  --glass-shadow: 0 16px 36px -12px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35);
+  --glass-bubble: rgb(255 255 255 / 0.16);
+  --glass-bubble-edge: rgb(255 255 255 / 0.28);
+  --glass-bubble-shadow: 0 3px 10px -2px rgb(0 0 0 / 0.5), 0 0 0 0.5px rgb(255 255 255 / 0.12);
+  --dock-ink: #9a9d98;
+  --dock-ink-on: #f4f4f1;
   color-scheme: dark;
 }
 
@@ -154,7 +184,7 @@
   .num { font-variant-numeric: tabular-nums; }
   .display { font-weight: 300; letter-spacing: -0.03em; line-height: 1; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 999px; font-weight: 450; font-size: 13px; white-space: nowrap; transition: transform 120ms ease, background-color 160ms ease, opacity 160ms ease; }
-  .btn:active { transform: scale(0.99); }
+  .btn:active { transform: scale(0.97); }
   .btn:disabled { opacity: 0.4; pointer-events: none; }
   .btn-primary { background: var(--pill-bg); color: var(--pill-ink); }
   .btn-soft { color: var(--ink); background: transparent; box-shadow: 0 0 0 1px var(--line); }
@@ -166,8 +196,32 @@
   .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 7px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; background: var(--card-dim); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); white-space: nowrap; }
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 450; white-space: nowrap; background: transparent; box-shadow: 0 0 0 1px var(--line); }
   .pill-lime { background: var(--lime); color: var(--lime-ink); box-shadow: none; }
-  .rise { animation: rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .stagger > * { animation: rise 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  /* Glass: a translucent, blurred material with a hairline border and a top edge highlight. Falls back to a solid surface. */
+  .glass { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5); backdrop-filter: blur(var(--glass-blur)) saturate(1.5); box-shadow: inset 0 1px 0 var(--glass-edge), 0 0 0 1px var(--glass-border), var(--glass-shadow); }
+  .glass-sheet { background: var(--glass-sheet); -webkit-backdrop-filter: blur(28px) saturate(1.4); backdrop-filter: blur(28px) saturate(1.4); box-shadow: inset 0 1px 0 var(--glass-edge), 0 0 0 1px var(--glass-border), var(--glass-shadow); }
+  .glass-bubble { background: var(--glass-bubble); box-shadow: inset 0 1px 0 var(--glass-bubble-edge), var(--glass-bubble-shadow); -webkit-backdrop-filter: blur(10px) saturate(1.6); backdrop-filter: blur(10px) saturate(1.6); }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass, .glass-sheet { background: var(--glass-solid); } .glass-bubble { background: color-mix(in srgb, var(--ink) 12%, var(--glass-solid)); } }
+  @media (prefers-reduced-transparency: reduce) { .glass-sheet { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } .glass-bubble { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+  /* Motion: transform and opacity only; durations 160-340 ms; no entrance animation on data refreshes (keys change on navigation only). */
+  /* Entrance animations fill backwards only: a forwards-filled transform makes the element a containing block for fixed descendants (sheets, menus). */
+  .page-in { animation: page-in var(--dur-base) var(--ease-out) backwards; }
+  .tab-in { animation: tab-in var(--dur-fast) var(--ease-out) backwards; }
+  .pop-in { animation: pop-in var(--dur-base) var(--ease-spring) both; transform-origin: top right; }
+  .sheet-in { animation: sheet-up var(--dur-slow) var(--ease-out) both; }
+  .sheet-out { animation: sheet-down var(--dur-base) var(--ease-out) both; }
+  .scrim-in { animation: fade-in var(--dur-base) ease both; }
+  .scrim-out { animation: fade-out var(--dur-base) ease both; }
+  .row-leave { animation: row-out var(--dur-base) var(--ease-out) both; overflow: hidden; pointer-events: none; }
+  .check-in { animation: check-pop var(--dur-base) var(--ease-spring) both; }
+  .check-draw { stroke-dasharray: 22; animation: check-draw var(--dur-base) var(--ease-out) both; }
+  .press { transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) ease; }
+  .press:active { transform: scale(0.97); opacity: 0.9; }
+  .expand { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur-base) var(--ease-out), opacity var(--dur-base) ease; }
+  .expand[data-open="false"] { grid-template-rows: 0fr; opacity: 0; }
+  .expand > div { overflow: hidden; min-height: 0; }
+  .nav-item { transition: color var(--dur-base) var(--ease-out); }
+  .rise { animation: rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+  .stagger > * { animation: rise 360ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
   .stagger > *:nth-child(2) { animation-delay: 40ms; } .stagger > *:nth-child(3) { animation-delay: 80ms; }
   .stagger > *:nth-child(4) { animation-delay: 120ms; } .stagger > *:nth-child(5) { animation-delay: 160ms; }
   .stagger > *:nth-child(6) { animation-delay: 200ms; } .stagger > *:nth-child(n+7) { animation-delay: 240ms; }
@@ -182,6 +236,16 @@
   .safe-t { padding-top: env(safe-area-inset-top); }
 }
 
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes tab-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes sheet-up { from { opacity: 0.6; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes sheet-down { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(28px); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes row-out { from { opacity: 1; max-height: 160px; } 60% { opacity: 0; } to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-color: transparent; } }
+@keyframes check-pop { 0% { transform: scale(0.7); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes check-draw { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgb(212 250 73 / 0.7); } 50% { box-shadow: 0 0 0 5px rgb(212 250 73 / 0); } }
 .live-dot { animation: pulse-dot 2.4s ease-out infinite; }

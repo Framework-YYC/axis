@@ -1,24 +1,28 @@
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { prefersReducedMotion } from "../lib/motion";
 import { cx } from "../lib/cx";
 import { Btn } from "./ui";
 
-/** A sheet on iPhone, a centred panel on larger screens. Esc and the backdrop close it. */
+/** A sheet on iPhone, a centred panel on larger screens. Esc, the backdrop and the close button animate it away; it never blocks interaction while opening. */
 export function Modal({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [closing, setClosing] = useState(false);
+  const close = useRef(() => {});
+  close.current = () => { if (closing) return; if (prefersReducedMotion()) { onClose(); return; } setClosing(true); setTimeout(onClose, 220); };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close.current(); };
     addEventListener("keydown", onKey);
     ref.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
     return () => removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-label={title}>
-      <button className="absolute inset-0 bg-black/45" aria-label="Close" onClick={onClose} tabIndex={-1} />
-      <div ref={ref} className={cx("panel rise relative flex max-h-[92dvh] w-full flex-col rounded-b-none rounded-t-[28px] md:rounded-[24px]", wide ? "md:max-w-3xl" : "md:max-w-xl")}>
+      <button className={cx("absolute inset-0 bg-black/45", closing ? "scrim-out" : "scrim-in")} aria-label="Close" onClick={() => close.current()} tabIndex={-1} />
+      <div ref={ref} className={cx("glass-sheet relative flex max-h-[92dvh] w-full flex-col rounded-b-none rounded-t-[28px] md:rounded-[24px]", closing ? "sheet-out" : "sheet-in", wide ? "md:max-w-3xl" : "md:max-w-xl")}>
         <header className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
           <h2 className="text-[18px] font-medium tracking-tight">{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="inset grid size-11 place-items-center rounded-full md:size-9"><X size={16} /></button>
+          <button onClick={() => close.current()} aria-label="Close" className="inset press grid size-11 place-items-center rounded-full md:size-9"><X size={16} /></button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{children}</div>
         {footer && <footer className="safe-b flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-3.5">{footer}</footer>}

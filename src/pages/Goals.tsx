@@ -19,13 +19,13 @@ export default function GoalsHabits() {
   const h = habits.filter((x) => x.status !== "archived" && (mod === "all" || x.module === mod));
   const opts = [{ value: "all", label: "All modules" }, ...MODULE_IDS.map((m) => ({ value: m as string, label: MODULES_META[m].label }))];
   return (
-    <div>
+    <div className="@container">
       <PageHeader crumb="GOALS & HABITS" title="Goals & Habits" subtitle="Targets with progress, and routines with streaks" />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Segmented label="Module" value={mod} onChange={setMod} options={opts} />
         <Segmented label="Term" value={term} onChange={setTerm} options={[{ value: "all", label: "Any term" }, { value: "short", label: "Short" }, { value: "medium", label: "Medium" }, { value: "long", label: "Long" }]} />
       </div>
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid gap-3 @[1000px]:grid-cols-2">
         <Widget bare id="goals" title="Goals" count={g.length} action={<Btn variant="primary" icon={Plus} onClick={() => setEdit({ goal: undefined })}>New goal</Btn>}>
           {loading ? <Empty>Loading…</Empty> : g.length === 0 ? <Empty>No goals match.</Empty> : <GoalList goals={g} onEdit={(y) => setEdit({ goal: y })} />}
         </Widget>

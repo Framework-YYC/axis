@@ -2,6 +2,7 @@ import { ArrowRight, Bell, Plus, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "../lib/data";
+import { useSlidingIndicator } from "../lib/motion";
 import { AccountMenuButton } from "./AccountMenu";
 import { ContextChips } from "./nav";
 
@@ -54,54 +55,53 @@ export function Btn({ children, onClick, variant = "soft", icon: Icon, kbd, disa
   );
 }
 
-/** Bell and the primary "New task" pill. Compact (phone) shows round icon buttons. */
-export function HeaderActions({ compact }: { compact?: boolean }) {
+/**
+ * The page header's actions, one instance that adapts to the header's own width: [account menu on phones] [bell] [New task].
+ * "New task" is an icon on narrow headers and gains its label when there is room. One creation control per page.
+ */
+export function HeaderActions({ onNew }: { onNew?: () => void }) {
   const { approvals, tasks, today } = useData();
   const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < today).length;
+  const cls = "btn btn-primary press !min-h-11 !w-11 !px-0 @[560px]:!min-h-10 @[560px]:!w-auto @[560px]:!px-[18px]";
+  const inner = <><Plus size={17} strokeWidth={1.6} aria-hidden /><span className="sr-only @[560px]:not-sr-only">New task</span></>;
   return (
     <div className="flex items-center gap-2">
-      {compact && <AccountMenuButton className="-mr-1" />}
-      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft relative !min-h-11 !w-11 !px-0 md:!min-h-10 md:!w-10">
-        <Bell size={16} aria-hidden />
-        {attention > 0 && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-red ring-2 ring-[var(--card-a)]" />}
+      <AccountMenuButton className="md:hidden" />
+      <Link to="/settings#approvals" aria-label={attention ? `${attention} items need your attention` : "Notifications"} className="btn btn-soft press relative !min-h-11 !w-11 !px-0 @[560px]:!min-h-10 @[560px]:!w-10">
+        <Bell size={16} strokeWidth={1.5} aria-hidden />
+        {attention > 0 && <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full" style={{ background: "var(--w-terra)" }} />}
       </Link>
-      {compact ? (
-        <Link to="/tasks?add=1" aria-label="New task" className="btn btn-primary !min-h-11 !w-11 !px-0 md:!min-h-10 md:!w-10"><Plus size={18} aria-hidden /></Link>
-      ) : (
-        <Link to="/tasks?add=1" className="btn btn-primary"><Plus size={15} aria-hidden />New task</Link>
-      )}
+      {onNew ? <button onClick={onNew} aria-label="New task" className={cls}>{inner}</button> : <Link to="/tasks?add=1" aria-label="New task" className={cls}>{inner}</Link>}
     </div>
   );
 }
-export function PageHeader({ crumb, title, subtitle, controls, tag }: { crumb: string; title: string; subtitle?: string; controls?: ReactNode; tag?: ReactNode }) {
+
+export function PageHeader({ crumb, title, subtitle, controls, tag, onNew }: { crumb: string; title: string; subtitle?: string; controls?: ReactNode; tag?: ReactNode; onNew?: () => void }) {
   return (
-    <header className="mb-4 md:mb-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="mono">AXIS / {crumb}</p>
-            <h1 className="mt-1 text-[30px] font-[350] leading-none tracking-[-0.025em] md:text-[40px]">{title}</h1>
-            {subtitle && <p className="mt-2 text-[13px] leading-snug text-muted">{subtitle}</p>}
-          </div>
-          <div className="lg:hidden"><HeaderActions compact /></div>
+    <header className="@container mb-4 md:mb-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="mono">AXIS / {crumb}</p>
+          <h1 className="mt-1 text-[30px] font-[350] leading-none tracking-[-0.025em] md:text-[40px]">{title}</h1>
+          {subtitle && <p className="mt-2 max-w-[60ch] text-[13px] leading-snug text-muted">{subtitle}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {controls}
-          <div className="hidden lg:block"><HeaderActions /></div>
-        </div>
+        <div className="shrink-0"><HeaderActions onNew={onNew} /></div>
       </div>
+      {controls && <div className="mt-3 flex flex-wrap items-center gap-2">{controls}</div>}
       {tag && <div className="mt-3">{tag}</div>}
       <ContextChips />
     </header>
   );
 }
 
-/** Inset track with a raised active segment. */
+/** Inset track with one animated selection that glides between segments. */
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: ReadonlyArray<{ value: T; label: string }>; label: string }) {
+  const { host, indicator } = useSlidingIndicator<HTMLDivElement>(value, { inset: 0, className: "raised rounded-full" });
   return (
-    <div role="tablist" aria-label={label} className="inset no-scrollbar flex max-w-full gap-0.5 overflow-x-auto rounded-full p-1">
+    <div ref={host} role="tablist" aria-label={label} className="inset no-scrollbar relative flex max-w-full gap-0.5 overflow-x-auto rounded-full p-1">
+      {indicator}
       {options.map((o) => (
-        <button key={o.value} role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)} className={cx("h-8 shrink-0 rounded-full px-3.5 text-[12.5px] font-medium transition-all", value === o.value ? "raised text-ink" : "text-muted hover:text-ink")}>
+        <button key={o.value} role="tab" data-ikey={o.value} aria-selected={value === o.value} onClick={() => onChange(o.value)} className={cx("nav-item press relative z-10 h-8 shrink-0 rounded-full px-3.5 text-[12.5px] font-medium", value === o.value ? "text-ink" : "text-muted hover:text-ink")}>
           {o.label}
         </button>
       ))}

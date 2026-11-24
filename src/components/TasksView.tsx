@@ -1,4 +1,4 @@
-import { ChevronDown, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, type Horizon } from "../../shared/horizons";
@@ -31,7 +31,7 @@ function Pick({ label, value, display, onChange, children }: { label: string; va
  * The one task screen. The module and time-horizon filters work together; secondary filters (priority, status, project) live in a menu.
  * Opened from Home it shows every module; opened from a module it starts on that module. All views read the same task records.
  */
-export function TasksView({ module: defaultModule, embedded }: { module?: ModuleId; embedded?: boolean }) {
+export function TasksView({ module: defaultModule }: { module?: ModuleId; embedded?: boolean }) {
   const { tasks, today, weekStart, loading, error, completeTask, reopenTask } = useData();
   const [sp, setSp] = useSearchParams();
   const rawModule = sp.get("module");
@@ -81,7 +81,6 @@ export function TasksView({ module: defaultModule, embedded }: { module?: Module
           <SlidersHorizontal size={17} strokeWidth={1.4} aria-hidden />
           {secondary.length > 0 && <span className="num absolute -right-0.5 -top-0.5 grid size-[18px] place-items-center rounded-full bg-[var(--pill-bg)] text-[10.5px] font-medium text-[var(--pill-ink)]">{secondary.length}</span>}
         </button>
-        {embedded && <Btn variant="primary" icon={Plus} onClick={() => setEditing({})} className="max-md:!min-w-11 max-md:!px-3" label="New task"><span className="max-md:sr-only">New task</span></Btn>}
       </div>
       <form role="search" onSubmit={(e) => e.preventDefault()} className="mb-3 flex h-11 items-center gap-2 rounded-full px-3.5 md:h-10" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
         <Search size={15} strokeWidth={1.4} className="text-muted" aria-hidden />

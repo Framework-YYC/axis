@@ -49,22 +49,78 @@ describe("module-first navigation", () => {
   });
 });
 
-describe("Home: five widgets and nothing else", () => {
+describe("Home: five widgets on phones, a bento grid on wider content areas", () => {
   const home = read("src/pages/Dashboard.tsx");
-  it("renders exactly the five widgets and links the Tasks and Goals cards to their screens", () => {
+  it("keeps the five core widgets and links Tasks and Goals to their screens", () => {
     for (const label of ["Daily completion", "Weekly workload", "Task activity", 'label="Tasks"', 'label="Goals"']) expect(home).toContain(label);
     expect(home).toContain('to="/tasks"'); expect(home).toContain('to="/goals"');
-    expect(home.match(/<Card tone=/g)?.length).toBe(5);
   });
-  it("has no launcher, lists or previews (those live on their own screens)", () => {
-    for (const gone of ["TaskLine", "GoalCard", "HabitRow", "EventRow", "ModuleIcon", "HabitList", "Up next", "Schedule", "nav aria-label=\"Assistant modules\""]) expect(home).not.toContain(gone);
+  it("adds Today's priorities, Daily habits, Modules and Upcoming schedule only when the content area is wide, via container queries", () => {
+    for (const label of ["Today's priorities", "Daily habits", 'label="Modules"', "Upcoming schedule"]) expect(home).toContain(label);
+    expect(home.match(/@max-\[639px\]:hidden/g)?.length).toBe(4); // exactly the four extra widgets are hidden on narrow containers
+    expect(home).toContain('@container mt-3.5'); expect(home).toContain("@[640px]:grid-cols-12"); expect(home).toContain("@[1000px]:col-span-3");
+    expect(home).not.toMatch(/\bmd:grid-cols|\bxl:grid-cols|\blg:grid-cols/); // layout follows the content width, not the viewport
+  });
+  it("never nests controls inside a link: list widgets use a header link", () => {
+    expect(home).toContain("headTo=");
+    expect(home).not.toMatch(/onClick=\{\(e\) => e\.preventDefault\(\)\}/);
   });
   it("draws only from live data: no invented numbers", () => {
     expect(home).not.toMatch(/Math\.random|const (demo|sample)|\(synthetic\)/i);
-    expect(home).toContain("focusStats(tasks, today)"); expect(home).toContain("weekBars(tasks, today, 7)"); expect(home).toContain("activityBars(tasks, period, today, weekStart)");
+    for (const call of ["focusStats(tasks, today)", "weekBars(tasks, today, 7)", "activityBars(tasks, period, today, weekStart)", "events.filter", "habits.filter"]) expect(home).toContain(call);
   });
   it("lets the activity chart switch reporting periods and states what it measures", () => {
     expect(home).toContain("ACTIVITY_PERIODS.map"); expect(home).toContain("Tasks completed per day");
+  });
+});
+
+describe("shell, header and layout rules", () => {
+  it("the secondary sidebar starts with search; the redundant Axis block and its dead chevrons are gone", () => {
+    const shell = read("src/components/Shell.tsx");
+    const side = shell.slice(shell.indexOf("function SecondaryPanel"), shell.indexOf("function Dock") > 0 ? shell.indexOf("/** The persistent floating dock") : undefined);
+    expect(side).not.toMatch(/By Framework|ChevronsUpDown/);
+    expect(side.indexOf('role="search"')).toBeGreaterThan(-1); expect(side.indexOf('role="search"')).toBeLessThan(side.indexOf("<nav"));
+    expect(shell).toContain("<LogoMark size={36} />"); // the logo stays in the rail
+  });
+  it("one creation control per page header, adapting to the header's own width", () => {
+    const ui = read("src/components/ui.tsx");
+    expect(ui).toContain("@container mb-4"); expect(ui).toContain("@[560px]:not-sr-only");
+    expect(ui).not.toContain('lg:hidden"><HeaderActions'); // no second, duplicated instance
+    expect(read("src/pages/ModulePage.tsx")).not.toMatch(/>Task<\/Btn>/); expect(read("src/components/TasksView.tsx")).not.toContain("New task");
+  });
+  it("goals and habits are compact rows that follow the content width and open details in a sheet", () => {
+    const c = read("src/components/compact.tsx");
+    expect(c).toContain("@[640px]:grid-cols-2"); expect(c).toContain("@[700px]:grid-cols-2");
+    expect(c).not.toMatch(/hidden gap-3 md:grid|lg:grid-cols-2/);
+    expect(read("src/pages/ModulePage.tsx")).toContain('className="@container"');
+  });
+});
+
+describe("glass and motion", () => {
+  const css = read("src/styles/index.css");
+  it("glass is translucent with blur, an edge highlight and fallbacks; cards stay solid", () => {
+    expect(css).toMatch(/\.glass \{[^}]*backdrop-filter: blur/); expect(css).toContain("-webkit-backdrop-filter");
+    expect(css).toContain("@supports not ((backdrop-filter: blur(1px))"); expect(css).toContain("prefers-reduced-transparency");
+    expect(css).toMatch(/\.panel \{ background: var\(--card-a\)/); // dashboard cards: solid
+    const shell = read("src/components/Shell.tsx");
+    expect(shell).toContain('className="glass relative grid grid-cols-6'); expect(shell).toContain('glass relative flex flex-col items-center'); // dock and rail
+    expect(read("src/components/forms.tsx")).toContain("glass-sheet"); expect(read("src/components/ModuleTabs.tsx")).toContain("glass pop-in");
+  });
+  it("one shared indicator drives the dock, rail, module tabs and segmented controls", () => {
+    for (const f of ["src/components/Shell.tsx", "src/components/ModuleTabs.tsx", "src/components/ui.tsx"]) expect(read(f)).toContain("useSlidingIndicator");
+    expect(read("src/components/Shell.tsx").match(/useSlidingIndicator</g)?.length).toBe(2);
+    const m = read("src/lib/motion.tsx");
+    expect(m).toContain("prefersReducedMotion"); expect(m).toContain("stretchFrames"); expect(m).toContain("ResizeObserver"); expect(m).toContain("orientationchange");
+  });
+  it("motion is restrained: 160-340 ms, transform and opacity, reduced motion honoured, no entrance replay on data refresh", () => {
+    expect(css).toMatch(/--dur-fast: 160ms/); expect(css).toMatch(/--dur-base: 240ms/); expect(css).toMatch(/--dur-slow: 340ms/);
+    expect(css).toMatch(/prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after \{ animation-duration: 0\.01ms/);
+    const shell = read("src/components/Shell.tsx");
+    expect(shell).toContain("key={moduleOf(pathname).to} className=\"page-in\""); // page transition keyed by module, not by data
+    expect(read("src/lib/motion.tsx")).toMatch(/first\.current/); // tweens skip the first render
+    expect(css).toMatch(/\.page-in \{[^}]*backwards/); expect(css).toMatch(/\.rise \{[^}]*backwards/); // never forwards: a filled transform would trap fixed sheets inside the page
+    expect(css).not.toMatch(/^\s*\.collapse \{/m); // would collide with the Tailwind collapse (visibility) utility
+    expect(read("src/components/TaskLine.tsx")).toContain("row-leave"); expect(read("src/components/TaskGroups.tsx")).toContain("<Collapse");
   });
 });
 

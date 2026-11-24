@@ -232,3 +232,31 @@ describe("instrument graphics geometry", () => {
     expect(localDay("2026-11-24T12:00:00")).toBe("2026-11-24");
   });
 });
+
+import { EASE, MAX_STRETCH, MOTION, relativeBox, sameBox, stretchFrames, travelAxis, tweenAt } from "../shared/motion";
+describe("motion geometry", () => {
+  const a = { x: 10, y: 4, w: 44, h: 44 }, b = { x: 110, y: 4, w: 44, h: 44 }, c = { x: 10, y: 120, w: 44, h: 44 };
+  it("travel axis follows the larger distance", () => { expect(travelAxis(a, b)).toBe("x"); expect(travelAxis(a, c)).toBe("y"); });
+  it("the bubble stretches over both positions and settles on the destination", () => {
+    const f = stretchFrames(a, b);
+    expect(f.map((k) => k.offset)).toEqual([0, 0.42, 1]);
+    expect(f[0].box).toEqual(a); expect(f[2].box).toEqual(b);
+    const m = f[1].box; // elongated along x, capped, keeps the destination height, lies between the two positions
+    expect(m.h).toBe(44); expect(m.y).toBe(4); expect(m.w).toBeGreaterThan(44); expect(m.w).toBeLessThanOrEqual(144); expect(m.w).toBeCloseTo(44 * MAX_STRETCH + 100 * 0.12, 5);
+    expect(m.x).toBeGreaterThanOrEqual(10); expect(m.x + m.w).toBeLessThanOrEqual(154);
+    const v = stretchFrames(a, c)[1].box; expect(v.w).toBe(44); expect(v.h).toBeGreaterThan(44); expect(v.h).toBeLessThanOrEqual(160);
+    const far = stretchFrames(a, { x: 600, y: 4, w: 44, h: 44 })[1].box; expect(far.w).toBeLessThan(44 * MAX_STRETCH + 80); // a long journey does not become a bar
+    expect(f[1].easing).toBe(EASE.spring);
+  });
+  it("positions are measured relative to the container including scroll, with an optional inset", () => {
+    expect(relativeBox({ left: 130, top: 50, width: 60, height: 40 }, { left: 100, top: 40 }, { x: 25, y: 0 })).toEqual({ x: 55, y: 10, w: 60, h: 40 });
+    expect(relativeBox({ left: 0, top: 0, width: 10, height: 10 }, { left: 0, top: 0 }, { x: 0, y: 0 }, 6)).toEqual({ x: 6, y: 6, w: 0, h: 0 }); // never negative
+    expect(sameBox(a, { ...a, x: 10.2 })).toBe(true); expect(sameBox(a, b)).toBe(false);
+  });
+  it("tweens ease out, start at the old value, end at the new one, and durations stay in the 200-350 ms range", () => {
+    expect(tweenAt(0, 100, 0, 300)).toBe(0); expect(tweenAt(0, 100, 300, 300)).toBe(100); expect(tweenAt(0, 100, 600, 300)).toBe(100);
+    expect(tweenAt(0, 100, 150, 300)).toBeGreaterThan(50); // ease-out: past halfway at half time
+    expect(tweenAt(40, 40, 100, 300)).toBe(40); expect(tweenAt(5, 9, 10, 0)).toBe(9);
+    expect(MOTION.fast).toBeGreaterThanOrEqual(150); expect(MOTION.base).toBeLessThanOrEqual(350); expect(MOTION.slow).toBeLessThanOrEqual(350);
+  });
+});

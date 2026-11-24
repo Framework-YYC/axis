@@ -2,6 +2,7 @@ import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { HORIZONS, HORIZON_LABELS, horizonOf, type Horizon, type WeekStart } from "../../shared/horizons";
 import { cx } from "../lib/cx";
+import { Collapse } from "../lib/motion";
 import type { Task } from "../lib/types";
 import { TaskLine } from "./TaskLine";
 
@@ -28,9 +29,9 @@ export function TaskGroups({ tasks, today, weekStart, onToggle, onOpen, showModu
                 <span className={cx("text-[14px] font-medium tracking-tight", h === "overdue" && "text-red")}>{HORIZON_LABELS[h]}</span>
                 <span className={cx("mono num grid h-5 min-w-5 place-items-center rounded-full px-1.5", h === "overdue" ? "bg-red/15 !text-red" : "bg-[var(--card-dim)]")}>{groups[h].length}</span>
               </span>
-              <ChevronDown size={15} className={cx("text-faint transition-transform", shut && "-rotate-90")} aria-hidden />
+              <ChevronDown size={15} className={cx("text-faint transition-transform duration-200", shut && "-rotate-90")} aria-hidden />
             </button>
-            {!shut && <ul>{groups[h].map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={onToggle} onOpen={onOpen} showModule={showModule} />)}</ul>}
+            <Collapse open={!shut}><ul>{groups[h].map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={onToggle} onOpen={onOpen} showModule={showModule} />)}</ul></Collapse>
           </section>
         );
       })}

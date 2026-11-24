@@ -69,11 +69,11 @@ export function EnvRailButton() {
   if (!env) return null;
   return (
     <div ref={ref} className="relative xl:hidden">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="dialog" aria-label={`Environment: ${NAME[env]}. Open switcher.`} title={`Environment: ${NAME[env]}`} className="grid h-12 w-full place-items-center gap-0.5 rounded-[18px] bg-[var(--rail)] text-white shadow-[0_14px_24px_-12px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.12)]">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="dialog" aria-label={`Environment: ${NAME[env]}. Open switcher.`} title={`Environment: ${NAME[env]}`} className="glass press grid h-12 w-full place-items-center gap-0.5 rounded-[18px] text-[var(--dock-ink-on)]">
         <EnvDot env={env} size={9} />
-        <span className="font-mono text-[8.5px] tracking-[0.1em] text-[var(--rail-ink)]">{env === "production" ? "PROD" : env === "staging" ? "STAGE" : "DEV"}</span>
+        <span className="font-mono text-[8.5px] tracking-[0.1em] text-[var(--dock-ink)]">{env === "production" ? "PROD" : env === "staging" ? "STAGE" : "DEV"}</span>
       </button>
-      {open && <div role="dialog" aria-label="Environment" className="panel rise absolute bottom-0 left-[68px] z-40 w-[260px] p-2.5"><EnvCard compact /></div>}
+      {open && <div role="dialog" aria-label="Environment" className="glass pop-in absolute bottom-0 left-[68px] z-40 w-[260px] rounded-[20px] p-2.5" style={{ transformOrigin: "bottom left" }}><EnvCard compact /></div>}
     </div>
   );
 }
