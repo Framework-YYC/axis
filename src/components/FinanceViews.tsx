@@ -3,14 +3,15 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { describeRecurrence } from "../../shared/recurrence";
 import { cycleLabel } from "../../shared/progress";
-import { isDebt, type BillOccurrence } from "../../shared/finance";
+import { countsInTotals, isDebt, type BillOccurrence } from "../../shared/finance";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
 import { pretty, relative } from "../lib/dates";
 import { money, useFinanceModel, type FinanceModel } from "../lib/finance";
 import type { FinAccountV, FinBillV, FinIncomePlanV, FinReimbV, FinTxnV } from "../lib/types";
 import { Spark } from "./charts";
-import { AccountEditor, BalanceEditor, BillEditor, BudgetEditor, IncomePlanEditor, PayBillDialog, ReimbursementEditor, TransactionEditor } from "./FinanceEditors";
+import { Modal } from "./forms";
+import { AccountEditor, BalanceEditor, BillEditor, BudgetEditor, IncomePlanEditor, PayBillDialog, ReimbursementEditor, ReversePaymentDialog, TransactionEditor, TransactionSheet } from "./FinanceEditors";
 import { Card } from "./InstrumentCard";
 import { Btn, Empty, Segmented, Status, Tag, Widget } from "./ui";
 import { CapsuleBars, DotGrid, RadialGauge, SegmentedProgress, SplitBar } from "./viz";
@@ -150,9 +151,10 @@ export function FinanceOverview() {
 type KindFilter = "all" | "income" | "expense" | "transfers" | "reimbursement";
 export function TransactionsView() {
   const { today } = useData(); const [month, setMonth] = useMonth(today.slice(0, 7));
-  const m = useFinanceModel(month); const [edit, setEdit] = useState<{ txn?: FinTxnV } | null>(null); const [kind, setKind] = useState<KindFilter>("all"); const [acct, setAcct] = useState("all");
+  const m = useFinanceModel(month); const [edit, setEdit] = useState<{ txn?: FinTxnV } | null>(null); const [view, setView] = useState<FinTxnV | null>(null); const [kind, setKind] = useState<KindFilter>("all"); const [acct, setAcct] = useState("all"); const [showVoided, setShowVoided] = useState(false);
   if (!m) return <Loading model={m} />;
-  const rows = m.f.transactions.filter((t) => t.date.startsWith(month)).filter((t) => acct === "all" || t.accountId === acct || t.counterAccountId === acct)
+  const voidedCount = m.f.transactions.filter((t) => t.voidedAt && t.date.startsWith(month)).length;
+  const rows = m.f.transactions.filter((t) => t.date.startsWith(month)).filter((t) => showVoided || !t.voidedAt).filter((t) => acct === "all" || t.accountId === acct || t.counterAccountId === acct)
     .filter((t) => kind === "all" ? true : kind === "transfers" ? t.kind === "transfer" || t.kind === "card_payment" || t.kind === "loan_payment" : t.kind === kind).sort((a, b) => b.date.localeCompare(a.date));
   const byDay = new Map<string, FinTxnV[]>(); for (const t of rows) byDay.set(t.date, [...(byDay.get(t.date) ?? []), t]);
   const s = m.summary;
@@ -166,41 +168,57 @@ export function TransactionsView() {
         <label className="relative inline-flex h-10 items-center rounded-full pl-3.5 pr-8 text-[13px]" style={{ boxShadow: "0 0 0 1px var(--line)" }}><span className="sr-only">Account</span>
           <select value={acct} onChange={(e) => setAcct(e.target.value)} className="absolute inset-0 w-full cursor-pointer appearance-none rounded-full bg-transparent pl-3.5 pr-8 text-transparent outline-none"><option value="all">All accounts</option>{m.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
           <span aria-hidden className="truncate">{acct === "all" ? "All accounts" : m.acctName(acct)}</span><ChevronDown size={14} strokeWidth={1.5} aria-hidden className="pointer-events-none absolute right-3 text-muted" /></label>
+        {(voidedCount > 0 || showVoided) && <button type="button" aria-pressed={showVoided} onClick={() => setShowVoided((x) => !x)} className="btn btn-soft">{showVoided ? "Hide voided" : `Show voided (${voidedCount})`}</button>}
         <Btn variant="primary" icon={Plus} onClick={() => setEdit({})}>New transaction</Btn>
       </div>
       {rows.length === 0 ? <Widget title="Transactions"><Empty>No transactions for {cycleLabel(month)}.</Empty></Widget> : (
         <div className="space-y-3">{[...byDay].map(([d, list]) => (
-          <Widget key={d} title={dayLabel(d)} tag={money(list.reduce((a, t) => a + (t.kind === "income" || t.kind === "expense" || t.kind === "reimbursement" ? t.amountMinor : 0), 0), { sign: true })}>
+          <Widget key={d} title={dayLabel(d)} tag={money(list.reduce((a, t) => a + (countsInTotals(t) && (t.kind === "income" || t.kind === "expense" || t.kind === "reimbursement") ? t.amountMinor : 0), 0), { sign: true })}>
             <ul>{list.map((t) => (
               <li key={t.id} className="border-t border-line first:border-t-0">
-                <button onClick={() => setEdit({ txn: t })} className="hit flex w-full items-center gap-3 py-1.5 text-left md:py-2">
-                  <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-[14.5px]">{t.payee || m.catName(t.categoryId) || KIND_LABEL[t.kind]}{t.demo && <FlaskConical size={11} className="shrink-0 text-faint" aria-label="Synthetic" />}{t.status === "pending" && <Tag>Pending</Tag>}</p>
-                    <p className="mono truncate !normal-case !tracking-normal">{[KIND_LABEL[t.kind], t.categoryId ? m.catName(t.categoryId) : null, m.acctName(t.accountId), t.counterAccountId ? `→ ${m.acctName(t.counterAccountId)}` : null].filter(Boolean).join(" · ")}</p></div>
-                  <span className={cx("num shrink-0 text-[15px]", t.kind === "transfer" || t.kind === "card_payment" || t.kind === "loan_payment" ? "text-muted" : t.amountMinor > 0 ? "text-[var(--g-sage)]" : "")}>{money(t.amountMinor, { sign: true })}</span>
+                <button onClick={() => setView(t)} className="hit flex w-full items-center gap-3 py-1.5 text-left md:py-2">
+                  <div className="min-w-0 flex-1"><p className={cx("flex items-center gap-1.5 truncate text-[14.5px]", t.voidedAt && "text-muted")}>{t.payee || m.catName(t.categoryId) || KIND_LABEL[t.kind]}{t.demo && <FlaskConical size={11} className="shrink-0 text-faint" aria-label="Synthetic" />}{t.status === "pending" && <Tag>Pending</Tag>}{t.voidedAt && <Tag>Voided</Tag>}{t.reversedBy && <Tag>Reversed</Tag>}{t.reversalOf && <Tag>Reversal</Tag>}</p>
+                    <p className="mono truncate !normal-case !tracking-normal">{[KIND_LABEL[t.kind], t.categoryId ? m.catName(t.categoryId) : null, m.acctName(t.accountId), t.counterAccountId ? `→ ${m.acctName(t.counterAccountId)}` : null, t.kind === "loan_payment" && t.principalMinor !== null && t.principalMinor !== undefined ? `principal ${money(t.principalMinor)} · interest ${money(Math.abs(t.amountMinor) - t.principalMinor)}` : null, t.voidedAt ? t.voidReason : null].filter(Boolean).join(" · ")}</p></div>
+                  <span className={cx("num shrink-0 text-[15px]", (t.voidedAt || t.reversedBy || t.reversalOf) && "text-muted", t.voidedAt && "line-through", t.kind === "transfer" || t.kind === "card_payment" || t.kind === "loan_payment" ? "text-muted" : t.amountMinor > 0 ? "text-[var(--g-sage)]" : "")}>{money(t.amountMinor, { sign: true })}</span>
                 </button>
               </li>))}</ul>
           </Widget>))}</div>
       )}
+      {view && <TransactionSheet txn={view} onClose={() => setView(null)} onEdit={() => { setEdit({ txn: view }); setView(null); }} />}
       {edit && <TransactionEditor txn={edit.txn} onClose={() => setEdit(null)} />}
     </Shell>
   );
 }
 
 // ---------- Bills ----------
+/** A paid or skipped occurrence: what was recorded, and the way to undo it. */
+function PaidSheet({ bill, due, skipped, viaTask, onReverse, onEdit, onClose }: { bill: FinBillV; due: string; skipped: boolean; viaTask: boolean; onReverse: () => void; onEdit: () => void; onClose: () => void }) {
+  const { finance } = useData();
+  const p = finance?.payments.find((x) => x.billId === bill.id && x.dueDate === due && !x.reversedAt); const t = p?.txnId ? finance?.transactions.find((x) => x.id === p.txnId) : undefined;
+  return (
+    <Modal title={`${bill.name}, due ${pretty(due)}`} onClose={onClose} footer={<><Btn variant="ghost" onClick={onEdit}>Edit bill</Btn><Btn variant="primary" onClick={onReverse}>{skipped ? "Undo skip" : viaTask ? "Reopen the task" : "Reverse payment"}</Btn></>}>
+      <p className="text-[14px]">{skipped ? "Skipped: this occurrence will not be paid." : viaTask ? "Marked paid by completing its task. No payment is recorded." : `Paid${p?.paidOn ? ` on ${pretty(p.paidOn)}` : ""}${p?.amountMinor ? `: ${money(p.amountMinor)}` : ""}.`}</p>
+      {t?.kind === "loan_payment" && <p className="mt-2 text-[13px]">{t.principalMinor === null || t.principalMinor === undefined ? "Not split into principal and interest." : `Principal ${money(t.principalMinor)} · interest ${money(Math.abs(t.amountMinor) - t.principalMinor)}.`}</p>}
+      <p className="mono mt-3 !normal-case !tracking-normal">Reversing keeps the record, makes the bill unpaid again and reopens its task. It can be paid again afterwards.</p>
+    </Modal>
+  );
+}
+
 export function BillsView() {
   const { today } = useData(); const [month, setMonth] = useMonth(today.slice(0, 7));
-  const m = useFinanceModel(month); const [pay, setPay] = useState<{ bill: FinBillV; due: string } | null>(null); const [edit, setEdit] = useState<{ bill?: FinBillV } | null>(null);
+  const m = useFinanceModel(month); const [pay, setPay] = useState<{ bill: FinBillV; due: string } | null>(null); const [edit, setEdit] = useState<{ bill?: FinBillV } | null>(null); const [undo, setUndo] = useState<{ bill: FinBillV; due: string; skipped: boolean; viaTask: boolean } | null>(null); const [reverse, setReverse] = useState<{ bill: FinBillV; due: string; skipped: boolean; viaTask: boolean } | null>(null);
   if (!m) return <Loading model={m} />;
   const bill = (id: string) => m.f.bills.find((b) => b.id === id);
   const Row = ({ o }: { o: BillOccurrence }) => (
     <li className="border-t border-line first:border-t-0">
-      <button onClick={() => { const b = bill(o.billId); if (!b) return; if (o.status === "paid" || o.status === "skipped") setEdit({ bill: b }); else setPay({ bill: b, due: o.dueDate }); }} className="hit flex w-full items-center gap-3 py-1.5 text-left md:py-2">
+      <button onClick={() => { const b = bill(o.billId); if (!b) return; if (o.status === "paid" || o.status === "skipped") setUndo({ bill: b, due: o.dueDate, skipped: o.status === "skipped", viaTask: o.viaTask }); else setPay({ bill: b, due: o.dueDate }); }} className="hit flex w-full items-center gap-3 py-1.5 text-left md:py-2">
         <div className="min-w-0 flex-1"><p className="truncate text-[14.5px]">{o.name}</p><p className="mono truncate !normal-case !tracking-normal">{o.status === "paid" ? `Paid${o.paidOn ? ` ${pretty(o.paidOn)}` : ""}${o.viaTask ? " · via its task" : ""}` : o.status === "skipped" ? "Skipped" : `Due ${dayLabel(o.dueDate)}`}{o.debt ? " · debt payment" : ""}{o.estimate && o.status !== "paid" ? " · amount varies" : ""}</p></div>
         <span className="num shrink-0 text-[15px]">{money(o.paidAmountMinor ?? o.amountMinor)}</span>
         <Status tone={o.status === "paid" ? "ok" : o.status === "overdue" ? "bad" : o.status === "due" ? "lime" : o.status === "skipped" ? "idle" : "neutral"}>{o.status === "paid" ? "Paid" : o.status === "overdue" ? "Overdue" : o.status === "skipped" ? "Skipped" : relative(o.dueDate, m.today)}</Status>
       </button>
     </li>
   );
+  const reversed = m.f.payments.filter((p) => p.reversedAt && p.dueDate.startsWith(month));
   const unpaid = m.occ.filter((o) => o.status !== "paid" && o.status !== "skipped"), paid = m.occ.filter((o) => o.status === "paid" || o.status === "skipped");
   return (
     <Shell month={month} setMonth={setMonth} model={m}>
@@ -211,7 +229,8 @@ export function BillsView() {
       </div>
       <div className="grid gap-3 @[960px]:grid-cols-2">
         <Widget title="To pay" count={unpaid.length}>{unpaid.length === 0 ? <Empty>{m.occ.length ? "Everything is paid." : "No bills this month."}</Empty> : <ul>{unpaid.map((o) => <Row key={`${o.billId}${o.dueDate}`} o={o} />)}</ul>}</Widget>
-        <Widget title="Payment history" count={paid.length}>{paid.length === 0 ? <Empty>No payments recorded this month.</Empty> : <ul>{paid.map((o) => <Row key={`${o.billId}${o.dueDate}`} o={o} />)}</ul>}</Widget>
+        <Widget title="Payment history" count={paid.length}>{paid.length === 0 && reversed.length === 0 ? <Empty>No payments recorded this month.</Empty> : <ul>{paid.map((o) => <Row key={`${o.billId}${o.dueDate}`} o={o} />)}
+          {reversed.map((p) => <li key={`r${p.billId}${p.dueDate}`} className="flex items-center gap-3 border-t border-line py-1.5 first:border-t-0 md:py-2"><div className="min-w-0 flex-1"><p className="truncate text-[14.5px] text-muted">{bill(p.billId)?.name ?? "Bill"}</p><p className="mono truncate !normal-case !tracking-normal">Payment reversed{p.reverseReason ? `: ${p.reverseReason}` : ""} · was due {dayLabel(p.dueDate)}</p></div><Status tone="idle">Reversed</Status></li>)}</ul>}</Widget>
         <Widget title="Schedule" tag="All recurring bills" className="@[960px]:col-span-2">
           <ul>{m.f.bills.map((b) => (
             <li key={b.id} className="border-t border-line first:border-t-0">
@@ -223,6 +242,8 @@ export function BillsView() {
         </Widget>
       </div>
       {pay && <PayBillDialog bill={pay.bill} dueDate={pay.due} onClose={() => setPay(null)} />}
+      {undo && <PaidSheet bill={undo.bill} due={undo.due} skipped={undo.skipped} viaTask={undo.viaTask} onReverse={() => { setUndo(null); setReverse({ bill: undo.bill, due: undo.due, skipped: undo.skipped, viaTask: undo.viaTask }); }} onEdit={() => { setEdit({ bill: undo.bill }); setUndo(null); }} onClose={() => setUndo(null)} />}
+      {reverse && <ReversePaymentDialog bill={reverse.bill} dueDate={reverse.due} skipped={reverse.skipped} viaTask={reverse.viaTask} onClose={() => setReverse(null)} />}
       {edit && <BillEditor bill={edit.bill} onClose={() => setEdit(null)} />}
     </Shell>
   );
@@ -244,6 +265,7 @@ function AccountCard({ a, m, onBalance, onEdit }: { a: FinAccountV; m: FinanceMo
       </div>
       {util !== null && <div className="mt-3"><SegmentedProgress value={util} total={100} segments={20} height={10} color={util > 70 ? "var(--w-terra)" : "var(--g-sage)"} label={`${util} percent of the credit limit used`} /><p className="mt-1.5 text-[12.5px] text-muted">{util}% of {money(a.creditLimitMinor)} limit{a.statementDay ? ` · statement day ${a.statementDay}` : ""}{a.dueDay ? ` · payment due day ${a.dueDay}` : ""}{a.minPaymentMinor ? ` · minimum ${money(a.minPaymentMinor)}` : ""}</p></div>}
       {prog !== null && <div className="mt-3"><SegmentedProgress value={prog} total={100} segments={20} height={10} label={`${prog} percent repaid`} /><p className="mt-1.5 text-[12.5px] text-muted">{prog}% repaid of {money(a.originalPrincipalMinor)}{a.interestRate !== null ? ` · ${a.interestRate}% interest` : ""}{a.dueDay ? ` · due day ${a.dueDay}` : ""}</p></div>}
+      {a.type === "loan" && (() => { const st = m.loan(a.id); return st.payments > 0 ? <p className="mt-2 text-[12.5px] text-muted">Paid so far: principal {money(st.principalRepaid)} · interest {money(st.interestPaid)}{st.notSplit ? ` · ${st.notSplit} payment${st.notSplit === 1 ? "" : "s"} not split (counted as principal)` : ""}</p> : null; })()}
       {sv !== null && <div className="mt-3"><SegmentedProgress value={sv} total={100} segments={20} height={10} label={`${sv} percent of the target`} /><p className="mt-1.5 text-[12.5px] text-muted">{sv}% of {money(a.targetMinor)} target{a.targetDate ? ` by ${pretty(a.targetDate)}` : ""}{a.interestRate !== null ? ` · ${a.interestRate}% interest` : ""}</p></div>}
       <div className="mt-3 flex gap-2"><Btn variant="soft" onClick={onBalance}>Update balance</Btn><Btn variant="ghost" onClick={onEdit}>Edit</Btn></div>
     </Widget>
@@ -270,7 +292,8 @@ export function AccountsView() {
           </Widget>
           <Widget title="Reimbursements" count={m.reimb.count} action={<Btn variant="soft" icon={Plus} onClick={() => setReimb({})}>Add</Btn>}>
             {m.f.reimbursements.length === 0 ? <Empty>No claims.</Empty> : <ul>{m.f.reimbursements.map((r) => (
-              <li key={r.id} className="border-t border-line first:border-t-0"><button onClick={() => setReimb({ item: r })} className="hit flex w-full items-center gap-3 py-1.5 text-left md:py-2"><div className="min-w-0 flex-1"><p className="truncate text-[14.5px]">{r.description}</p><p className="mono truncate !normal-case !tracking-normal">{r.payer ?? ""}{r.claimedOn ? ` · claimed ${pretty(r.claimedOn)}` : ""}{r.expectedDate ? ` · expected ${pretty(r.expectedDate)}` : ""}</p></div><span className="num text-[14px]">{money(r.amountMinor)}</span><Status tone={r.status === "received" ? "ok" : r.status === "written_off" ? "idle" : "lime"}>{r.status === "received" ? "Received" : r.status === "written_off" ? "Written off" : "Outstanding"}</Status></button></li>))}</ul>}
+              <li key={r.id} className="border-t border-line first:border-t-0"><button onClick={() => setReimb({ item: r })} className="hit flex w-full items-center gap-3 py-1.5 text-left md:py-2"><div className="min-w-0 flex-1"><p className="truncate text-[14.5px]">{r.description}</p><p className="mono truncate !normal-case !tracking-normal">{r.payer ?? ""}{r.claimedOn ? ` · claimed ${pretty(r.claimedOn)}` : ""}{r.expectedDate ? ` · expected ${pretty(r.expectedDate)}` : ""}{(() => { const c = m.recon.claims.get(r.id); return c ? ` · ${c.received ? `${money(c.received)} received` : "nothing received"}${c.linked ? ` · ${money(c.linked)} linked to expenses` : " · no expense linked"}${c.overReceived ? ` · ${money(c.overReceived)} over` : ""}` : ""; })()}</p></div><span className="num text-[14px]">{money(r.amountMinor)}</span>{(() => { const c = m.recon.claims.get(r.id); const st = c?.state ?? r.status; return <Status tone={st === "received" ? "ok" : st === "written_off" ? "idle" : st === "over_received" ? "warn" : "lime"}>{st === "received" ? "Received" : st === "written_off" ? "Written off" : st === "partly_received" ? "Partly received" : st === "over_received" ? "Over-received" : "Outstanding"}</Status>; })()}</button></li>))}</ul>}
+            {m.recon.unclaimedExpenses.length > 0 && <p className="mt-2 text-[12.5px] text-muted">{m.recon.unclaimedExpenses.length} expense{m.recon.unclaimedExpenses.length === 1 ? " is" : "s are"} marked to be reimbursed but not claimed yet ({money(m.recon.unclaimedExpenses.reduce((a, e) => a + e.unclaimed, 0))}).</p>}
           </Widget>
         </div>
       </div>
@@ -315,11 +338,26 @@ export function ReportsView() {
     <Shell month={month} setMonth={setMonth} model={m}>
       <div className="grid gap-3 @[960px]:grid-cols-2">
         <Widget title="Summary" tag={cycleLabel(month)}>
-          <dl className="text-[14px]">{([["Income received", money(s.income)], ["Spending (gross)", money(s.grossSpending)], ["Reimbursements received", money(s.reimbursed)], ["Spending (net)", money(s.spending)], ["Net cash flow", money(s.net, { sign: true })], ["Debt repaid (not spending)", money(s.debtRepaid)], ["Transfers (not counted)", money(s.transfers)], ["Pending, not counted", String(s.pending)]] as const).map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-t border-line py-2 first:border-t-0"><dt className="text-muted">{k}</dt><dd className="num">{v}</dd></div>)}</dl>
+          <dl className="text-[14px]">{([["Income received", money(s.income)], ["Spending (gross)", money(s.grossSpending)], ["Reimbursements received", money(s.reimbursed)], ["Spending (net)", money(s.spending)], ["Net cash flow", money(s.net, { sign: true })], ["Debt repaid: principal (not spending)", money(s.debtRepaid)], ["Loan interest (counted as spending)", money(s.interestPaid)], ["Transfers (not counted)", money(s.transfers)], ["Pending, not counted", String(s.pending)]] as const).map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-t border-line py-2 first:border-t-0"><dt className="text-muted">{k}</dt><dd className="num">{v}</dd></div>)}</dl>
         </Widget>
         <Widget title="Spending by category" count={cats.length}>
           {cats.length === 0 ? <Empty>No categorised spending this month.</Empty> : <ul>{cats.map(([id, v]) => <li key={id} className="border-t border-line py-2 first:border-t-0"><div className="mb-1 flex justify-between text-[13.5px]"><span>{m.catName(id)}</span><span className="num">{money(v)}</span></div><SplitBar height={5} parts={[{ value: v, color: "var(--w-blue)" }, { value: top - v, color: "transparent" }]} label={`${m.catName(id)} ${money(v)}`} /></li>)}</ul>}
         </Widget>
+        {m.accounts.some((x) => x.type === "loan") && (
+          <Widget title="Loans" tag="Principal and interest, to date">
+            <ul>{m.accounts.filter((x) => x.type === "loan").map((x) => { const st = m.loan(x.id); return (
+              <li key={x.id} className="border-t border-line py-2 text-[13.5px] first:border-t-0"><div className="flex justify-between gap-3"><span className="truncate">{x.name}</span><span className="num">{money(st.principalRepaid + st.interestPaid)} paid</span></div>
+                <p className="mono !normal-case !tracking-normal">{st.payments === 0 ? "No payments recorded" : `Principal ${money(st.principalRepaid)} · interest ${money(st.interestPaid)}${st.notSplit ? ` · ${st.notSplit} not split` : ""}`}</p></li>); })}</ul>
+          </Widget>
+        )}
+        {m.f.reimbursements.length > 0 && (
+          <Widget title="Reimbursements" tag="Reconciliation">
+            <ul>{m.f.reimbursements.map((r) => { const c = m.recon.claims.get(r.id); return (
+              <li key={r.id} className="border-t border-line py-2 text-[13.5px] first:border-t-0"><div className="flex justify-between gap-3"><span className="truncate">{r.description}</span><span className="num">{money(r.amountMinor)}</span></div>
+                <p className="mono !normal-case !tracking-normal">{c ? `${money(c.received)} received · ${money(c.outstanding)} outstanding · ${c.linked ? `${money(c.linked)} linked to expenses` : "no expense linked"}${c.overReceived ? ` · ${money(c.overReceived)} over-received` : ""}${c.reconciled ? "" : " · marked received by hand"}` : ""}</p></li>); })}</ul>
+            {m.recon.unclaimedExpenses.length > 0 && <p className="mt-2 text-[12.5px] text-muted">Not yet claimed: {m.recon.unclaimedExpenses.length} expense{m.recon.unclaimedExpenses.length === 1 ? "" : "s"}, {money(m.recon.unclaimedExpenses.reduce((a, e) => a + e.unclaimed, 0))}.</p>}
+          </Widget>
+        )}
         <Widget title="Net worth" tag="Month ends" className="@[960px]:col-span-2"><ul>{m.netSeries.map((x) => <li key={x.month} className="flex justify-between gap-3 border-t border-line py-2 text-[14px] first:border-t-0"><span className="text-muted">{cycleLabel(x.month)}</span><span className="num">{x.net === null ? "No balances yet" : money(x.net)}</span></li>)}</ul></Widget>
       </div>
     </Shell>

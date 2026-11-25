@@ -1,7 +1,7 @@
 import { occurrencesInMonth } from "../../shared/finance";
 import { addCycles, cycleOf } from "../../shared/progress";
 import { addDays } from "../../shared/rotation";
-import { payBill, saveBalance, saveBudget, saveRecord, saveTransaction } from "./finance";
+import { payBill, reverseBillPayment, reverseTransaction, saveBalance, saveBudget, saveRecord, saveReimbursement, saveTransaction, voidTransaction } from "./finance";
 import { createTask } from "./tasks";
 import type { Ctx } from "./types";
 
@@ -46,7 +46,18 @@ export async function loadDemoFinance(ctx: Ctx, today: string): Promise<{ financ
     const due = D(m, day);
     if (due > today || (k === "water" && m === m0)) continue; // water stays unpaid this month: an overdue bill to review
     const amount = (amt ?? (k === "hydro" ? (m === m1 ? 11870 : variable.hydro) : k === "visa" ? (m === m1 ? 40000 : variable.visa) : 0)) / 100;
-    ok(await payBill(ctx, { bill: ids[k], dueDate: due, amount, paidOn: due, today }));
+    // The vehicle loan payment is split: about a month of interest at the stated rate on the balance owed, the rest principal.
+    ok(await payBill(ctx, { bill: ids[k], dueDate: due, amount, paidOn: due, today, ...(k === "car" ? { interest: 70.8 } : {}) }));
+  }
+  // Corrections, all kept clear of the approved figures: a duplicate charge voided, a charge reversed (both left out of totals), and a September gym payment confirmed then reversed.
+  const dupDay = D(m0, 8);
+  if (dupDay <= today) { const dup = await saveTransaction(ctx, { key: "demo:fin:t:dup", demo: true, account: chq, date: dupDay, amountMinor: -8450, payee: "Duplicate grocer charge (synthetic)", category: "Groceries" }, "upsert"); if (dup.ok) { ok(dup); ok(await voidTransaction(ctx, { id: (dup.data.record as { id: string }).id, reason: "Charged twice by mistake (synthetic)", today })); } }
+  const err = await saveTransaction(ctx, { key: "demo:fin:t:err", demo: true, account: chq, date: D(m1, 25), amountMinor: -2499, payee: "Subscription charged in error (synthetic)", category: "Subscriptions" }, "upsert");
+  if (err.ok) { ok(err); ok(await reverseTransaction(ctx, { id: (err.data.record as { id: string }).id, reason: "Refunded by the merchant (synthetic)", date: D(m1, 27), today })); }
+  const gymSep = D(m2, 3);
+  if (!(await ctx.db.prepare("SELECT 1 AS x FROM fin_bill_payments WHERE bill_id = ? AND due_date = ?").bind(ids.gym, gymSep).first())) {
+    ok(await payBill(ctx, { bill: ids.gym, dueDate: gymSep, amount: 40, paidOn: gymSep, today }));
+    ok(await reverseBillPayment(ctx, { bill: ids.gym, dueDate: gymSep, reason: "Paid from the wrong account (synthetic)", today }));
   }
   // everyday spending (confirmed), card purchases on the Visa
   const spend: Array<[number, string, string, number, boolean?]> = [
@@ -62,7 +73,7 @@ export async function loadDemoFinance(ctx: Ctx, today: string): Promise<{ financ
   for (const m of [m1, m0]) if (D(m, 2) <= today) ok(await saveTransaction(ctx, { key: `demo:fin:t:sav:${m}`, demo: true, account: chq, counterAccount: sav, date: D(m, 2), amountMinor: -20000, payee: "To savings (synthetic)" }, "upsert"));
   // reimbursements: two outstanding, one received
   const expense = await saveTransaction(ctx, { key: "demo:fin:t:travel", demo: true, account: visa, date: addDays(today, -11), amountMinor: -41260, payee: "Conference travel (synthetic)", category: "Other", reimbursable: true }, "upsert"); ok(expense);
-  ok(await saveRecord(ctx, "reimbursement", { key: "demo:fin:r:travel", demo: true, description: "Conference travel (synthetic)", amountMinor: 41260, payer: "Employer (synthetic)", claimedOn: addDays(today, -9), expectedDate: addDays(today, 12) }, "upsert"));
+  ok(await saveReimbursement(ctx, { key: "demo:fin:r:travel", demo: true, description: "Conference travel (synthetic)", amountMinor: 41260, payer: "Employer (synthetic)", claimedOn: addDays(today, -9), expectedDate: addDays(today, 12), ...(expense.ok ? { expenses: [{ txn: (expense.data.record as { id: string }).id }] } : {}) }, "upsert"));
   ok(await saveRecord(ctx, "reimbursement", { key: "demo:fin:r:boots", demo: true, description: "Safety boots (synthetic)", amountMinor: 18900, payer: "Employer (synthetic)", claimedOn: addDays(today, -21) }, "upsert"));
   const recv = await saveRecord(ctx, "reimbursement", { key: "demo:fin:r:old", demo: true, description: "Parking (synthetic)", amountMinor: 7600, payer: "Employer (synthetic)", claimedOn: D(m1, 6) }, "upsert");
   if (recv.ok) { ok(recv); ok(await saveTransaction(ctx, { key: "demo:fin:t:reimb", demo: true, account: chq, date: D(m1, 20), amountMinor: 7600, payee: "Employer (synthetic)", reimbursement: (recv.data.record as { id: string }).id }, "upsert")); }

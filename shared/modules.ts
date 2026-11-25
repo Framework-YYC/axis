@@ -28,16 +28,41 @@ export const assistantDisplayLabel = (id: ModuleId) => `ChatGPT: ${assistantShor
 export const shownActor = (label: string): string => { for (const id of Object.keys(ASSISTANT_DISPLAY) as ModuleId[]) if (label === assistantLabel(id)) return assistantDisplayLabel(id); return label; };
 
 /** Every screen a module can show, and the ones each module leads with. Only screens that exist and work. The rest sit under the tab bar's More menu. */
-export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "progress" | "procurement" | "transactions" | "bills" | "accounts" | "budgets" | "reports" | "briefing" | "activity" | "metrics";
-export const ALL_TABS: readonly TabId[] = ["overview", "tasks", "progress", "procurement", "transactions", "bills", "accounts", "goals", "budgets", "habits", "calendar", "reports", "briefing", "activity", "metrics"];
-export const PRIMARY_TABS: Record<ModuleId, readonly TabId[]> = {
-  daily: ["overview", "tasks", "goals", "calendar"],
-  health: ["overview", "tasks", "goals", "habits"],
+export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "progress" | "procurement" | "transactions" | "bills" | "accounts" | "budgets" | "reports" | "briefing" | "activity" | "metrics" | "health" | "appointments";
+export const ALL_TABS: readonly TabId[] = ["overview", "tasks", "health", "progress", "procurement", "transactions", "bills", "accounts", "goals", "budgets", "habits", "appointments", "calendar", "reports", "briefing", "activity", "metrics"];
+
+/**
+ * What a person navigates. Daily and Health are two assistants (internal module ids, data and integrations stay separate) but one screen: Personal.
+ * This is an interface grouping only: records keep their own `module` field.
+ */
+export const NAV_MODULE_IDS = ["personal", "financial", "framework", "progressive"] as const;
+export type NavModuleId = (typeof NAV_MODULE_IDS)[number];
+export const NAV_MEMBERS: Record<NavModuleId, readonly ModuleId[]> = { personal: ["daily", "health"], financial: ["financial"], framework: ["framework"], progressive: ["progressive"] };
+export const NAV_META: Record<NavModuleId, { label: string; blurb: string }> = {
+  personal: { label: "Personal", blurb: "Daily life, appointments, health, fitness and habits" },
+  financial: { label: MODULES_META.financial.label, blurb: MODULES_META.financial.blurb },
+  framework: { label: MODULES_META.framework.label, blurb: MODULES_META.framework.blurb },
+  progressive: { label: MODULES_META.progressive.label, blurb: MODULES_META.progressive.blurb },
+};
+export const isNavModule = (v: unknown): v is NavModuleId => typeof v === "string" && (NAV_MODULE_IDS as readonly string[]).includes(v);
+/** The screen group a record's module belongs to. */
+export const navModuleOf = (id: ModuleId): NavModuleId => (id === "daily" || id === "health" ? "personal" : id);
+/** Old deep links (/m/daily, /m/health) land on Personal; Health opens its own tab. */
+export const legacyModuleRoute = (id: string): { module: NavModuleId; tab?: TabId } | null => (id === "daily" ? { module: "personal" } : id === "health" ? { module: "personal", tab: "health" } : null);
+
+export const PRIMARY_TABS: Record<NavModuleId, readonly TabId[]> = {
+  personal: ["overview", "tasks", "health", "habits"],
   financial: ["overview", "transactions", "bills", "accounts"],
   framework: ["overview", "tasks", "goals"],
   progressive: ["overview", "tasks", "progress", "procurement"],
 };
-/** Screens that exist only for some modules (Work tracks deliverables and procurement). */
-export const MODULE_ONLY_TABS: Partial<Record<TabId, ModuleId>> = { progress: "progressive", procurement: "progressive", transactions: "financial", bills: "financial", accounts: "financial", budgets: "financial", reports: "financial" };
-/** The permanent navigation order: Home, then the five modules. */
-export const DESTINATION_ORDER = ["home", "daily", "health", "financial", "framework", "progressive"] as const;
+/** Personal's More menu is exactly these four; the other modules list whatever else applies to them. */
+export const MORE_TABS: Partial<Record<NavModuleId, readonly TabId[]>> = { personal: ["goals", "appointments", "calendar", "activity"] };
+/** Screens that exist only for some modules (Work tracks deliverables and procurement; Personal has Health and Appointments). */
+export const MODULE_ONLY_TABS: Partial<Record<TabId, NavModuleId>> = { progress: "progressive", procurement: "progressive", transactions: "financial", bills: "financial", accounts: "financial", budgets: "financial", reports: "financial", health: "personal", appointments: "personal" };
+
+/** The phone dock: five evenly spaced positions, Orbis (the menu) in the centre. */
+export const DOCK_ORDER = ["personal", "financial", "orbis", "framework", "progressive"] as const;
+export type DockId = (typeof DOCK_ORDER)[number];
+/** The Orbis menu, in order. */
+export const ORBIS_MENU = ["home", "quick_add", "calendar", "search", "settings", "environment"] as const;

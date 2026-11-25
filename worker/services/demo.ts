@@ -114,7 +114,7 @@ export async function clearDemoData(ctx: Ctx): Promise<Result<{ removed: Record<
     q("DELETE FROM habit_logs WHERE habit_id IN (SELECT id FROM habits WHERE demo = 1)"),
     q("DELETE FROM habits WHERE demo = 1"),
     q("DELETE FROM events WHERE demo = 1"),
-    q("DELETE FROM fin_bill_payments WHERE demo = 1"), q("DELETE FROM fin_transactions WHERE demo = 1"), q("DELETE FROM fin_balances WHERE demo = 1"), q("DELETE FROM fin_budgets WHERE demo = 1"),
+    q("DELETE FROM fin_reimbursement_links WHERE txn_id IN (SELECT id FROM fin_transactions WHERE demo = 1)"), q("DELETE FROM fin_txn_history WHERE txn_id IN (SELECT id FROM fin_transactions WHERE demo = 1)"), q("DELETE FROM fin_bill_payments WHERE demo = 1"), q("DELETE FROM fin_transactions WHERE demo = 1"), q("DELETE FROM fin_balances WHERE demo = 1"), q("DELETE FROM fin_budgets WHERE demo = 1"),
     q("DELETE FROM fin_bills WHERE demo = 1"), q("DELETE FROM fin_income_plans WHERE demo = 1"), q("DELETE FROM fin_reimbursements WHERE demo = 1"), q("DELETE FROM fin_accounts WHERE demo = 1"),
     auditStmt(ctx, "demo.clear", "demo", null),
   ]);

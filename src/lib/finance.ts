@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { accountBalance, billOccurrences, billSummary, budgetUse, monthSummary, netWorth, netWorthSeries, nextPayday, projectedCash, reimbursementsOutstanding, savingsProgress, type AccountBalance } from "../../shared/finance";
+import { accountBalance, billOccurrences, billSummary, budgetUse, loanStats, monthSummary, netWorth, netWorthSeries, nextPayday, projectedCash, reimbursementRecon, reimbursementsOutstanding, savingsProgress, type AccountBalance } from "../../shared/finance";
 import { formatMoney, parseMinor } from "../../shared/money";
 import { addCycles, cycleOf } from "../../shared/progress";
 import { useData } from "./data";
@@ -31,11 +31,13 @@ export function deriveFinance(f: FinanceData, month: string, today: string) {
   const occ = billOccurrences(f.bills, f.payments, month, today, done);
   const payday = nextPayday(f.incomePlans, today);
   const budget = budgetUse(f.budgets, month, summary.byCategory);
+  const recon = reimbursementRecon(f.reimbursements, f.reimbursementLinks ?? [], f.transactions);
+  const receivedBy = new Map([...recon.claims].map(([id, c]) => [id, c.received]));
   const current = cycleOf(today);
   return {
     f, today, month, isCurrent: month === current, balanceOf, accounts: live, summary, occ, bills: billSummary(occ), payday, budget, done,
     net: netWorth(live, balanceOf), netSeries: netWorthSeries(live, f.balances, current, today, 6), cash: projectedCash(live, balanceOf, f.bills, f.payments, payday, today, done),
-    savings: savingsProgress(live, balanceOf), reimb: reimbursementsOutstanding(f.reimbursements),
+    savings: savingsProgress(live, balanceOf), reimb: reimbursementsOutstanding(f.reimbursements, receivedBy), recon, loan: (id: string) => loanStats(id, f.transactions),
     catName: (id: string | null) => (id ? f.categories.find((c) => c.id === id)?.name ?? "" : ""), acctName: (id: string | null) => (id ? f.accounts.find((a) => a.id === id)?.name ?? "" : ""),
     months: monthsWithData(f, current),
   };

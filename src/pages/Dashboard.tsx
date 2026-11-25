@@ -1,11 +1,10 @@
-import { Bell, CalendarDays, ChevronDown, Plus } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ACTIVITY_PERIODS, activityBars, localDay, type ActivityPeriod } from "../../shared/gauges";
-import { MODULE_IDS, MODULES_META } from "../../shared/modules";
+import { MODULE_IDS, MODULES_META, navModuleOf } from "../../shared/modules";
 import { addDays } from "../../shared/rotation";
 import { focusStats, weekBars } from "../../shared/overview";
-import { AccountMenuButton } from "../components/AccountMenu";
 import { HabitTile } from "../components/compact";
 import { TaskEditor } from "../components/editors";
 import { ModuleIcon } from "../components/mobile";
@@ -24,7 +23,6 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 export default function Overview() {
   const { tasks, goals, habits, events, approvals, inbox, today, weekStart, source, error, loading, completeTask, reopenTask } = useData();
   const navigate = useNavigate();
-  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [period, setPeriod] = useState<ActivityPeriod>("this_week");
 
@@ -65,7 +63,6 @@ export default function Overview() {
           <p className="text-[14px] text-muted">{pretty(today, { weekday: "long", month: "long", day: "numeric" })}</p>
           <div className="-mr-3 flex items-center">
             <Link to="/calendar" aria-label="Calendar" className="hit grid place-items-center text-muted hover:text-[var(--ink)]"><CalendarDays size={18} strokeWidth={1.4} aria-hidden /></Link>
-            <AccountMenuButton />
           </div>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -75,7 +72,6 @@ export default function Overview() {
               <Bell size={17} strokeWidth={1.4} aria-hidden />
               {attention > 0 && <span className="absolute right-3 top-3 size-1.5 rounded-full" style={{ background: "var(--w-terra)" }} />}
             </Link>
-            <button onClick={() => setAdding(true)} aria-label="New task" className="hit grid place-items-center rounded-full bg-[var(--pill-bg)] text-[var(--pill-ink)]"><Plus size={19} strokeWidth={1.5} aria-hidden /></button>
           </div>
         </div>
       </header>
@@ -154,7 +150,7 @@ export default function Overview() {
           <ul className="mt-2">
             {modules.map((r) => (
               <li key={r.m} className="border-t border-line first:border-t-0">
-                <Link to={`/m/${r.m}`} aria-label={`${MODULES_META[r.m].label}: ${r.open} open, ${r.dueN} due today, ${r.overdueN} overdue`} className="hit press flex items-center gap-3 py-2">
+                <Link to={r.m === "health" ? "/m/personal?tab=health" : `/m/${navModuleOf(r.m)}`} aria-label={`${MODULES_META[r.m].label}: ${r.open} open, ${r.dueN} due today, ${r.overdueN} overdue`} className="hit press flex items-center gap-3 py-2">
                   <ModuleIcon id={r.m} size={28} />
                   <span className="w-[74px] shrink-0 text-[14px]">{MODULES_META[r.m].label}</span>
                   <SplitBar className="min-w-0 flex-1" height={6} parts={[{ value: r.completedToday, color: "var(--g-sage)" }, { value: r.dueN, color: "color-mix(in srgb, var(--ink) 20%, transparent)" }, { value: r.overdueN, color: "var(--w-terra)" }]} label={`${MODULES_META[r.m].label} today: ${r.completedToday} done, ${r.dueN} due, ${r.overdueN} overdue`} />
@@ -192,7 +188,6 @@ export default function Overview() {
       </div></div>
 
       {empty && <p className="mt-4 px-1 text-[13px] text-muted">Nothing here yet. Add a task, or let your assistants file their first items; the widgets fill in as records arrive.</p>}
-      {adding && <TaskEditor onClose={() => setAdding(false)} />}
       {editing && <TaskEditor task={editing} onClose={() => setEditing(null)} />}
     </div>
   );

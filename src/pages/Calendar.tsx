@@ -23,11 +23,12 @@ const startOfWeek = (d: string, ws: 0 | 1) => { const dow = parse(d).getDay(); r
 export default function CalendarPage() { return <Calendar />; }
 
 /** The calendar. Pass a module to see only that module's events and due tasks (used inside module tabs). */
-export function Calendar({ module }: { module?: ModuleId } = {}) {
+export function Calendar({ module, scope }: { module?: ModuleId; scope?: readonly ModuleId[] } = {}) {
   const data = useData();
   const { today, weekStart, settings, completeTask, reopenTask } = data;
-  const events = module ? data.events.filter((e) => e.module === module) : data.events;
-  const tasks = module ? data.tasks.filter((t) => t.module === module) : data.tasks;
+  const inScope = (m: ModuleId) => (scope ? scope.includes(m) : module ? m === module : true);
+  const events = data.events.filter((e) => inScope(e.module));
+  const tasks = data.tasks.filter((t) => inScope(t.module));
   const [sp, setSp] = useSearchParams();
   const view: View = (["day", "week", "month"] as const).find((v) => v === sp.get("view")) ?? "week";
   const [focus, setFocus] = useState(today);
@@ -47,7 +48,7 @@ export function Calendar({ module }: { module?: ModuleId } = {}) {
 
   return (
     <div>
-      {module ? <p className="mono mb-3 px-1 !normal-case !tracking-normal">{label}</p> : <PageHeader crumb="CALENDAR" title="Calendar" subtitle={label} controls={<div className="max-md:hidden"><Segmented label="View" value={view} onChange={(v) => { const n = new URLSearchParams(sp); n.set("view", v); setSp(n, { replace: true }); }} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} /></div>} />}
+      {module || scope ? <p className="mono mb-3 px-1 !normal-case !tracking-normal">{label}</p> : <PageHeader crumb="CALENDAR" title="Calendar" subtitle={label} controls={<div className="max-md:hidden"><Segmented label="View" value={view} onChange={(v) => { const n = new URLSearchParams(sp); n.set("view", v); setSp(n, { replace: true }); }} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} /></div>} />}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Btn variant="soft" icon={ChevronLeft} label="Previous" onClick={() => move(-1)} />
         <Btn variant="soft" onClick={() => setFocus(today)}>Today</Btn>

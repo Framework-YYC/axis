@@ -1,13 +1,13 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { ModuleId } from "../../shared/modules";
+import type { NavModuleId } from "../../shared/modules";
 import { cx } from "../lib/cx";
 import { useSlidingIndicator } from "../lib/motion";
 import { moreTabs, primaryTabs, TAB_LABEL, type TabId } from "./nav";
 
 /** Contextual tabs under a module heading: the module's main screens, plus a More menu for the rest. */
-export function ModuleTabs({ module, tab, counts }: { module: ModuleId; tab: TabId; counts?: Partial<Record<TabId, number>> }) {
+export function ModuleTabs({ module, tab, counts }: { module: NavModuleId; tab: TabId; counts?: Partial<Record<TabId, number>> }) {
   const [, setSp] = useSearchParams();
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

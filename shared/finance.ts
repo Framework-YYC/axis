@@ -10,19 +10,45 @@ import { addCycles, cycleOf, lastDayOfCycle } from "./progress";
  * - A card payment or loan payment is a debt repayment: the spending was counted when it was charged, so it never counts as spending again.
  * - A reimbursement received is neither income nor a negative expense line: spending is reported net of reimbursements received that month.
  * - Missing information is missing: an unknown balance is excluded and counted, an unknown bill amount is flagged, never guessed.
+ * - Nothing is deleted. A voided transaction is excluded from every figure as though absent. A reversed transaction and its offsetting entry are both kept: they net to zero in
+ *   balances, and are left out of the income, spending and debt totals together (so a reversal dated in another month never shows as negative income).
+ * - A loan payment splits into principal (reduces the loan, a debt repayment) and interest (an expense, never a repayment). An unsplit payment is all principal and is flagged.
  */
 export type AccountType = "bank" | "savings" | "credit_card" | "loan" | "investment" | "cash";
 export type TxnKind = "income" | "expense" | "transfer" | "card_payment" | "loan_payment" | "reimbursement";
 export interface FinAccount { id: string; name: string; type: AccountType; creditLimitMinor: Minor | null; statementDay: number | null; dueDay: number | null; minPaymentMinor: Minor | null; interestRate: number | null; originalPrincipalMinor: Minor | null; targetMinor: Minor | null; targetDate: string | null; archivedAt: string | null }
 export interface FinBalance { accountId: string; asOf: string; amountMinor: Minor; kind: "confirmed" | "estimate" }
-export interface FinTxn { id: string; accountId: string; counterAccountId: string | null; date: string; amountMinor: Minor; kind: TxnKind; categoryId: string | null; status: "confirmed" | "pending"; billId: string | null; billDue: string | null }
+export interface FinTxn {
+  id: string; accountId: string; counterAccountId: string | null; date: string; amountMinor: Minor; kind: TxnKind; categoryId: string | null; status: "confirmed" | "pending"; billId: string | null; billDue: string | null;
+  reimbursementId?: string | null; reimbursable?: boolean; voidedAt?: string | null; reversalOf?: string | null; reversedBy?: string | null; principalMinor?: Minor | null; interestMinor?: Minor | null;
+}
 export interface FinBill { id: string; name: string; amountMinor: Minor | null; amountKind: "fixed" | "estimate"; accountId: string | null; counterAccountId: string | null; categoryId: string | null; recurrence: Recurrence; anchorDate: string; active: boolean }
-export interface FinPayment { billId: string; dueDate: string; status: "paid" | "skipped"; paidOn: string | null; amountMinor: Minor | null; txnId: string | null }
+export interface FinPayment { billId: string; dueDate: string; status: "paid" | "skipped"; paidOn: string | null; amountMinor: Minor | null; txnId: string | null; reversedAt?: string | null }
 export interface FinBudget { categoryId: string; cycle: string; amountMinor: Minor }
 export interface FinIncomePlan { id: string; name: string; amountMinor: Minor | null; amountKind: "fixed" | "estimate"; recurrence: Recurrence; anchorDate: string; accountId: string | null; active: boolean }
 export interface FinReimb { id: string; amountMinor: Minor; status: "outstanding" | "received" | "written_off"; expectedDate: string | null; claimedOn: string | null }
 
+export interface FinReimbLink { reimbursementId: string; txnId: string; amountMinor: Minor }
 export const isDebt = (t: AccountType) => t === "credit_card" || t === "loan";
+/** A transaction that exists for the books: not voided. */
+export const isLive = (t: Pick<FinTxn, "voidedAt">) => !t.voidedAt;
+/** A transaction that counts in income, spending and debt totals: live, and not half of a reversed pair (the pair cancels, wherever its two dates fall). */
+export const countsInTotals = (t: Pick<FinTxn, "voidedAt" | "reversalOf" | "reversedBy">) => !t.voidedAt && !t.reversalOf && !t.reversedBy;
+/** A payment record that stands: a reversed payment is treated as absent, so the occurrence is unpaid again. */
+export const isStanding = (p: Pick<FinPayment, "reversedAt">) => !p.reversedAt;
+
+/**
+ * Splits a loan payment. `principal` and `interest` are magnitudes in cents; either may be omitted and is derived from the total.
+ * Returns null when neither is given (an unsplit payment: all of it is treated as principal). Throws a RangeError when they do not add up.
+ */
+export function resolveSplit(amountMinor: Minor, principal: Minor | null | undefined, interest: Minor | null | undefined): { principalMinor: Minor; interestMinor: Minor } | null {
+  const total = Math.abs(amountMinor);
+  if ((principal === null || principal === undefined) && (interest === null || interest === undefined)) return null;
+  const p = principal ?? total - (interest as number), i = interest ?? total - (principal as number);
+  if (!Number.isSafeInteger(p) || !Number.isSafeInteger(i) || p < 0 || i < 0) throw new RangeError("principal and interest cannot be negative");
+  if (p + i !== total) throw new RangeError(`principal and interest must add up to the payment (${(total / 100).toFixed(2)})`);
+  return { principalMinor: p, interestMinor: i };
+}
 const monthOf = (d: string) => d.slice(0, 7);
 
 /** The kind of a transaction, derived from its shape (never typed in by hand). */
@@ -31,23 +57,35 @@ export function deriveTxnKind(t: { amountMinor: Minor; counterAccountId: string 
   if (t.reimbursementId && t.amountMinor > 0) return "reimbursement";
   return t.amountMinor >= 0 ? "income" : "expense";
 }
-/** Balance change per account: a counter-account move changes both sides and cancels out in net worth. */
-export const txnDeltas = (t: { accountId: string; counterAccountId: string | null; amountMinor: Minor }) => [{ accountId: t.accountId, delta: t.amountMinor }, ...(t.counterAccountId ? [{ accountId: t.counterAccountId, delta: -t.amountMinor }] : [])];
+/**
+ * Balance change per account. A transfer or card payment moves the same amount to the counter account and cancels out in net worth.
+ * A loan payment reduces the loan by its principal only: the interest leaves the paying account and reduces net worth.
+ */
+export function txnDeltas(t: { accountId: string; counterAccountId: string | null; amountMinor: Minor; kind?: TxnKind; principalMinor?: Minor | null }) {
+  if (!t.counterAccountId) return [{ accountId: t.accountId, delta: t.amountMinor }];
+  const toCounter = t.kind === "loan_payment" && t.principalMinor !== null && t.principalMinor !== undefined ? -Math.sign(t.amountMinor) * t.principalMinor : -t.amountMinor;
+  return [{ accountId: t.accountId, delta: t.amountMinor }, { accountId: t.counterAccountId, delta: toCounter }];
+}
 
-export interface MonthSummary { income: Minor; spending: Minor; grossSpending: Minor; reimbursed: Minor; debtRepaid: Minor; transfers: Minor; net: Minor; byCategory: Map<string, Minor>; incomeBins: Minor[]; spendBins: Minor[]; pending: number }
+export interface MonthSummary { income: Minor; spending: Minor; grossSpending: Minor; reimbursed: Minor; debtRepaid: Minor; interestPaid: Minor; loanNotSplit: number; transfers: Minor; net: Minor; byCategory: Map<string, Minor>; incomeBins: Minor[]; spendBins: Minor[]; pending: number }
 const BINS = 16;
 /** Income, spending (net of reimbursements), debt repayments and transfers for one month, from confirmed transactions only. */
 export function monthSummary(txns: readonly FinTxn[], month: string): MonthSummary {
-  const s: MonthSummary = { income: 0, spending: 0, grossSpending: 0, reimbursed: 0, debtRepaid: 0, transfers: 0, net: 0, byCategory: new Map(), incomeBins: Array(BINS).fill(0), spendBins: Array(BINS).fill(0), pending: 0 };
+  const s: MonthSummary = { income: 0, spending: 0, grossSpending: 0, reimbursed: 0, debtRepaid: 0, interestPaid: 0, loanNotSplit: 0, transfers: 0, net: 0, byCategory: new Map(), incomeBins: Array(BINS).fill(0), spendBins: Array(BINS).fill(0), pending: 0 };
   const days = Number(lastDayOfCycle(month).slice(8)), per = Math.ceil(days / BINS);
   for (const t of txns) {
-    if (monthOf(t.date) !== month) continue;
+    if (monthOf(t.date) !== month || !countsInTotals(t)) continue;
     if (t.status !== "confirmed") { s.pending++; continue; }
     const bin = Math.min(BINS - 1, Math.floor((Number(t.date.slice(8)) - 1) / per));
     if (t.kind === "income") { s.income += t.amountMinor; s.incomeBins[bin] += t.amountMinor; }
     else if (t.kind === "expense") { const v = -t.amountMinor; s.grossSpending += v; s.spendBins[bin] += v; if (t.categoryId) s.byCategory.set(t.categoryId, (s.byCategory.get(t.categoryId) ?? 0) + v); }
     else if (t.kind === "reimbursement") s.reimbursed += t.amountMinor;
-    else if (t.kind === "card_payment" || t.kind === "loan_payment") s.debtRepaid += Math.abs(t.amountMinor);
+    else if (t.kind === "card_payment") s.debtRepaid += Math.abs(t.amountMinor);
+    else if (t.kind === "loan_payment") {
+      const total = Math.abs(t.amountMinor), principal = t.principalMinor ?? total, interest = t.principalMinor === null || t.principalMinor === undefined ? 0 : total - principal;
+      s.debtRepaid += principal; if (t.principalMinor === null || t.principalMinor === undefined) s.loanNotSplit++;
+      if (interest > 0) { s.interestPaid += interest; s.grossSpending += interest; s.spendBins[bin] += interest; const c = t.categoryId ?? "fcat_fees"; s.byCategory.set(c, (s.byCategory.get(c) ?? 0) + interest); }
+    }
     else s.transfers += Math.abs(t.amountMinor);
   }
   s.spending = Math.max(0, s.grossSpending - s.reimbursed);
@@ -72,7 +110,7 @@ export function firstOnOrAfter(rule: Recurrence, anchor: string, from: string): 
 export interface BillOccurrence { billId: string; name: string; dueDate: string; amountMinor: Minor | null; estimate: boolean; status: "paid" | "skipped" | "overdue" | "due" | "upcoming"; paidOn: string | null; paidAmountMinor: Minor | null; txnId: string | null; viaTask: boolean; debt: boolean }
 /** Bill occurrences for a month with their payment status. Paid = a payment record, or the linked task completed. */
 export function billOccurrences(bills: readonly FinBill[], payments: readonly FinPayment[], month: string, today: string, taskDone: ReadonlySet<string> = new Set()): BillOccurrence[] {
-  const pay = new Map(payments.map((p) => [`${p.billId}:${p.dueDate}`, p]));
+  const pay = new Map(payments.filter(isStanding).map((p) => [`${p.billId}:${p.dueDate}`, p]));
   const out: BillOccurrence[] = [];
   for (const b of bills) {
     if (!b.active) continue;
@@ -98,7 +136,7 @@ export function accountBalance(accountId: string, balances: readonly FinBalance[
   const snap = mine[0];
   if (!snap) return { amountMinor: null, asOf: null, kind: "none", adjusted: false };
   let amount = snap.amountMinor, adjusted = false;
-  for (const t of txns) if (t.status === "confirmed" && t.date > snap.asOf) for (const d of txnDeltas(t)) if (d.accountId === accountId) { amount += d.delta; adjusted = true; }
+  for (const t of txns) if (t.status === "confirmed" && isLive(t) && t.date > snap.asOf) for (const d of txnDeltas(t)) if (d.accountId === accountId) { amount += d.delta; adjusted = true; }
   return { amountMinor: amount, asOf: snap.asOf, kind: snap.kind, adjusted };
 }
 export interface NetWorth { assets: Minor; liabilities: Minor; net: Minor; counted: number; withoutBalance: number }
@@ -151,4 +189,59 @@ export function savingsProgress(accounts: readonly FinAccount[], balanceOf: (id:
   for (const a of accounts) { if (a.archivedAt || a.type !== "savings" || !a.targetMinor) continue; const b = balanceOf(a.id); if (b.amountMinor === null) continue; saved += b.amountMinor; target += a.targetMinor; counted++; }
   return { saved, target, pct: target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : null, counted };
 }
-export const reimbursementsOutstanding = (list: readonly FinReimb[]) => { const o = list.filter((r) => r.status === "outstanding"); return { total: o.reduce((a, r) => a + r.amountMinor, 0), count: o.length, oldest: o.map((r) => r.claimedOn).filter(Boolean).sort()[0] ?? null }; };
+/** Claims still owed. `received` (per claim, from reconciliation) reduces what is outstanding for a partly paid claim. */
+export const reimbursementsOutstanding = (list: readonly FinReimb[], received: ReadonlyMap<string, Minor> = new Map()) => {
+  const o = list.filter((r) => r.status === "outstanding" && r.amountMinor - (received.get(r.id) ?? 0) > 0);
+  return { total: o.reduce((a, r) => a + r.amountMinor - (received.get(r.id) ?? 0), 0), count: o.length, oldest: o.map((r) => r.claimedOn).filter(Boolean).sort()[0] ?? null };
+};
+
+// ----- loans -----
+export interface LoanStats { principalRepaid: Minor; interestPaid: Minor; payments: number; notSplit: number }
+/** What has gone into a loan so far: principal (reduces the debt), interest (cost) and how many payments were never split. Voided and reversed payments are left out. */
+export function loanStats(loanId: string, txns: readonly FinTxn[]): LoanStats {
+  const s: LoanStats = { principalRepaid: 0, interestPaid: 0, payments: 0, notSplit: 0 };
+  for (const t of txns) {
+    if (t.kind !== "loan_payment" || t.counterAccountId !== loanId || t.status !== "confirmed" || !countsInTotals(t)) continue;
+    const total = Math.abs(t.amountMinor); s.payments++;
+    if (t.principalMinor === null || t.principalMinor === undefined) { s.principalRepaid += total; s.notSplit++; } else { s.principalRepaid += t.principalMinor; s.interestPaid += total - t.principalMinor; }
+  }
+  return s;
+}
+/** One month of interest at the stated annual rate on the balance owed: a labelled estimate to help fill the split, never saved on its own. */
+export const estimateInterest = (balanceOwedMinor: Minor, annualRatePct: number | null): Minor | null => (annualRatePct === null || balanceOwedMinor <= 0 ? null : Math.round((balanceOwedMinor * annualRatePct) / 100 / 12));
+
+// ----- reimbursement reconciliation -----
+export type ClaimState = "outstanding" | "partly_received" | "received" | "over_received" | "written_off";
+export interface ClaimRecon { id: string; claimed: Minor; received: Minor; outstanding: Minor; overReceived: Minor; linked: Minor; unlinked: Minor; overLinked: boolean; state: ClaimState; reconciled: boolean }
+export type ExpenseState = "unclaimed" | "claimed" | "partly_received" | "reimbursed";
+export interface ExpenseRecon { txnId: string; amount: Minor; claimed: Minor; received: Minor; outstanding: Minor; unclaimed: Minor; state: ExpenseState }
+/**
+ * Reimbursements are tracked apart from income and spending. A claim is compared with the money actually received against it (confirmed, live, not reversed),
+ * and with the expense(s) it links to. Receipts are allocated to a claim's expenses in proportion to their linked amounts. Over-receipt is flagged, never hidden.
+ */
+export function reimbursementRecon(claims: readonly FinReimb[], links: readonly FinReimbLink[], txns: readonly FinTxn[]): { claims: Map<string, ClaimRecon>; expenses: Map<string, ExpenseRecon>; unclaimedExpenses: ExpenseRecon[] } {
+  const byTxn = new Map(txns.map((t) => [t.id, t]));
+  const receivedBy = new Map<string, Minor>();
+  for (const t of txns) if (t.kind === "reimbursement" && t.reimbursementId && t.status === "confirmed" && countsInTotals(t)) receivedBy.set(t.reimbursementId, (receivedBy.get(t.reimbursementId) ?? 0) + t.amountMinor);
+  const out = new Map<string, ClaimRecon>(); const liveLinks = links.filter((l) => { const e = byTxn.get(l.txnId); return !!e && countsInTotals(e); });
+  for (const c of claims) {
+    const rec = receivedBy.get(c.id) ?? 0, linked = liveLinks.filter((l) => l.reimbursementId === c.id).reduce((a, l) => a + l.amountMinor, 0);
+    const manual = c.status === "received" && rec === 0; // marked received by hand, with no deposit recorded against it
+    const received = manual ? c.amountMinor : rec;
+    const state: ClaimState = c.status === "written_off" ? "written_off" : received > c.amountMinor ? "over_received" : received === c.amountMinor ? "received" : received > 0 ? "partly_received" : "outstanding";
+    out.set(c.id, { id: c.id, claimed: c.amountMinor, received, outstanding: c.status === "written_off" ? 0 : Math.max(0, c.amountMinor - received), overReceived: Math.max(0, received - c.amountMinor), linked, unlinked: Math.max(0, c.amountMinor - linked), overLinked: linked > c.amountMinor, state, reconciled: !manual });
+  }
+  const expenses = new Map<string, ExpenseRecon>();
+  const claimById = new Map(claims.map((c) => [c.id, c]));
+  for (const l of liveLinks) {
+    const c = claimById.get(l.reimbursementId), cr = out.get(l.reimbursementId); if (!c || !cr || c.status === "written_off") continue;
+    const sumLinks = liveLinks.filter((x) => x.reimbursementId === c.id).reduce((a, x) => a + x.amountMinor, 0);
+    const share = sumLinks > 0 ? Math.min(l.amountMinor, Math.round((Math.min(cr.received, cr.claimed) * l.amountMinor) / sumLinks)) : 0;
+    const e = byTxn.get(l.txnId)!; const cur = expenses.get(e.id) ?? { txnId: e.id, amount: Math.abs(e.amountMinor), claimed: 0, received: 0, outstanding: 0, unclaimed: Math.abs(e.amountMinor), state: "unclaimed" as ExpenseState };
+    cur.claimed += l.amountMinor; cur.received += share; expenses.set(e.id, cur);
+  }
+  for (const e of expenses.values()) { e.outstanding = Math.max(0, e.claimed - e.received); e.unclaimed = Math.max(0, e.amount - e.claimed); e.state = e.received >= e.claimed ? "reimbursed" : e.received > 0 ? "partly_received" : "claimed"; }
+  const unclaimedExpenses: ExpenseRecon[] = [];
+  for (const t of txns) if (t.kind === "expense" && t.reimbursable && countsInTotals(t) && !expenses.has(t.id)) unclaimedExpenses.push({ txnId: t.id, amount: Math.abs(t.amountMinor), claimed: 0, received: 0, outstanding: 0, unclaimed: Math.abs(t.amountMinor), state: "unclaimed" });
+  return { claims: out, expenses, unclaimedExpenses };
+}

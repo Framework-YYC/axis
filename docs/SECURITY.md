@@ -35,6 +35,9 @@ The repository is public **intentionally** (free GitHub Actions; personal, non-c
 - **Demo data** is flagged (`demo = 1`), titled "(synthetic)", labelled in the UI, and removable by the owner in one action. Axis starts empty.
 - Untrusted input: task text, notes, `sourceRef` and email-derived text are stored and rendered as inert text.
 
+## Finance corrections (migration 0008)
+Finance history is protected: no transaction or bill payment can be deleted through the app, REST, MCP or the assistant inbox. Corrections are a void (kept with its reason) or a reversal (an offsetting entry), each with a mandatory reason, an audit row and a before/after row in `fin_txn_history`, which is append-only (an update is refused by trigger; inserts need the service layer's write gate). The Financial assistant can void, reverse and edit only through the existing inbox request and only within its own module; every finance operation refuses another module. Text an assistant imports (payees, reasons, statement lines) stays untrusted data and is length-limited. No account or card numbers are stored.
+
 ## Production (2026-11-24)
 - Separate Worker, D1 database, hostname and Access applications from staging; production starts empty and receives no staging data.
 - **Assistant integration in production: the inbox (primary) and REST/MCP with scoped tokens (kept for later).** The owner creates one connection per assistant in Settings: limited to one module, read-only or read/write, expiring (default 30 days), revocable at once, stored as a hash. The assistant's identity and module come from the token, never from its own claims. Verified by tests and by a live run (see CHANGELOG).

@@ -2,18 +2,19 @@ import { CalendarDays, CheckSquare, LayoutDashboard, type LucideIcon, Settings, 
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, horizonOf } from "../../shared/horizons";
-import { ALL_TABS, MODULE_IDS, MODULE_ONLY_TABS, MODULES_META, PRIMARY_TABS, type ModuleId, type TabId } from "../../shared/modules";
+import { ALL_TABS, MODULE_ONLY_TABS, MORE_TABS, NAV_MEMBERS, NAV_META, NAV_MODULE_IDS, PRIMARY_TABS, type NavModuleId, type TabId } from "../../shared/modules";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
-import { ASSISTANT_ICONS } from "../lib/moduleStyle";
+import { NAV_ICONS } from "../lib/moduleStyle";
 
-export interface Module { to: string; label: string; crumb: string; icon: LucideIcon; assistant?: ModuleId }
-export { ASSISTANT_ICONS } from "../lib/moduleStyle";
+export interface Module { to: string; label: string; crumb: string; icon: LucideIcon; /** Set for the four navigable screens (Personal, Finance, Framework, Work). */ nav?: NavModuleId }
+export { ASSISTANT_ICONS, NAV_ICONS } from "../lib/moduleStyle";
 
-const moduleNav = (id: ModuleId): Module => ({ to: `/m/${id}`, label: MODULES_META[id].label, crumb: MODULES_META[id].label.toUpperCase(), icon: ASSISTANT_ICONS[id], assistant: id });
+const moduleNav = (id: NavModuleId): Module => ({ to: `/m/${id}`, label: NAV_META[id].label, crumb: NAV_META[id].label.toUpperCase(), icon: NAV_ICONS[id], nav: id });
 export const HOME: Module = { to: "/", label: "Home", crumb: "OVERVIEW", icon: LayoutDashboard };
-/** The six permanent destinations (phone dock, iPad rail and desktop rail): Home, then the five modules. Display labels only; ids are unchanged. */
-export const DESTINATIONS: Module[] = [HOME, ...MODULE_IDS.map(moduleNav)];
+/** The four module destinations (Daily and Health are one: Personal). The dock puts Orbis between the second and third; Home lives in the Orbis menu. */
+export const MODULE_DESTINATIONS: Module[] = NAV_MODULE_IDS.map(moduleNav);
+export const DESTINATIONS: Module[] = [HOME, ...MODULE_DESTINATIONS];
 /** Cross-module screens. Reached from Home, from module tabs and, on wider screens, from the rail. */
 export const UTILITY: Module[] = [
   { to: "/tasks", label: "Tasks", crumb: "TASKS", icon: CheckSquare },
@@ -27,11 +28,11 @@ export interface NavItem { to: string; label: string; count?: number; hot?: bool
 export interface NavGroup { label: string; items: NavItem[] }
 
 export type { TabId };
-export const TAB_LABEL: Record<TabId, string> = { overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", progress: "Progress", procurement: "Procurement", transactions: "Transactions", bills: "Bills", accounts: "Accounts", budgets: "Budgets", reports: "Reports", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
+export const TAB_LABEL: Record<TabId, string> = { health: "Health", appointments: "Appointments", overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", progress: "Progress", procurement: "Procurement", transactions: "Transactions", bills: "Bills", accounts: "Accounts", budgets: "Budgets", reports: "Reports", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
 export { ALL_TABS };
-export const primaryTabs = (m: ModuleId): TabId[] => [...PRIMARY_TABS[m]];
+export const primaryTabs = (m: NavModuleId): TabId[] => [...PRIMARY_TABS[m]];
 /** Everything else stays reachable from the tab bar's More menu. */
-export const moreTabs = (m: ModuleId): TabId[] => ALL_TABS.filter((t) => !PRIMARY_TABS[m].includes(t) && (!MODULE_ONLY_TABS[t] || MODULE_ONLY_TABS[t] === m));
+export const moreTabs = (m: NavModuleId): TabId[] => (MORE_TABS[m] ? [...MORE_TABS[m]!] : ALL_TABS.filter((t) => !PRIMARY_TABS[m].includes(t) && (!MODULE_ONLY_TABS[t] || MODULE_ONLY_TABS[t] === m)));
 export const isTab = (v: string | null): v is TabId => !!v && (ALL_TABS as string[]).includes(v);
 
 const hashItems = (base: string, items: Array<[string, string]>): NavItem[] => items.map(([id, label]) => ({ to: `${base}#${id}`, label }));
@@ -39,8 +40,8 @@ const hashItems = (base: string, items: Array<[string, string]>): NavItem[] => i
 export function moduleOf(pathname: string): Module {
   return MODULES.find((m) => (m.to === "/" ? pathname === "/" : pathname === m.to || pathname.startsWith(`${m.to}/`))) ?? HOME;
 }
-/** The dock highlights the module being viewed, otherwise Home (Tasks, Goals, Calendar and Settings open from Home). */
-export const dockActive = (pathname: string): string => { const m = moduleOf(pathname); return m.assistant ? m.to : "/"; };
+/** The dock highlights the module being viewed; on every other screen (Home, Tasks, Calendar, Settings) no module is selected and the Orbis button carries the state. */
+export const dockActive = (pathname: string): string | null => { const m = moduleOf(pathname); return m.nav ? m.to : null; };
 
 /** The contextual navigation for the current page, the live status list and the cross-module shortcuts. */
 export function useNavModel(): { module: Module; groups: NavGroup[]; contextual: NavItem[] } {
@@ -52,11 +53,11 @@ export function useNavModel(): { module: Module; groups: NavGroup[]; contextual:
     const open = tasks.filter((t) => t.status !== "completed" && !t.archivedAt);
     const hz = Object.fromEntries(HORIZONS.map((h) => [h, 0])) as Record<(typeof HORIZONS)[number], number>;
     for (const t of open) hz[horizonOf(t.dueDate, today, weekStart)]++;
-    const modCount = (id: string) => open.filter((t) => t.module === id).length;
+    const modCount = (id: NavModuleId) => open.filter((t) => (NAV_MEMBERS[id] as readonly string[]).includes(t.module)).length;
     let main: NavItem[];
     const groups: NavGroup[] = [];
-    if (module.assistant) {
-      const id = module.assistant;
+    if (module.nav) {
+      const id = module.nav;
       const item = (t: TabId): NavItem => ({ to: `${module.to}?tab=${t}`, label: TAB_LABEL[t], count: t === "tasks" ? modCount(id) : undefined });
       main = primaryTabs(id).map(item);
       groups.push({ label: module.label, items: main }, { label: "More", items: moreTabs(id).map(item) });
@@ -98,7 +99,7 @@ export function useIsActive() {
 export function ContextChips() {
   const { module, contextual } = useNavModel();
   const active = useIsActive();
-  if (module.assistant || module.to === "/" || module.to === "/tasks") return null; // modules have their own tab bar; Tasks has its selectors
+  if (module.nav || module.to === "/" || module.to === "/tasks") return null; // modules have their own tab bar; Tasks has its selectors
   return (
     <nav aria-label={`${module.label} sections`} className="no-scrollbar -mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 xl:hidden">
       {contextual.map((it, i) => (

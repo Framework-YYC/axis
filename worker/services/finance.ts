@@ -1,11 +1,11 @@
-import { deriveTxnKind, type AccountType, type TxnKind } from "../../shared/finance";
+import { deriveTxnKind, reimbursementRecon, resolveSplit, type AccountType, type FinReimb, type FinReimbLink, type FinTxn, type TxnKind } from "../../shared/finance";
 import { assertMinor, parseMinor, type Minor } from "../../shared/money";
 import { validateRecurrence } from "../../shared/recurrence";
 import { assertModule, Forbidden } from "./access";
 import { auditStmt } from "./audit";
 import { write } from "./db";
 import { resolveToday } from "./prefs";
-import { completeTask, sourceOf } from "./tasks";
+import { completeTask, reopenTask, sourceOf } from "./tasks";
 import { fail, ok, type Ctx, type Result } from "./types";
 import * as v from "./validate";
 
@@ -191,12 +191,44 @@ const TXN_FIELDS: Field[] = [
   f("accountId", "account_id", "ref", { ref: "account", required: true }), f("counterAccountId", "counter_account_id", "ref", { ref: "account" }), f("date", "date", "date", { required: true }),
   f("amountMinor", "amount_minor", "money", { required: true }), f("payee", "payee", "text", { max: 200 }), f("description", "description", "text", { max: 500 }), f("categoryId", "category_id", "ref", { ref: "category" }),
   f("status", "status", "enum", { values: ["confirmed", "pending"] }), f("reimbursable", "reimbursable", "bool"),
+  f("principalMinor", "principal_minor", "money"), f("interestMinor", "interest_minor", "money"),
 ];
+const LIVE = "voided_at IS NULL AND reversed_by IS NULL AND reversal_of IS NULL";
+/** The history row for a transaction (what was changed and why). Joins the same batch as the change. */
+const historyStmt = (ctx: Ctx, txnId: string, action: "edit" | "void" | "reverse" | "reversal_entry" | "payment_reversed" | "link", reason: string | null, changed: Array<{ field: string; from: unknown; to: unknown }>) =>
+  ctx.db.prepare("INSERT INTO fin_txn_history (txn_id, at, action, actor_label, channel, reason, changed) VALUES (?,?,?,?,?,?,?)").bind(txnId, ctx.now().toISOString(), action, ctx.actor.label, ctx.actor.channel, reason, JSON.stringify(changed));
+/** Keeps a reimbursement claim in step with the deposits recorded against it: received once the live deposits cover it, otherwise outstanding. A written-off claim stays written off. */
+const claimSyncStmt = (ctx: Ctx, claimId: string, at: string) =>
+  ctx.db.prepare(`UPDATE fin_reimbursements SET
+    status = CASE WHEN status = 'written_off' THEN status WHEN COALESCE((SELECT SUM(amount_minor) FROM fin_transactions WHERE reimbursement_id = fin_reimbursements.id AND kind = 'reimbursement' AND status = 'confirmed' AND ${LIVE}), 0) >= amount_minor THEN 'received' ELSE 'outstanding' END,
+    received_txn_id = (SELECT id FROM fin_transactions WHERE reimbursement_id = fin_reimbursements.id AND kind = 'reimbursement' AND ${LIVE} ORDER BY date DESC, created_at DESC LIMIT 1),
+    updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?`).bind(at, ctx.actor.label, claimId);
+
+/** A transaction by its id, or by the assistant's own key. */
+async function findTxn(ctx: Ctx, i: Record<string, unknown>): Promise<Row | null> {
+  const id = v.text(i.id ?? i.transaction, "id", { max: 200, optional: true });
+  if (id) { const byId = await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(id).first<Row>(); if (byId) return byId; }
+  const key = v.text(i.key ?? i.externalId ?? id, "key", { max: 200, optional: true });
+  if (!key) throw new v.InvalidInput("id (or key) is required");
+  return await ctx.db.prepare("SELECT * FROM fin_transactions WHERE source_name = ? AND external_id = ?").bind(sourceOf(ctx).name, key).first<Row>();
+}
+const txnView = async (ctx: Ctx, id: string) => view((await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(id).first<Row>())!);
+const refuseIfFrozen = (row: Row, doing: string) => {
+  if (row.voided_at) throw new v.InvalidInput(`This transaction was voided${row.void_reason ? ` (${String(row.void_reason)})` : ""} and cannot be ${doing}. Record a new transaction instead.`);
+  if (row.reversal_of) throw new v.InvalidInput(`This is the offsetting entry that reverses another transaction and cannot be ${doing}.`);
+  if (row.reversed_by) throw new v.InvalidInput(`This transaction has been reversed and cannot be ${doing}. The reversal keeps it on record.`);
+};
+/** Reads a loan payment's principal/interest (dollars or cents) from the input. undefined = neither given. The part not given is derived from the total. */
+function readSplit(i: Record<string, unknown>) {
+  const p = money(i, "principal"), n = money(i, "interest");
+  return p === undefined && n === undefined ? undefined : { principal: p ?? null, interest: n ?? null };
+}
 
 /**
  * One confirmed or pending transaction. The kind (income, expense, transfer, card payment, loan payment, reimbursement) is derived from its shape.
  * A bill payment (`bill` + `billDue`) is recorded once: if that occurrence already has its transaction, that one is returned instead of a second.
- * Receiving a reimbursement (`reimbursement`) marks it received. Idempotent on `key`.
+ * Receiving a reimbursement (`reimbursement`) is reconciled against its claim. A loan payment may carry `principal` and `interest` (they must add up to it).
+ * An edit keeps a before/after history row; a voided, reversed or reversing transaction cannot be edited. Idempotent on `key`.
  */
 export const saveTransaction = (ctx: Ctx, raw: unknown, mode: "create" | "update" | "upsert"): Promise<Result<Saved>> => guard<Saved>(async () => {
   assertModule(ctx.actor, MODULE);
@@ -206,7 +238,10 @@ export const saveTransaction = (ctx: Ctx, raw: unknown, mode: "create" | "update
   let row: Row | null = null;
   if (mode === "update") { row = await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(v.text(i.id, "id", { max: 100 })!).first<Row>(); if (!row) return fail("not_found", "No such transaction"); }
   else if (key) row = await ctx.db.prepare("SELECT * FROM fin_transactions WHERE source_name = ? AND external_id = ?").bind(src.name, key).first<Row>();
+  if (row) refuseIfFrozen(row, "edited");
+  if (row && mode === "update" && i.expectedVersion !== undefined && i.expectedVersion !== row.version) return fail("conflict", `Changed since version ${String(i.expectedVersion)}; current version is ${String(row.version)}. Read it again and retry.`);
   const vals = await parseFields(ctx, TXN_FIELDS, i, !row);
+  vals.delete("principal_minor"); vals.delete("interest_minor");
   const amount = (vals.get("amount_minor") as number | undefined) ?? (row?.amount_minor as number);
   if (amount === 0) throw new v.InvalidInput("amount cannot be zero");
   const accountId = (vals.get("account_id") as string | undefined) ?? (row?.account_id as string);
@@ -214,47 +249,193 @@ export const saveTransaction = (ctx: Ctx, raw: unknown, mode: "create" | "update
   if (counterId && counterId === accountId) throw new v.InvalidInput("a transfer needs two different accounts");
   const { results: accs } = await ctx.db.prepare("SELECT id, type FROM fin_accounts").all<{ id: string; type: AccountType }>();
   const types = new Map(accs.map((a) => [a.id, a.type]));
-  let billId: string | null = (row?.bill_id as string | null) ?? null, billDue: string | null = (row?.bill_due as string | null) ?? null, reimbId: string | null = null;
-  if (i.bill !== undefined || i.billId !== undefined) { billId = await resolveRef(ctx, "bill", i.billId ?? i.bill, "bill"); billDue = v.date(i.billDue, "billDue", false)!; }
-  if (i.reimbursement !== undefined || i.reimbursementId !== undefined) { reimbId = v.text(i.reimbursementId ?? i.reimbursement, "reimbursement", { max: 100 })!; if (!(await ctx.db.prepare("SELECT id FROM fin_reimbursements WHERE id = ?").bind(reimbId).first())) throw new v.InvalidInput("unknown reimbursement"); if (amount < 0 || counterId) throw new v.InvalidInput("a reimbursement received is money in, to one account"); }
+  let billId: string | null = (row?.bill_id as string | null) ?? null, billDue: string | null = (row?.bill_due as string | null) ?? null, reimbId: string | null = (row?.reimbursement_id as string | null) ?? null;
+  if (i.bill !== undefined || i.billId !== undefined) { if (row) throw new v.InvalidInput("a recorded transaction cannot be attached to a different bill"); billId = await resolveRef(ctx, "bill", i.billId ?? i.bill, "bill"); billDue = v.date(i.billDue, "billDue", false)!; }
+  if (i.reimbursement !== undefined || i.reimbursementId !== undefined) { if (row) throw new v.InvalidInput("a recorded transaction cannot be attached to a different reimbursement claim"); reimbId = v.text(i.reimbursementId ?? i.reimbursement, "reimbursement", { max: 100 })!; if (!(await ctx.db.prepare("SELECT id FROM fin_reimbursements WHERE id = ?").bind(reimbId).first())) throw new v.InvalidInput("unknown reimbursement"); }
+  if (reimbId && (amount < 0 || counterId)) throw new v.InvalidInput("a reimbursement received is money in, to one account");
   const kind: TxnKind = deriveTxnKind({ amountMinor: amount, counterAccountId: counterId, reimbursementId: reimbId }, types);
+  if (row && billId && kind !== row.kind) throw new v.InvalidInput("this is a bill payment: it cannot change into a different kind of transaction. Reverse or void it, then record the right one.");
+  // loan split
+  const given = readSplit(i);
+  let split: { principalMinor: number; interestMinor: number } | null = null;
+  if (kind === "loan_payment") {
+    const carried = row && !given && (row.principal_minor !== null && row.principal_minor !== undefined) ? { principal: row.principal_minor as number, interest: row.interest_minor as number | null } : null;
+    try { split = resolveSplit(amount, given ? given.principal : carried?.principal, given ? given.interest : carried?.interest); } catch (e) { if (e instanceof RangeError) throw new v.InvalidInput(e.message + (carried && !given ? ". The payment amount changed: send principal and interest again" : "")); throw e; }
+  } else if (given && (given.principal || given.interest)) throw new v.InvalidInput("principal and interest apply only to a payment on a loan");
   const at = ctx.now().toISOString();
-  // A bill occurrence that already has its transaction is the same payment: return it, never a second.
+  // A bill occurrence that already has its (standing) transaction is the same payment: return it, never a second.
   if (billId && billDue && !row) {
-    const p = await ctx.db.prepare("SELECT txn_id FROM fin_bill_payments WHERE bill_id = ? AND due_date = ?").bind(billId, billDue).first<{ txn_id: string | null }>();
+    const p = await ctx.db.prepare("SELECT txn_id FROM fin_bill_payments WHERE bill_id = ? AND due_date = ? AND reversed_at IS NULL").bind(billId, billDue).first<{ txn_id: string | null }>();
     if (p?.txn_id) { const ex = await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(p.txn_id).first<Row>(); if (ex) return ok({ kind: "transaction", record: view(ex), outcome: "unchanged" as const }, { duplicate: true });
     }
   }
   if (row) {
-    const sets: string[] = [], args: unknown[] = [];
-    for (const [col, val] of vals) if (val !== (row[col] ?? null)) { sets.push(`${col} = ?`); args.push(val); }
-    if (kind !== row.kind) { sets.push("kind = ?"); args.push(kind); }
+    const sets: string[] = [], args: unknown[] = [], changed: Array<{ field: string; from: unknown; to: unknown }> = [];
+    for (const [col, val] of vals) if (val !== (row[col] ?? null)) { sets.push(`${col} = ?`); args.push(val); changed.push({ field: camel(col), from: row[col] ?? null, to: val }); }
+    if (kind !== row.kind) { sets.push("kind = ?"); args.push(kind); changed.push({ field: "kind", from: row.kind, to: kind }); }
+    const wantP = split?.principalMinor ?? null, wantI = split?.interestMinor ?? null;
+    if (wantP !== (row.principal_minor ?? null)) { sets.push("principal_minor = ?"); args.push(wantP); changed.push({ field: "principalMinor", from: row.principal_minor ?? null, to: wantP }); }
+    if (wantI !== (row.interest_minor ?? null)) { sets.push("interest_minor = ?"); args.push(wantI); changed.push({ field: "interestMinor", from: row.interest_minor ?? null, to: wantI }); }
     if (!sets.length) return ok({ kind: "transaction", record: view(row), outcome: "unchanged" as const }, { duplicate: true });
-    await write(ctx.db, [ctx.db.prepare(`UPDATE fin_transactions SET ${sets.join(", ")}, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?`).bind(...args, at, ctx.actor.label, row.id), auditStmt(ctx, "finance.transaction.update", "transaction", row.id as string)]);
-    return ok({ kind: "transaction", record: view((await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(row.id).first<Row>())!), outcome: "updated" as const });
+    const stmts = [ctx.db.prepare(`UPDATE fin_transactions SET ${sets.join(", ")}, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?`).bind(...args, at, ctx.actor.label, row.id), historyStmt(ctx, row.id as string, "edit", v.text(i.reason, "reason", { max: 300, optional: true }) ?? null, changed), auditStmt(ctx, "finance.transaction.update", "transaction", row.id as string)];
+    if (billId && (vals.has("amount_minor") || vals.has("date"))) stmts.push(ctx.db.prepare("UPDATE fin_bill_payments SET amount_minor = ?, paid_on = ? WHERE txn_id = ? AND reversed_at IS NULL").bind(Math.abs(amount), (vals.get("date") as string | undefined) ?? row.date, row.id));
+    if (reimbId) stmts.push(claimSyncStmt(ctx, reimbId, at));
+    await write(ctx.db, stmts);
+    return ok({ kind: "transaction", record: await txnView(ctx, row.id as string), outcome: "updated" as const });
   }
   // An unkeyed twin (same account, date, amount and payee) that an assistant is now reporting with a key is adopted, not duplicated.
   if (key && ctx.actor.type === "integration") {
-    const twin = await ctx.db.prepare("SELECT * FROM fin_transactions WHERE account_id = ? AND date = ? AND amount_minor = ? AND external_id IS NULL AND lower(COALESCE(payee,'')) = lower(?) LIMIT 1").bind(accountId, vals.get("date"), amount, (vals.get("payee") as string | undefined) ?? "").first<Row>();
-    if (twin) { await write(ctx.db, [ctx.db.prepare("UPDATE fin_transactions SET external_id = ?, source_name = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?").bind(key, src.name, at, ctx.actor.label, twin.id), auditStmt(ctx, "finance.transaction.update", "transaction", twin.id as string)]); return ok({ kind: "transaction", record: view((await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(twin.id).first<Row>())!), outcome: "updated" as const }); }
+    const twin = await ctx.db.prepare(`SELECT * FROM fin_transactions WHERE account_id = ? AND date = ? AND amount_minor = ? AND external_id IS NULL AND ${LIVE} AND lower(COALESCE(payee,'')) = lower(?) LIMIT 1`).bind(accountId, vals.get("date"), amount, (vals.get("payee") as string | undefined) ?? "").first<Row>();
+    if (twin) { await write(ctx.db, [ctx.db.prepare("UPDATE fin_transactions SET external_id = ?, source_name = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?").bind(key, src.name, at, ctx.actor.label, twin.id), historyStmt(ctx, twin.id as string, "edit", "Matched to the assistant's own record", [{ field: "externalId", from: null, to: key }]), auditStmt(ctx, "finance.transaction.update", "transaction", twin.id as string)]); return ok({ kind: "transaction", record: await txnView(ctx, twin.id as string), outcome: "updated" as const }); }
   }
   const id = rowId("ftx");
   const stmts = [
-    ctx.db.prepare("INSERT INTO fin_transactions (id,account_id,counter_account_id,date,amount_minor,kind,payee,description,category_id,status,bill_id,bill_due,reimbursement_id,reimbursable,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, accountId, counterId, vals.get("date"), amount, kind, vals.get("payee") ?? null, vals.get("description") ?? null, vals.get("category_id") ?? null, vals.get("status") ?? "confirmed", billId, billDue, reimbId, vals.get("reimbursable") ?? 0, src.kind, src.name, src.assistant, v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }) ?? null, key ?? null, v.bool(i.demo, "demo") ? 1 : 0, at, at, ctx.actor.label, ctx.actor.label),
+    ctx.db.prepare("INSERT INTO fin_transactions (id,account_id,counter_account_id,date,amount_minor,kind,payee,description,category_id,status,bill_id,bill_due,reimbursement_id,reimbursable,principal_minor,interest_minor,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(id, accountId, counterId, vals.get("date"), amount, kind, vals.get("payee") ?? null, vals.get("description") ?? null, vals.get("category_id") ?? null, vals.get("status") ?? "confirmed", billId, billDue, reimbId, vals.get("reimbursable") ?? 0, split?.principalMinor ?? null, split?.interestMinor ?? null, src.kind, src.name, src.assistant, v.text(i.sourceRef, "sourceRef", { max: 300, optional: true }) ?? null, key ?? null, v.bool(i.demo, "demo") ? 1 : 0, at, at, ctx.actor.label, ctx.actor.label),
     auditStmt(ctx, "finance.transaction.create", "transaction", id),
   ];
-  if (billId && billDue) stmts.push(ctx.db.prepare("INSERT INTO fin_bill_payments (id,bill_id,due_date,status,paid_on,amount_minor,txn_id,demo,created_at,created_by) VALUES (?,?,?,'paid',?,?,?,?,?,?) ON CONFLICT (bill_id, due_date) DO UPDATE SET status = 'paid', paid_on = excluded.paid_on, amount_minor = excluded.amount_minor, txn_id = excluded.txn_id").bind(rowId("fbp"), billId, billDue, vals.get("date"), Math.abs(amount), id, v.bool(i.demo, "demo") ? 1 : 0, at, ctx.actor.label));
-  if (reimbId) stmts.push(ctx.db.prepare("UPDATE fin_reimbursements SET status = 'received', received_txn_id = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?").bind(id, at, ctx.actor.label, reimbId));
+  if (billId && billDue) stmts.push(ctx.db.prepare("INSERT INTO fin_bill_payments (id,bill_id,due_date,status,paid_on,amount_minor,txn_id,demo,created_at,created_by) VALUES (?,?,?,'paid',?,?,?,?,?,?) ON CONFLICT (bill_id, due_date) DO UPDATE SET status = 'paid', paid_on = excluded.paid_on, amount_minor = excluded.amount_minor, txn_id = excluded.txn_id, reversed_at = NULL, reversed_by = NULL, reverse_reason = NULL, completed_task_id = NULL").bind(rowId("fbp"), billId, billDue, vals.get("date"), Math.abs(amount), id, v.bool(i.demo, "demo") ? 1 : 0, at, ctx.actor.label));
+  if (reimbId) stmts.push(claimSyncStmt(ctx, reimbId, at));
   await write(ctx.db, stmts);
-  return ok({ kind: "transaction", record: view((await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(id).first<Row>())!), outcome: "created" as const });
+  return ok({ kind: "transaction", record: await txnView(ctx, id), outcome: "created" as const });
 });
+
+// ---------- voiding and reversing ----------
+export interface Corrected { id: string; status: "voided" | "reversed"; reversalId: string | null; billPaymentReversed: boolean; taskReopened: boolean; record: Row }
+/** What else a voided or reversed transaction takes with it: the bill payment it confirmed (and the task that payment completed) and the claim it settled. Statements to add after the change itself. */
+async function sideEffects(ctx: Ctx, row: Row, at: string, why: string): Promise<{ stmts: D1PreparedStatement[]; reopenTask: string | null; paymentReversed: boolean }> {
+  const stmts: D1PreparedStatement[] = []; let reopenTask: string | null = null; let paymentReversed = false;
+  const pay = await ctx.db.prepare("SELECT * FROM fin_bill_payments WHERE txn_id = ? AND reversed_at IS NULL").bind(row.id).first<Row>();
+  if (pay) { paymentReversed = true; reopenTask = (pay.completed_task_id as string | null) ?? null; stmts.push(ctx.db.prepare("UPDATE fin_bill_payments SET reversed_at = ?, reversed_by = ?, reverse_reason = ? WHERE id = ?").bind(at, ctx.actor.label, why, pay.id), historyStmt(ctx, row.id as string, "payment_reversed", why, [{ field: "billPayment", from: "paid", to: "reversed" }]), auditStmt(ctx, "finance.bill.reverse", "bill", pay.bill_id as string)); }
+  if (row.reimbursement_id) stmts.push(claimSyncStmt(ctx, row.reimbursement_id as string, at));
+  return { stmts, reopenTask, paymentReversed };
+}
+async function reopenIfCompleted(ctx: Ctx, taskId: string | null, today: string): Promise<boolean> {
+  if (!taskId) return false;
+  const t = await ctx.db.prepare("SELECT status FROM tasks WHERE id = ?").bind(taskId).first<{ status: string }>();
+  if (!t || t.status !== "completed") return false; // already reopened, or changed since: leave it alone
+  return (await reopenTask(ctx, { id: taskId, today })).ok;
+}
+
+/** Voids a transaction: it stays on record with its reason but counts nowhere, as though it had never happened. A second void changes nothing. */
+export const voidTransaction = (ctx: Ctx, raw: unknown): Promise<Result<Corrected>> => guard(async () => {
+  assertModule(ctx.actor, MODULE);
+  const i = v.obj(raw, "input"); const reason = v.text(i.reason, "reason", { max: 300 })!; const today = await resolveToday(ctx, i, v);
+  const row = await findTxn(ctx, i); if (!row) return fail("not_found", "No such transaction");
+  if (row.voided_at) return ok({ id: row.id as string, status: "voided", reversalId: null, billPaymentReversed: false, taskReopened: false, record: view(row) }, { duplicate: true });
+  refuseIfFrozen(row, "voided");
+  const at = ctx.now().toISOString(); const fx = await sideEffects(ctx, row, at, `Voided: ${reason}`);
+  await write(ctx.db, [
+    ctx.db.prepare("UPDATE fin_transactions SET voided_at = ?, voided_by = ?, void_reason = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ? AND voided_at IS NULL").bind(at, ctx.actor.label, reason, at, ctx.actor.label, row.id),
+    historyStmt(ctx, row.id as string, "void", reason, [{ field: "voidedAt", from: null, to: at }]), auditStmt(ctx, "finance.transaction.void", "transaction", row.id as string), ...fx.stmts,
+  ]);
+  const taskReopened = await reopenIfCompleted(ctx, fx.reopenTask, today);
+  return ok({ id: row.id as string, status: "voided", reversalId: null, billPaymentReversed: fx.paymentReversed, taskReopened, record: await txnView(ctx, row.id as string) });
+});
+
+/** Reverses a transaction with one offsetting entry (the opposite amount, same accounts). Both stay on record; together they net to zero. A second reversal returns the first. */
+export const reverseTransaction = (ctx: Ctx, raw: unknown): Promise<Result<Corrected>> => guard(async () => {
+  assertModule(ctx.actor, MODULE);
+  const i = v.obj(raw, "input"); const reason = v.text(i.reason, "reason", { max: 300 })!; const today = await resolveToday(ctx, i, v);
+  const row = await findTxn(ctx, i); if (!row) return fail("not_found", "No such transaction");
+  if (row.reversed_by) return ok({ id: row.id as string, status: "reversed", reversalId: row.reversed_by as string, billPaymentReversed: false, taskReopened: false, record: view(row) }, { duplicate: true });
+  refuseIfFrozen(row, "reversed");
+  const at = ctx.now().toISOString(); const date = v.date(i.date, "date") ?? today; const rid = rowId("ftx"); const src = sourceOf(ctx);
+  const fx = await sideEffects(ctx, row, at, `Reversed: ${reason}`);
+  await write(ctx.db, [
+    ctx.db.prepare("INSERT INTO fin_transactions (id,account_id,counter_account_id,date,amount_minor,kind,payee,description,category_id,status,reversal_of,principal_minor,interest_minor,source_kind,source_name,source_assistant,external_id,demo,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,'confirmed',?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(rid, row.account_id, row.counter_account_id ?? null, date, -(row.amount_minor as number), row.kind, row.payee ?? null, `Reversal: ${reason}`.slice(0, 500), row.category_id ?? null, row.id, row.principal_minor ?? null, row.interest_minor ?? null, src.kind, src.name, src.assistant, `reversal:${row.id}`, row.demo ?? 0, at, at, ctx.actor.label, ctx.actor.label),
+    ctx.db.prepare("UPDATE fin_transactions SET reversed_by = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ? AND reversed_by IS NULL").bind(rid, at, ctx.actor.label, row.id),
+    historyStmt(ctx, row.id as string, "reverse", reason, [{ field: "reversedBy", from: null, to: rid }]), historyStmt(ctx, rid, "reversal_entry", reason, [{ field: "reversalOf", from: null, to: row.id }]),
+    auditStmt(ctx, "finance.transaction.reverse", "transaction", row.id as string), ...fx.stmts,
+  ]);
+  const taskReopened = await reopenIfCompleted(ctx, fx.reopenTask, today);
+  return ok({ id: row.id as string, status: "reversed", reversalId: rid, billPaymentReversed: fx.paymentReversed, taskReopened, record: await txnView(ctx, row.id as string) });
+});
+
+/**
+ * Reverses a bill payment confirmation: the occurrence is unpaid (or overdue) again, its transaction is voided (default) or reversed (`how: "reverse"`, when money really moved back),
+ * and the task that payment completed is reopened (a task the owner had already reopened or changed is left alone). The same due date can be paid again afterwards, once.
+ */
+export const reverseBillPayment = (ctx: Ctx, raw: unknown): Promise<Result<{ billId: string; dueDate: string; transaction: string | null; how: string; taskReopened: boolean }>> => guard(async () => {
+  assertModule(ctx.actor, MODULE);
+  const i = v.obj(raw, "input"); const reason = v.text(i.reason, "reason", { max: 300 })!; const today = await resolveToday(ctx, i, v);
+  const billId = await resolveRef(ctx, "bill", i.billId ?? i.bill, "bill"); const dueDate = v.date(i.dueDate, "dueDate", false)!;
+  const how = v.oneOf(i.how, "how", ["void", "reverse"] as const, "void")!;
+  const pay = await ctx.db.prepare("SELECT * FROM fin_bill_payments WHERE bill_id = ? AND due_date = ?").bind(billId, dueDate).first<Row>();
+  if (pay?.reversed_at) return ok({ billId, dueDate, transaction: (pay.txn_id as string | null) ?? null, how, taskReopened: false }, { duplicate: true });
+  const at = ctx.now().toISOString();
+  if (!pay) { // marked paid only through its task: reopen that task
+    const t = await ctx.db.prepare("SELECT id FROM tasks WHERE record_ref = ? AND due_date = ? AND status = 'completed' AND archived_at IS NULL LIMIT 1").bind(`bill:${billId}`, dueDate).first<{ id: string }>();
+    if (!t) return fail("not_found", "That occurrence is not recorded as paid");
+    await write(ctx.db, [auditStmt(ctx, "finance.bill.reverse", "bill", billId)]);
+    return ok({ billId, dueDate, transaction: null, how, taskReopened: await reopenIfCompleted(ctx, t.id, today) });
+  }
+  const txnId = (pay.txn_id as string | null) ?? null;
+  const txn = txnId ? await ctx.db.prepare("SELECT * FROM fin_transactions WHERE id = ?").bind(txnId).first<Row>() : null;
+  if (txn && !txn.voided_at && !txn.reversed_by) {
+    const r = how === "reverse" ? await reverseTransaction(ctx, { id: txn.id, reason: `Bill payment reversed: ${reason}`, today }) : await voidTransaction(ctx, { id: txn.id, reason: `Bill payment reversed: ${reason}`, today });
+    if (!r.ok) return r as unknown as Result<never>;
+    // voiding or reversing the transaction already reversed the payment; record the owner's reason on it
+    await write(ctx.db, [ctx.db.prepare("UPDATE fin_bill_payments SET reverse_reason = ? WHERE id = ?").bind(reason, pay.id)]);
+    return ok({ billId, dueDate, transaction: txnId, how, taskReopened: r.data.taskReopened });
+  }
+  // a skipped occurrence, a payment recorded without a transaction, or one whose transaction was already corrected
+  await write(ctx.db, [ctx.db.prepare("UPDATE fin_bill_payments SET reversed_at = ?, reversed_by = ?, reverse_reason = ? WHERE id = ? AND reversed_at IS NULL").bind(at, ctx.actor.label, reason, pay.id), auditStmt(ctx, "finance.bill.reverse", "bill", billId)]);
+  return ok({ billId, dueDate, transaction: txnId, how, taskReopened: await reopenIfCompleted(ctx, (pay.completed_task_id as string | null) ?? null, today) });
+});
+
+// ---------- reimbursement claims and the expenses they recover ----------
+/** A reimbursement claim, with the expenses it recovers (`expenses`: [{ txn, amount | amountMinor }]). Linking replaces the claim's links; each change is audited. */
+export const saveReimbursement = (ctx: Ctx, raw: unknown, mode: "create" | "update" | "upsert"): Promise<Result<Saved>> => guard<Saved>(async () => {
+  assertModule(ctx.actor, MODULE);
+  const i = v.obj(raw, "reimbursement");
+  const links = i.expenses === undefined ? undefined : await readLinks(ctx, i.expenses);
+  if (links) { // checked before anything is saved, so a refused link leaves no half-made claim
+    const key = v.text(i.key ?? i.externalId, "key", { max: 200, optional: true });
+    const pre = mode === "update" ? v.text(i.id, "id", { max: 100 }) : key ? (await ctx.db.prepare("SELECT id FROM fin_reimbursements WHERE source_name = ? AND external_id = ?").bind(sourceOf(ctx).name, key).first<{ id: string }>())?.id : null;
+    const claimAmount = money(i, "amount") ?? (pre ? ((await ctx.db.prepare("SELECT amount_minor FROM fin_reimbursements WHERE id = ?").bind(pre).first<{ amount_minor: number }>())?.amount_minor ?? null) : null);
+    const total = links.reduce((a, l) => a + l.amountMinor, 0);
+    if (claimAmount !== null && claimAmount !== undefined && total > claimAmount) throw new v.InvalidInput(`the linked expenses (${(total / 100).toFixed(2)}) are more than the claim (${(claimAmount / 100).toFixed(2)})`);
+    for (const l of links) {
+      const other = (await ctx.db.prepare("SELECT COALESCE(SUM(amount_minor),0) AS n FROM fin_reimbursement_links WHERE txn_id = ? AND reimbursement_id != ?").bind(l.txnId, pre ?? "").first<{ n: number }>())!.n;
+      if (other + l.amountMinor > l.expenseMinor) throw new v.InvalidInput(`more is claimed against "${l.label}" than it cost (${(l.expenseMinor / 100).toFixed(2)})`);
+    }
+  }
+  const r = await saveRecord(ctx, "reimbursement", i, mode); if (!r.ok || links === undefined) return r;
+  const claim = r.data.record; const claimId = claim.id as string;
+  const existing = (await ctx.db.prepare("SELECT * FROM fin_reimbursement_links WHERE reimbursement_id = ?").bind(claimId).all<Row>()).results;
+  const keep = new Map(links.map((l) => [l.txnId, l])); const at = ctx.now().toISOString(); const stmts: D1PreparedStatement[] = []; let changedAny = false;
+  for (const l of links) {
+    const have = existing.find((e) => e.txn_id === l.txnId);
+    if (!have) { changedAny = true; stmts.push(ctx.db.prepare("INSERT INTO fin_reimbursement_links (id,reimbursement_id,txn_id,amount_minor,created_at,created_by) VALUES (?,?,?,?,?,?)").bind(rowId("frl"), claimId, l.txnId, l.amountMinor, at, ctx.actor.label), ctx.db.prepare("UPDATE fin_transactions SET reimbursable = 1, updated_at = ?, updated_by = ?, version = version + (reimbursable = 0) WHERE id = ?").bind(at, ctx.actor.label, l.txnId), historyStmt(ctx, l.txnId, "link", `Linked to claim "${String(claim.description)}"`, [{ field: "claimedMinor", from: 0, to: l.amountMinor }])); }
+    else if (have.amount_minor !== l.amountMinor) { changedAny = true; stmts.push(ctx.db.prepare("UPDATE fin_reimbursement_links SET amount_minor = ? WHERE id = ?").bind(l.amountMinor, have.id), historyStmt(ctx, l.txnId, "link", `Claim "${String(claim.description)}" amount changed`, [{ field: "claimedMinor", from: have.amount_minor, to: l.amountMinor }])); }
+  }
+  for (const e of existing) if (!keep.has(e.txn_id as string)) { changedAny = true; stmts.push(ctx.db.prepare("DELETE FROM fin_reimbursement_links WHERE id = ?").bind(e.id), historyStmt(ctx, e.txn_id as string, "link", `Unlinked from claim "${String(claim.description)}"`, [{ field: "claimedMinor", from: e.amount_minor, to: 0 }])); }
+  if (!changedAny) return r;
+  stmts.push(auditStmt(ctx, "finance.reimbursement.link", "reimbursement", claimId));
+  await write(ctx.db, stmts);
+  return ok({ ...r.data, outcome: r.data.outcome === "unchanged" ? ("updated" as const) : r.data.outcome });
+});
+async function readLinks(ctx: Ctx, raw: unknown): Promise<Array<{ txnId: string; amountMinor: number; expenseMinor: number; label: string }>> {
+  if (!Array.isArray(raw) || raw.length > 50) throw new v.InvalidInput("expenses must be a list of { txn, amount }");
+  const out = new Map<string, { txnId: string; amountMinor: number; expenseMinor: number; label: string }>();
+  for (const e of raw) {
+    const o = v.obj(e, "expense"); const t = await findTxn(ctx, { id: o.txn ?? o.id ?? o.transaction, key: o.key });
+    if (!t) throw new v.InvalidInput("a linked expense does not exist");
+    if (t.kind !== "expense" || t.voided_at || t.reversed_by || t.reversal_of) throw new v.InvalidInput("only a live expense can be linked to a claim");
+    const exp = Math.abs(t.amount_minor as number); const amt = money(o, "amount") ?? exp; if (amt <= 0 || amt > exp) throw new v.InvalidInput(`the claimed part of "${String(t.payee ?? t.id)}" must be between 0.01 and what it cost`);
+    out.set(t.id as string, { txnId: t.id as string, amountMinor: amt, expenseMinor: exp, label: String(t.payee ?? t.id) });
+  }
+  return [...out.values()];
+}
 
 // ---------- paying a bill ----------
 /**
  * Confirms a bill payment: one payment record per due date and (when the amount is known) one transaction, in one batch. Confirming twice changes nothing.
  * A fixed bill uses its amount; a bill with an estimated amount needs the amount actually paid (it is never guessed). A linked open task is completed.
- * `skip: true` records that this occurrence will not be paid.
+ * A payment on a loan may give `principal` and `interest` (they must add up to it). `skip: true` records that this occurrence will not be paid.
+ * A payment that was reversed can be confirmed again: the same record is used, with a new transaction.
  */
 export const payBill = (ctx: Ctx, raw: unknown): Promise<Result<{ paymentId: string; status: string; transactionId: string | null; taskCompleted: boolean }>> => guard(async () => {
   assertModule(ctx.actor, MODULE);
@@ -262,8 +443,8 @@ export const payBill = (ctx: Ctx, raw: unknown): Promise<Result<{ paymentId: str
   const billId = await resolveRef(ctx, "bill", i.billId ?? i.bill, "bill"); const dueDate = v.date(i.dueDate, "dueDate", false)!;
   const bill = (await ctx.db.prepare("SELECT * FROM fin_bills WHERE id = ?").bind(billId).first<Row>())!;
   const existing = await ctx.db.prepare("SELECT * FROM fin_bill_payments WHERE bill_id = ? AND due_date = ?").bind(billId, dueDate).first<Row>();
-  if (existing) return ok({ paymentId: existing.id as string, status: existing.status as string, transactionId: (existing.txn_id as string | null) ?? null, taskCompleted: false }, { duplicate: true });
-  const skip = v.bool(i.skip, "skip") === true; const at = ctx.now().toISOString(); const paymentId = rowId("fbp"); const paidOn = v.date(i.paidOn, "paidOn") ?? today;
+  if (existing && !existing.reversed_at) return ok({ paymentId: existing.id as string, status: existing.status as string, transactionId: (existing.txn_id as string | null) ?? null, taskCompleted: false }, { duplicate: true });
+  const skip = v.bool(i.skip, "skip") === true; const at = ctx.now().toISOString(); const paymentId = (existing?.id as string | undefined) ?? rowId("fbp"); const paidOn = v.date(i.paidOn, "paidOn") ?? today;
   const stmts: D1PreparedStatement[] = []; let txnId: string | null = null; let amount: Minor | null = null;
   if (!skip) {
     const given = money(i, "amount"); amount = given ?? (bill.amount_kind === "fixed" ? (bill.amount_minor as number | null) : null);
@@ -272,17 +453,22 @@ export const payBill = (ctx: Ctx, raw: unknown): Promise<Result<{ paymentId: str
     if (amount !== null && accountId) {
       txnId = rowId("ftx"); const src = sourceOf(ctx);
       const { results: accs } = await ctx.db.prepare("SELECT id, type FROM fin_accounts").all<{ id: string; type: AccountType }>(); const types = new Map(accs.map((a) => [a.id, a.type]));
-      const counter = (bill.counter_account_id as string | null) ?? null; const signed = -Math.abs(amount);
-      stmts.push(ctx.db.prepare("INSERT INTO fin_transactions (id,account_id,counter_account_id,date,amount_minor,kind,payee,category_id,status,bill_id,bill_due,source_kind,source_name,source_assistant,external_id,demo,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,'confirmed',?,?,?,?,?,?,?,?,?,?,?)")
-        .bind(txnId, accountId, counter, paidOn, signed, deriveTxnKind({ amountMinor: signed, counterAccountId: counter }, types), bill.name, bill.category_id ?? null, billId, dueDate, src.kind, src.name, src.assistant, `bill:${billId}:${dueDate}`, bill.demo ?? 0, at, at, ctx.actor.label, ctx.actor.label), auditStmt(ctx, "finance.transaction.create", "transaction", txnId));
+      const counter = (bill.counter_account_id as string | null) ?? null; const signed = -Math.abs(amount); const kind = deriveTxnKind({ amountMinor: signed, counterAccountId: counter }, types);
+      const g = readSplit(i); let split: { principalMinor: number; interestMinor: number } | null = null;
+      if (g) { if (kind !== "loan_payment") throw new v.InvalidInput("principal and interest apply only to a payment on a loan"); try { split = resolveSplit(signed, g.principal, g.interest); } catch (e) { if (e instanceof RangeError) throw new v.InvalidInput(e.message); throw e; } }
+      // a re-payment after a reversal gets its own key (the first transaction keeps its key, voided or reversed)
+      const prior = (await ctx.db.prepare("SELECT COUNT(*) AS n FROM fin_transactions WHERE bill_id = ? AND bill_due = ?").bind(billId, dueDate).first<{ n: number }>())!.n;
+      stmts.push(ctx.db.prepare("INSERT INTO fin_transactions (id,account_id,counter_account_id,date,amount_minor,kind,payee,category_id,status,bill_id,bill_due,principal_minor,interest_minor,source_kind,source_name,source_assistant,external_id,demo,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,'confirmed',?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(txnId, accountId, counter, paidOn, signed, kind, bill.name, bill.category_id ?? null, billId, dueDate, split?.principalMinor ?? null, split?.interestMinor ?? null, src.kind, src.name, src.assistant, `bill:${billId}:${dueDate}${prior ? `:${prior + 1}` : ""}`, bill.demo ?? 0, at, at, ctx.actor.label, ctx.actor.label), auditStmt(ctx, "finance.transaction.create", "transaction", txnId));
     }
   }
-  stmts.push(ctx.db.prepare("INSERT INTO fin_bill_payments (id,bill_id,due_date,status,paid_on,amount_minor,txn_id,demo,created_at,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(paymentId, billId, dueDate, skip ? "skipped" : "paid", skip ? null : paidOn, skip ? null : amount, txnId, bill.demo ?? 0, at, ctx.actor.label), auditStmt(ctx, skip ? "finance.bill.skip" : "finance.bill.pay", "bill", billId));
+  if (existing) stmts.push(ctx.db.prepare("UPDATE fin_bill_payments SET status = ?, paid_on = ?, amount_minor = ?, txn_id = ?, reversed_at = NULL, reversed_by = NULL, reverse_reason = NULL, completed_task_id = NULL WHERE id = ?").bind(skip ? "skipped" : "paid", skip ? null : paidOn, skip ? null : amount, txnId, paymentId), auditStmt(ctx, skip ? "finance.bill.skip" : "finance.bill.pay", "bill", billId));
+  else stmts.push(ctx.db.prepare("INSERT INTO fin_bill_payments (id,bill_id,due_date,status,paid_on,amount_minor,txn_id,demo,created_at,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(paymentId, billId, dueDate, skip ? "skipped" : "paid", skip ? null : paidOn, skip ? null : amount, txnId, bill.demo ?? 0, at, ctx.actor.label), auditStmt(ctx, skip ? "finance.bill.skip" : "finance.bill.pay", "bill", billId));
   await write(ctx.db, stmts);
-  // Keep the financial task in step: the open task about this bill occurrence is completed too.
+  // Keep the financial task in step: the open task about this bill occurrence is completed too (and remembered, so reversing the payment can reopen exactly it).
   let taskCompleted = false;
   const t = await ctx.db.prepare("SELECT id FROM tasks WHERE record_ref = ? AND due_date = ? AND status != 'completed' AND archived_at IS NULL LIMIT 1").bind(`bill:${billId}`, dueDate).first<{ id: string }>();
-  if (t && !skip) { const r = await completeTask(ctx, { id: t.id, today }); taskCompleted = r.ok; }
+  if (t && !skip) { const r = await completeTask(ctx, { id: t.id, today }); taskCompleted = r.ok; if (r.ok) await write(ctx.db, [ctx.db.prepare("UPDATE fin_bill_payments SET completed_task_id = ? WHERE id = ?").bind(t.id, paymentId)]); }
   return ok({ paymentId, status: skip ? "skipped" : "paid", transactionId: txnId, taskCompleted });
 });
 
@@ -293,11 +479,15 @@ export const getFinance = (ctx: Ctx, raw: unknown): Promise<Result<Record<string
   const i = v.obj(raw ?? {}, "input"); const today = await resolveToday(ctx, i, v);
   const from = v.date(i.from, "from") ?? `${(() => { const [y, m] = today.slice(0, 7).split("-").map(Number); const t = y * 12 + (m - 1) - 12; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`; })()}-01`;
   const q = async (sql: string, ...a: unknown[]) => (await ctx.db.prepare(sql).bind(...a).all<Row>()).results.map(view);
-  const [accounts, balances, categories, transactions, bills, payments, budgets, incomePlans, reimbursements, links] = await Promise.all([
+  const [accounts, balances, categories, transactions, bills, payments, budgets, incomePlans, reimbursements, links, reimbursementLinks, history] = await Promise.all([
     q("SELECT * FROM fin_accounts ORDER BY archived_at IS NOT NULL, sort_order, name"), q("SELECT * FROM fin_balances ORDER BY as_of"), q("SELECT * FROM fin_categories WHERE archived_at IS NULL ORDER BY kind DESC, sort_order, name"),
     q("SELECT * FROM fin_transactions WHERE date >= ? ORDER BY date DESC, created_at DESC LIMIT 3000", from), q("SELECT * FROM fin_bills ORDER BY name"), q("SELECT * FROM fin_bill_payments WHERE due_date >= ?", from),
     q("SELECT * FROM fin_budgets"), q("SELECT * FROM fin_income_plans ORDER BY name"), q("SELECT * FROM fin_reimbursements ORDER BY COALESCE(claimed_on, created_at) DESC"),
     q("SELECT substr(record_ref, 6) AS billId, due_date AS dueDate, status FROM tasks WHERE record_ref LIKE 'bill:%' AND due_date IS NOT NULL AND archived_at IS NULL"),
+    q("SELECT reimbursement_id AS reimbursementId, txn_id AS txnId, amount_minor AS amountMinor FROM fin_reimbursement_links"),
+    q("SELECT h.txn_id AS txnId, h.at, h.action, h.actor_label AS actorLabel, h.channel, h.reason, h.changed FROM fin_txn_history h JOIN fin_transactions t ON t.id = h.txn_id WHERE t.date >= ? ORDER BY h.at DESC, h.id DESC LIMIT 600", from),
   ]);
-  return ok({ today, currency: "CAD", accounts, balances, categories, transactions, bills, payments, budgets, incomePlans, reimbursements, taskLinks: links });
+  const rec = reimbursementRecon(reimbursements as unknown as FinReimb[], reimbursementLinks as unknown as FinReimbLink[], transactions as unknown as FinTxn[]);
+  const reconciliation = { claims: [...rec.claims.values()], expenses: [...rec.expenses.values()], unclaimedExpenses: rec.unclaimedExpenses };
+  return ok({ today, currency: "CAD", accounts, balances, categories, transactions, bills, payments, budgets, incomePlans, reimbursements, taskLinks: links, reimbursementLinks, history: history.map((h) => ({ ...h, changed: typeof h.changed === "string" ? JSON.parse(h.changed) : h.changed })), reconciliation });
 });

@@ -14,6 +14,9 @@
    The theme is always resolved to data-theme="light|dark" (public/theme-init.js before paint, useTheme after).
    ------------------------------------------------------------------------------------------------ */
 :root {
+  /* Brand: Orbis Lime and Forest. The Orbis button and its menu use these in both themes. */
+  --orbis-lime: #d5dfb3;
+  --orbis-forest: #2a332d;
   --canvas-a: #eceded;
   --canvas-b: #eceded;
   --sheet: #f2f3f3;
@@ -238,6 +241,20 @@
   .hit { min-height: 44px; min-width: 44px; }
   /* iPhone: every button is at least 44 px tall. Wider screens keep the compact sizes. */
   @media (max-width: 767px) { .btn { min-height: 44px; } }
+  /* The central Orbis button: brand lime, raised, the orbit turns when the menu opens. */
+  .orbis-btn { background: var(--orbis-lime); color: var(--orbis-forest); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 8px 18px -8px rgb(42 51 45 / 0.55), 0 0 0 1px rgb(42 51 45 / 0.16); transition: transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base) ease; }
+  .orbis-btn:active { transform: scale(0.95); }
+  .orbis-btn[aria-expanded="true"] { transform: scale(1.07); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 12px 24px -8px rgb(42 51 45 / 0.6), 0 0 0 1px rgb(42 51 45 / 0.22); }
+  .orbis-btn svg { transition: transform 620ms var(--ease-spring); }
+  .orbis-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+  /* The floating glass menu: rises from the button, items follow one after another. Opacity and transform only. */
+  .orbis-pop { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.9); transform-origin: bottom center; pointer-events: none; transition: opacity 160ms ease, transform 220ms var(--ease-out); }
+  .orbis-pop[data-side="right"] { transform: translate3d(-14px, 0, 0) scale(0.92); transform-origin: left center; }
+  .orbis-pop[data-shown="true"] { opacity: 1; transform: none; pointer-events: auto; transition: opacity 200ms ease, transform 420ms var(--ease-spring); }
+  .orbis-pop > li { opacity: 0; transform: translate3d(0, 8px, 0); transition: opacity 120ms ease, transform 160ms var(--ease-out); }
+  .orbis-pop[data-shown="true"] > li { opacity: 1; transform: none; transition: opacity 240ms ease, transform 380ms var(--ease-spring); transition-delay: calc(var(--i, 0) * 32ms + 60ms); }
+  .orbis-scrim { opacity: 0; transition: opacity 200ms ease; }
+  .orbis-scrim[data-shown="true"] { opacity: 1; }
   .safe-b { padding-bottom: env(safe-area-inset-bottom); }
   .safe-t { padding-top: env(safe-area-inset-top); }
 }

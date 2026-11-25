@@ -45,17 +45,19 @@ export interface ProcItem {
   priority: Priority; notes: string | null; source: Source; externalId: string | null; demo: boolean; archivedAt: string | null; createdAt: string; updatedAt: string; version: number;
 }
 
-import type { FinAccount, FinBalance, FinBill, FinBudget, FinIncomePlan, FinPayment, FinReimb, FinTxn } from "../../shared/finance";
-export type { FinAccount, FinBalance, FinBill, FinBudget, FinIncomePlan, FinPayment, FinReimb, FinTxn };
+import type { ClaimRecon, ExpenseRecon, FinAccount, FinBalance, FinBill, FinBudget, FinIncomePlan, FinPayment, FinReimb, FinReimbLink, FinTxn } from "../../shared/finance";
+export type { ClaimRecon, ExpenseRecon, FinAccount, FinBalance, FinBill, FinBudget, FinIncomePlan, FinPayment, FinReimb, FinReimbLink, FinTxn };
 interface FinExtra { demo: boolean; version: number; source: Source; createdAt: string }
 export type FinAccountV = FinAccount & FinExtra & { institution: string | null; sortOrder: number };
-export type FinTxnV = FinTxn & FinExtra & { payee: string | null; description: string | null; reimbursable: boolean; reimbursementId: string | null };
+export type FinTxnV = FinTxn & FinExtra & { payee: string | null; description: string | null; reimbursable: boolean; reimbursementId: string | null; voidedBy: string | null; voidReason: string | null };
+export interface FinHistoryRow { txnId: string; at: string; action: "edit" | "void" | "reverse" | "reversal_entry" | "payment_reversed" | "link"; actorLabel: string; channel: string | null; reason: string | null; changed: Array<{ field: string; from: unknown; to: unknown }> }
 export type FinBillV = FinBill & FinExtra & { autopay: boolean; notes: string | null };
 export type FinIncomePlanV = FinIncomePlan & FinExtra & { notes: string | null };
 export type FinReimbV = FinReimb & FinExtra & { description: string; payer: string | null; expenseTxnId: string | null; receivedTxnId: string | null };
 export interface FinCategory { id: string; name: string; kind: "expense" | "income" }
 export interface FinBudgetV extends FinBudget { id: string; demo: boolean }
 export interface FinanceData {
-  today: string; currency: "CAD"; accounts: FinAccountV[]; balances: Array<FinBalance & { id: string; demo: boolean }>; categories: FinCategory[]; transactions: FinTxnV[]; bills: FinBillV[]; payments: Array<FinPayment & { id: string; demo: boolean }>;
+  today: string; currency: "CAD"; accounts: FinAccountV[]; balances: Array<FinBalance & { id: string; demo: boolean }>; categories: FinCategory[]; transactions: FinTxnV[]; bills: FinBillV[]; payments: Array<FinPayment & { id: string; demo: boolean; reverseReason?: string | null }>;
   budgets: FinBudgetV[]; incomePlans: FinIncomePlanV[]; reimbursements: FinReimbV[]; taskLinks: Array<{ billId: string; dueDate: string; status: string }>;
+  reimbursementLinks: FinReimbLink[]; history: FinHistoryRow[]; reconciliation: { claims: ClaimRecon[]; expenses: ExpenseRecon[]; unclaimedExpenses: ExpenseRecon[] };
 }

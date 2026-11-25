@@ -31,11 +31,12 @@ function Pick({ label, value, display, onChange, children }: { label: string; va
  * The one task screen. The module and time-horizon filters work together; secondary filters (priority, status, project) live in a menu.
  * Opened from Home it shows every module; opened from a module it starts on that module. All views read the same task records.
  */
-export function TasksView({ module: defaultModule }: { module?: ModuleId; embedded?: boolean }) {
+export function TasksView({ module: defaultModule, scope }: { module?: ModuleId; scope?: readonly ModuleId[]; embedded?: boolean }) {
   const { tasks, today, weekStart, loading, error, completeTask, reopenTask } = useData();
   const [sp, setSp] = useSearchParams();
   const rawModule = sp.get("module");
-  const module: ModuleId | "all" = rawModule === "all" ? "all" : isModule(rawModule) ? rawModule : defaultModule ?? "all";
+  const choices = scope ?? MODULE_IDS;
+  const module: ModuleId | "all" = rawModule === "all" ? "all" : isModule(rawModule) && choices.includes(rawModule) ? rawModule : defaultModule ?? "all";
   const rawH = sp.get("h") ?? "all";
   const legacyDone = rawH === "done";
   const h = (HORIZONS as readonly string[]).includes(rawH) ? (rawH as Horizon) : null;
@@ -50,7 +51,7 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
   useEffect(() => { if (sp.get("add")) { setEditing({}); const n = new URLSearchParams(sp); n.delete("add"); setSp(n, { replace: true }); } }, [sp, setSp]);
   const set = (k: string, v: string) => setSp((p) => { const n = new URLSearchParams(p); if (!v || (v === "all" && k !== "module")) n.delete(k); else n.set(k, v); if (k === "status") n.delete("h_done"); if (legacyDone && k !== "h") n.delete("h"); return n; }, { replace: true });
 
-  const inModule = useMemo(() => tasks.filter((t) => module === "all" || t.module === module), [tasks, module]);
+  const inModule = useMemo(() => tasks.filter((t) => (module === "all" ? !scope || scope.includes(t.module) : t.module === module)), [tasks, module, scope]);
   const projects = useMemo(() => [...new Set(inModule.map((t) => t.project).filter((p): p is string => !!p))].sort(), [inModule]);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -67,15 +68,15 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
   const typeCount = (k: string) => inModule.filter((t) => isOpen(t) && (k === "all" || t.type === k)).length;
   const toggle = (t: Task) => void (t.status === "completed" ? reopenTask(t.id) : completeTask(t.id));
   const secondary = [priority !== "all" && ["priority", `Priority: ${priority}`], status !== "all" && ["status", STATUSES.find((s) => s.value === status)?.label ?? status], project !== "all" && ["project", `Project: ${project}`]].filter(Boolean) as Array<[string, string]>;
-  const moduleLabel = module === "all" ? "All modules" : MODULES_META[module].label;
+  const moduleLabel = module === "all" ? (scope ? "Personal" : "All modules") : MODULES_META[module].label;
   const horizonLabel = h ? HORIZON_LABELS[h] : "All times";
 
   return (
     <div>
       <div data-cascade className="mb-2.5 flex items-center gap-2">
         <Pick label="Module" value={module} display={moduleLabel} onChange={(v) => set("module", v)}>
-          <option value="all">All modules</option>
-          {MODULE_IDS.map((m) => <option key={m} value={m}>{MODULES_META[m].label}</option>)}
+          <option value="all">{scope ? "Personal" : "All modules"}</option>
+          {choices.map((m) => <option key={m} value={m}>{MODULES_META[m].label}</option>)}
         </Pick>
         <Pick label="Time horizon" value={h ?? "all"} display={horizonLabel} onChange={(v) => set("h", v)}>
           <option value="all">All times</option>
