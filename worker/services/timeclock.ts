@@ -4,6 +4,7 @@ import { auditStmt } from "./audit";
 import { changes, write } from "./db";
 import { prefsOf, resolveToday } from "./prefs";
 import { fail, ok, type Ctx, type Result } from "./types";
+import { runTimeSchedule, scheduleView, type ScheduleView } from "./timeSchedule";
 import * as v from "./validate";
 
 /** The Time Clock is the owner's own record of hours: no assistant can read or change it. */
@@ -17,14 +18,14 @@ const guard = async <T>(fn: () => Promise<Result<T>>): Promise<Result<T>> => {
   }
 };
 
-interface EntryRow { id: string; kind: "job" | "break"; job_id: string | null; resume_job_id: string | null; start_at: string; end_at: string | null; note: string | null; punch_id: string | null; edited: number; orig_start_at: string | null; orig_end_at: string | null; version: number }
+interface EntryRow { id: string; kind: "job" | "break"; job_id: string | null; resume_job_id: string | null; start_at: string; end_at: string | null; note: string | null; punch_id: string | null; source: string; end_source: string | null; edited: number; orig_start_at: string | null; orig_end_at: string | null; version: number }
 interface JobRow { id: string; name: string; number: string | null; active: number; sort_order: number }
-const toEntry = (r: EntryRow) => ({ id: r.id, kind: r.kind, jobId: r.job_id, resumeJobId: r.resume_job_id, startAt: r.start_at, endAt: r.end_at, note: r.note, edited: !!r.edited, origStartAt: r.orig_start_at, origEndAt: r.orig_end_at, version: r.version });
+const toEntry = (r: EntryRow) => ({ id: r.id, kind: r.kind, jobId: r.job_id, resumeJobId: r.resume_job_id, startAt: r.start_at, endAt: r.end_at, note: r.note, source: (r.source === "scheduled" ? "scheduled" : "manual") as "scheduled" | "manual", endSource: (r.end_source === "scheduled" ? "scheduled" : null) as "scheduled" | null, edited: !!r.edited, origStartAt: r.orig_start_at, origEndAt: r.orig_end_at, version: r.version });
 const toJob = (r: JobRow): TimeJob => ({ id: r.id, name: r.name, number: r.number, active: !!r.active, sortOrder: r.sort_order });
 export type EntryView = ReturnType<typeof toEntry>;
-export interface ClockState { jobs: TimeJob[]; entries: EntryView[]; open: EntryView | null; serverNow: string; timezone: string; weekStart: 0 | 1 }
+export interface ClockState { jobs: TimeJob[]; entries: EntryView[]; open: EntryView | null; serverNow: string; timezone: string; weekStart: 0 | 1; schedule: ScheduleView }
 
-const COLS = "id, kind, job_id, resume_job_id, start_at, end_at, note, punch_id, edited, orig_start_at, orig_end_at, version";
+const COLS = "id, kind, job_id, resume_job_id, start_at, end_at, note, punch_id, source, end_source, edited, orig_start_at, orig_end_at, version";
 const iso = (x: unknown, name: string): string => {
   if (typeof x !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(x) || Number.isNaN(Date.parse(x))) throw new v.InvalidInput(`${name} must be a date and time with a zone, e.g. 2026-11-25T06:00:00Z`);
   return new Date(x).toISOString();
@@ -40,11 +41,12 @@ async function loadState(ctx: Ctx, from?: string, to?: string): Promise<ClockSta
   const lo = from ? new Date(startOfDay(from, "UTC") - 86_400_000).toISOString() : "0000";
   const hi = to ? new Date(startOfDay(nextDay(to), "UTC") + 86_400_000).toISOString() : "9999";
   const { results } = await ctx.db.prepare(`SELECT ${COLS} FROM time_entries WHERE deleted_at IS NULL AND start_at < ? AND (end_at IS NULL OR end_at > ?) ORDER BY start_at`).bind(hi, lo).all<EntryRow>();
-  return { jobs: jobs.results.map(toJob), entries: results.map(toEntry), open: open ? toEntry(open) : null, serverNow: ctx.now().toISOString(), timezone: prefs.timezone, weekStart: prefs.weekStart };
+  return { jobs: jobs.results.map(toJob), entries: results.map(toEntry), open: open ? toEntry(open) : null, serverNow: ctx.now().toISOString(), timezone: prefs.timezone, weekStart: prefs.weekStart, schedule: await scheduleView(ctx) };
 }
 
 export const getTimeclock = (ctx: Ctx, raw: unknown): Promise<Result<ClockState>> => guard(async () => {
   owner(ctx);
+  await runTimeSchedule(ctx.db, ctx.now()).catch(() => undefined); // the app polls this every 30 s, so staging (no Cron Trigger) stays on schedule while Orbis is open
   const i = v.obj(raw ?? {}, "input");
   const today = await resolveToday(ctx, i, v);
   const from = v.date(i.from, "from") ?? new Date(startOfDay(today, "UTC") - 20 * 86_400_000).toISOString().slice(0, 10);

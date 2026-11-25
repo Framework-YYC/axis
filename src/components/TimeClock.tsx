@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Clock3, Coffee, Pencil, Plus, Square } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Clock3, Coffee, Pencil, Plus, Square } from "lucide-react";
 import { useState } from "react";
 import { clockTime, dayTotals, fmtDecimal, fmtHM, fmtHMS, fromLocalInput, jobLabel, nextDay, startOfDay, toLocalInput, weekStartOf, weekTotals, type PunchAction, type TimeJob } from "../../shared/timeclock";
 import { cx } from "../lib/cx";
@@ -20,10 +20,12 @@ function statusOf(c: Clock) {
   return o.kind === "break" ? { text: "On break", tone: "break" as const } : { text: "On shift", tone: "on" as const };
 }
 
+type Tab = "history" | "week" | "jobs" | "schedule";
 /** Quick punching between jobs, directly on Work Overview. The server keeps the timestamps, so tracking continues when Orbis is closed. */
 export function TimeClockCard({ className }: { className?: string }) {
   const c = useTimeclock();
   const [sheet, setSheet] = useState(false);
+  const [sheetTab, setSheetTab] = useState<Tab>("history");
   const [confirmEnd, setConfirmEnd] = useState(false);
   const open = c.clock?.open ?? null;
   const now = useNow(open ? 1000 : 60_000);
@@ -41,7 +43,7 @@ export function TimeClockCard({ className }: { className?: string }) {
     <Card tone="charcoal" label="Time clock" aria={`Time clock: ${st.text}. ${runningLabel}`} className={cx("min-h-[220px]", className)}>
       <div className="absolute right-3 top-3 flex items-center gap-2">
         <span className="pill">{st.text}</span>
-        <button onClick={() => setSheet(true)} className="hit press inline-flex items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted" style={{ boxShadow: "0 0 0 1px var(--line)" }}><Pencil size={13} aria-hidden />History</button>
+        <button onClick={() => { setSheetTab("history"); setSheet(true); }} className="hit press inline-flex items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted" style={{ boxShadow: "0 0 0 1px var(--line)" }}><Pencil size={13} aria-hidden />History</button>
       </div>
 
       {(c.pending?.status === "failed" || c.loadError) && (
@@ -61,7 +63,7 @@ export function TimeClockCard({ className }: { className?: string }) {
         <div className="min-w-0">
           <p className="num text-[44px] font-extralight leading-none tracking-tight" aria-live="off" aria-label={open ? `Elapsed ${fmtHM(nowMs - Date.parse(open.startAt))}` : "Not running"}>{open ? fmtHMS(nowMs - Date.parse(open.startAt)) : "0:00:00"}</p>
           <p className="mt-1.5 truncate text-[15px]">{runningLabel}</p>
-          <p className="text-[12.5px] opacity-70">{open ? `since ${clockTime(open.startAt, c.tz)}` : c.clock ? "Tap a job to start" : "Loading…"}{busy ? " · saving…" : ""}</p>
+          <p className="text-[12.5px] opacity-70">{open ? `since ${clockTime(open.startAt, c.tz)}${open.source === "scheduled" ? " · scheduled clock-in" : ""}` : c.clock ? "Tap a job to start" : "Loading…"}{busy ? " · saving…" : ""}</p>
         </div>
         <div className="text-right">
           <p className="num text-[26px] font-light leading-none">{today ? fmtHM(today.workMs) : "–"}</p>
@@ -95,18 +97,18 @@ export function TimeClockCard({ className }: { className?: string }) {
           : <button disabled={busy || !open} onClick={() => setConfirmEnd(true)} className={cx(punchBtn, "inset min-h-[48px]")}><span className="inline-flex items-center gap-2"><Square size={14} aria-hidden />End shift</span></button>}
       </div>
       {c.notice && <p role="status" className="mt-2 text-[12.5px] opacity-80">{c.notice}</p>}
-      {sheet && <TimeClockSheet c={c} onClose={() => setSheet(false)} />}
+      {c.clock && <ScheduleLine c={c} open={!!open} onSettings={() => { setSheetTab("schedule"); setSheet(true); }} />}
+      {sheet && <TimeClockSheet c={c} initial={sheetTab} onClose={() => { setSheet(false); setSheetTab("history"); }} />}
     </Card>
   );
 }
 
-type Tab = "history" | "week" | "jobs";
-function TimeClockSheet({ c, onClose }: { c: Clock; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("history");
+function TimeClockSheet({ c, initial, onClose }: { c: Clock; initial: Tab; onClose: () => void }) {
+  const [tab, setTab] = useState<Tab>(initial);
   return (
     <Modal title="Time clock" onClose={onClose} wide>
-      <div className="mb-4"><Segmented label="Time clock sections" value={tab} onChange={setTab} options={[{ value: "history", label: "Punch history" }, { value: "week", label: "Weekly totals" }, { value: "jobs", label: "Jobs" }]} /></div>
-      {!c.clock ? <Empty>{c.loadError ?? "Loading…"}</Empty> : tab === "history" ? <History c={c} /> : tab === "week" ? <Week c={c} /> : <Jobs c={c} />}
+      <div className="mb-4"><Segmented label="Time clock sections" value={tab} onChange={setTab} options={[{ value: "history", label: "Punch history" }, { value: "week", label: "Weekly totals" }, { value: "jobs", label: "Jobs" }, { value: "schedule", label: "Schedule" }]} /></div>
+      {!c.clock ? <Empty>{c.loadError ?? "Loading…"}</Empty> : tab === "history" ? <History c={c} /> : tab === "week" ? <Week c={c} /> : tab === "jobs" ? <Jobs c={c} /> : <Schedule c={c} />}
     </Modal>
   );
 }
@@ -134,7 +136,7 @@ function History({ c }: { c: Clock }) {
           {list.map((e) => (
             <li key={e.id} className="border-t border-line first:border-t-0">
               <button onClick={() => setEdit({ id: e.id })} className="hit flex w-full items-center gap-3 py-2 text-left text-[14px]">
-                <span className="min-w-0 flex-1 truncate">{e.kind === "break" ? "Break" : jobLabel(byId.get(e.jobId ?? ""))}{e.edited && <span className="mono ml-2 !normal-case">edited</span>}{!e.endAt && <span className="mono ml-2 !normal-case">running</span>}</span>
+                <span className="min-w-0 flex-1 truncate">{e.kind === "break" ? "Break" : jobLabel(byId.get(e.jobId ?? ""))}{e.source === "scheduled" && <span className="mono ml-2 !normal-case">scheduled in</span>}{e.endSource === "scheduled" && <span className="mono ml-2 !normal-case">scheduled out</span>}{e.edited && <span className="mono ml-2 !normal-case">edited</span>}{!e.endAt && <span className="mono ml-2 !normal-case">running</span>}</span>
                 <span className="num shrink-0 text-muted">{clockTime(e.startAt, c.tz)} – {e.endAt ? clockTime(e.endAt, c.tz) : "now"}</span>
                 <span className="num w-[52px] shrink-0 text-right">{fmtHM((e.endAt ? Date.parse(e.endAt) : now) - Date.parse(e.startAt))}</span>
               </button>
@@ -181,6 +183,7 @@ function EntryEditor({ c, id, day, onClose }: { c: Clock; id?: string; day: stri
           <Field label="End" hint={e && !e.endAt ? "Leave blank while it is still running." : undefined}>{(fid) => <TextInput id={fid} type="datetime-local" value={end} onChange={setEnd} />}</Field>
         </div>
         <Field label="Note">{(fid) => <TextInput id={fid} value={note} onChange={setNote} maxLength={200} />}</Field>
+        {e && (e.source === "scheduled" || e.endSource === "scheduled") && <p className="mono !normal-case !tracking-normal">{e.source === "scheduled" ? "Started automatically by the schedule. " : ""}{e.endSource === "scheduled" ? "Ended automatically by the schedule. " : ""}Change the times if they were different.</p>}
         {e?.edited && e.origStartAt && <p className="mono !normal-case !tracking-normal">Originally punched {clockTime(e.origStartAt, c.tz)} to {e.origEndAt ? clockTime(e.origEndAt, c.tz) : "running"}.</p>}
         <FormError message={err} />
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
@@ -254,5 +257,67 @@ function JobRow({ job, onSave }: { job: TimeJob; onSave: (b: Record<string, unkn
       <TextInput id={`jx-${job.id}`} aria-label="Job number" value={num} onChange={setNum} maxLength={20} inputMode="numeric" />
       <div className="flex gap-2">{dirty && <Btn variant="primary" onClick={() => void onSave({ id: job.id, name, number: num || null })}>Save</Btn>}<Btn variant="soft" onClick={() => void onSave({ id: job.id, active: !job.active })}>{job.active ? "Archive" : "Restore"}</Btn></div>
     </li>
+  );
+}
+
+
+/** The automatic punches in one place on the card: what is set up, what happened today, and today's two choices. */
+function ScheduleLine({ c, open, onSettings }: { c: Clock; open: boolean; onSettings: () => void }) {
+  const v = c.clock!.schedule, cfg = v.config;
+  const [msg, setMsg] = useState<string | null>(null);
+  const jobName = jobLabel(c.clock!.jobs.find((j) => j.id === cfg.jobId));
+  const act = async (a: "skip_in" | "overtime") => setMsg(await c.scheduleAction(a));
+  if (!cfg.timezone || !cfg.enabled) return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3 text-[12.5px] text-muted">
+      <CalendarClock size={14} aria-hidden /><span className="min-w-0 flex-1">{cfg.enabled ? "Automatic punches are off until you choose the worksite time zone." : "Automatic punches are turned off."}</span>
+      <button onClick={onSettings} className="hit press rounded-full px-3 text-[12.5px] text-ink" style={{ boxShadow: "0 0 0 1px var(--line)" }}>Set up</button>
+    </div>
+  );
+  const t = v.today;
+  const inText = !t ? "" : !t.onRotation ? "" : t.inOutcome === "punched" ? `Clocked in automatically at ${cfg.startTime}.` : t.inOutcome === "skipped" ? (t.inReason ?? "Automatic clock-in skipped.") : t.inOutcome === "missed" ? "Automatic clock-in missed: Orbis was not running then, and nothing was backfilled." : `Clock-in ${cfg.startTime} to ${jobName}.`;
+  const outText = !t || !t.onRotation ? "" : t.outOutcome === "punched" ? `Clocked out automatically at ${cfg.endTime}.` : t.outOutcome === "overtime" ? "Overtime today: no automatic clock-out." : t.outOutcome === "none" || t.outOutcome === "skipped" ? "" : `Clock-out ${cfg.endTime}.`;
+  return (
+    <div className="mt-3 border-t border-line pt-3 text-[12.5px]">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted"><CalendarClock size={14} aria-hidden /><span className="min-w-0 flex-1">Auto punches · {cfg.startTime} to {cfg.endTime} · {cfg.timezone.replace("_", " ")} · on-rotation days only</span><button onClick={onSettings} className="hit press rounded-full px-3 text-ink" style={{ boxShadow: "0 0 0 1px var(--line)" }}>Edit</button></p>
+      {t && !t.onRotation && <p className="mt-1.5">Off rotation today: no automatic punches.{v.nextRunDate ? ` Next: ${pretty(v.nextRunDate, { weekday: "short", day: "numeric", month: "short" })}.` : ""}</p>}
+      {t?.onRotation && <p className="mt-1.5">{[inText, outText].filter(Boolean).join(" ")}</p>}
+      {v.status && <p role="alert" className="mt-1.5 font-medium" style={{ color: "var(--w-terra)" }}>{v.status.message}</p>}
+      {t?.onRotation && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {!t.inOutcome && !open && <button onClick={() => void act("skip_in")} className="hit press rounded-full px-3.5" style={{ boxShadow: "0 0 0 1px var(--line)" }}>Skip today's clock-in</button>}
+          {!t.outOutcome && open && <button onClick={() => void act("overtime")} className="hit press rounded-full px-3.5" style={{ boxShadow: "0 0 0 1px var(--line)" }}>Work overtime today</button>}
+        </div>
+      )}
+      {msg && <p role="status" className="mt-1.5" style={{ color: "var(--w-terra)" }}>{msg}</p>}
+    </div>
+  );
+}
+
+const ZONES = ["America/Vancouver", "America/Edmonton", "America/Regina", "America/Winnipeg", "America/Toronto", "America/Halifax", "America/St_Johns"];
+function Schedule({ c }: { c: Clock }) {
+  const v = c.clock!.schedule, cfg = v.config;
+  const known = !cfg.timezone || ZONES.includes(cfg.timezone);
+  const [enabled, setEnabled] = useState(cfg.enabled);
+  const [zone, setZone] = useState(cfg.timezone ? (known ? cfg.timezone : "other") : "");
+  const [other, setOther] = useState(known ? "" : cfg.timezone ?? "");
+  const [start, setStart] = useState(cfg.startTime), [end, setEnd] = useState(cfg.endTime), [job, setJob] = useState(cfg.jobId);
+  const [err, setErr] = useState<string | null>(null), [saved, setSaved] = useState(false), [saving, setSaving] = useState(false);
+  const tz = zone === "other" ? other.trim() : zone;
+  const save = async () => { setSaving(true); setErr(null); setSaved(false); const m = await c.saveSchedule({ enabled, timezone: tz || null, startTime: start, endTime: end, jobId: job }); setSaving(false); if (m) setErr(m); else setSaved(true); };
+  return (
+    <div className="space-y-3.5">
+      <p className="text-[13px] text-muted">At the clock-in time on on-rotation days Orbis punches you into the job below; at the clock-out time it ends whatever is running (job or break). Orbis does this on its own server, so it works while the app is closed. Manual punches always win, nothing is backfilled and no lunch is deducted.</p>
+      <Field label="Automatic punches">{(fid) => <Select id={fid} value={enabled ? "on" : "off"} onChange={(x) => setEnabled(x === "on")} options={[{ value: "on", label: "On" }, { value: "off", label: "Off" }]} />}</Field>
+      <Field label="Worksite time zone" hint="The site's zone, not this device's. Nothing runs until it is set.">{(fid) => <Select id={fid} value={zone} onChange={setZone} options={[{ value: "", label: "Choose…" }, ...ZONES.map((z) => ({ value: z, label: z.replace("America/", "").replace("_", " ") })), { value: "other", label: "Other…" }]} />}</Field>
+      {zone === "other" && <Field label="IANA zone name">{(fid) => <TextInput id={fid} value={other} onChange={setOther} placeholder="e.g. America/Denver" />}</Field>}
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <Field label="Clock in at">{(fid) => <TextInput id={fid} type="time" value={start} onChange={setStart} />}</Field>
+        <Field label="Clock out at">{(fid) => <TextInput id={fid} type="time" value={end} onChange={setEnd} />}</Field>
+      </div>
+      <Field label="Clock into">{(fid) => <Select id={fid} value={job} onChange={setJob} options={c.clock!.jobs.filter((j) => j.active || j.id === job).map((j) => ({ value: j.id, label: jobLabel(j) }))} />}</Field>
+      <FormError message={err} />
+      {saved && <p role="status" className="text-[13px]">Saved.</p>}
+      <div className="flex justify-end"><Btn variant="primary" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn></div>
+    </div>
   );
 }

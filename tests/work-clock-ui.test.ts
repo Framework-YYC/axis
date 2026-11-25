@@ -32,6 +32,23 @@ describe("Work Overview: time clock and shopping list", () => {
   });
 });
 
+describe("automatic punches", () => {
+  const clock = read("src/components/TimeClock.tsx"), hook = read("src/lib/timeclock.ts"), svc = read("worker/services/timeSchedule.ts"), inbox = read("worker/services/inbox.ts"), tc = read("worker/services/timeclock.ts");
+  it("are labelled scheduled everywhere, can be corrected, and are configured against the worksite zone", () => {
+    for (const s of ["scheduled in", "scheduled out", "scheduled clock-in", "Started automatically by the schedule", "Worksite time zone", "Skip today's clock-in", "Work overtime today", "Automatic punches are off until you choose the worksite time zone", "Off rotation today: no automatic punches"]) expect(clock).toContain(s);
+    expect(hook).toContain("clock?.schedule?.config.timezone ?? deviceZone"); // shown in the worksite zone, not the device's
+    expect(clock).toContain("The site's zone, not this device's");
+  });
+  it("run on the server: the Cron Trigger tick, the app's open/poll, and the clock's own poll; every run is idempotent", () => {
+    expect(inbox.match(/runTimeSchedule/g)!.length).toBeGreaterThanOrEqual(3); expect(tc).toContain("runTimeSchedule(ctx.db, ctx.now())");
+    expect(svc).toContain("WHERE changes() = 1"); expect(svc).toContain("punch_id"); expect(read("migrations/0011_time_schedule.sql")).toContain("UNIQUE (local_date, action)");
+    expect(svc).not.toMatch(/Date\.now\(\)/); // time comes from the injected clock (the only new Date() is the production default), so the schedule is testable
+  });
+  it("never uses the device zone on the server and is owner-only", () => {
+    expect(svc).toContain("cfg.timezone"); expect(svc).not.toContain("Intl.DateTimeFormat().resolvedOptions"); expect(read("worker/services/operations.ts")).toMatch(/name: "timeclock_save_schedule", scope: "owner"[^}]*mcp: false/);
+  });
+});
+
 describe("iPad and desktop rail", () => {
   it("has no top-left Orbis logo link; the lime button is the only mark and Home is in its menu", () => {
     const shell = read("src/components/Shell.tsx"), rail = shell.slice(shell.indexOf("function Rail()"), shell.indexOf("function NavGroupView"));

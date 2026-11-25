@@ -65,6 +65,8 @@ const ROUTES: Array<[string, RegExp, string]> = [
   ["POST", /^\/api\/v1\/timeclock\/entries$/, "timeclock_add_entry"],
   ["PATCH", /^\/api\/v1\/timeclock\/entries\/(?<id>[\w-]+)$/, "timeclock_edit_entry"],
   ["POST", /^\/api\/v1\/timeclock\/entries\/(?<id>[\w-]+)\/delete$/, "timeclock_delete_entry"],
+  ["POST", /^\/api\/v1\/timeclock\/schedule$/, "timeclock_save_schedule"],
+  ["POST", /^\/api\/v1\/timeclock\/schedule\/action$/, "timeclock_schedule_action"],
   ["POST", /^\/api\/v1\/timeclock\/jobs$/, "timeclock_save_job"],
   ["PATCH", /^\/api\/v1\/timeclock\/jobs\/(?<id>[\w-]+)$/, "timeclock_save_job"],
   ["GET", /^\/api\/v1\/shopping$/, "list_shopping"],

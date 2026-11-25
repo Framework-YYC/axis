@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { cx } from "../lib/cx";
@@ -16,7 +17,8 @@ export function Modal({ title, onClose, children, footer, wide }: { title: strin
     ref.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
     return () => removeEventListener("keydown", onKey);
   }, []);
-  return (
+  // Portalled to the body: a modal opened from inside an animated card (will-change: transform) would otherwise be trapped in that card and sit under its siblings.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-label={title}>
       <button className={cx("absolute inset-0 bg-black/45", closing ? "scrim-out" : "scrim-in")} aria-label="Close" onClick={() => close.current()} tabIndex={-1} />
       <div ref={ref} className={cx("glass-sheet relative flex max-h-[92dvh] w-full flex-col rounded-b-none rounded-t-[28px] md:rounded-[24px]", closing ? "sheet-out" : "sheet-in", wide ? "md:max-w-3xl" : "md:max-w-xl")}>
@@ -27,7 +29,8 @@ export function Modal({ title, onClose, children, footer, wide }: { title: strin
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{children}</div>
         {footer && <footer className="safe-b flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-3.5">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

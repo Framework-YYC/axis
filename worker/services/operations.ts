@@ -16,6 +16,7 @@ import { getFinance, payBill, reverseBillPayment, reverseTransaction, saveBalanc
 import { createProcurement, listProcurement, updateProcurement, upsertProcurement } from "./procurement";
 import { clearChecked, createShopping, listShopping, promoteShopping, restoreShopping, updateShopping, upsertShopping } from "./shopping";
 import { addEntry, deleteEntry, editEntry, getTimeclock, punch, saveJob } from "./timeclock";
+import { saveSchedule, scheduleAction } from "./timeSchedule";
 import { getSettings, setSetting } from "./settings";
 import * as tasks from "./tasks";
 import { fail, ok, type Ctx, type Result, type Scope } from "./types";
@@ -109,6 +110,8 @@ export const OPERATIONS: Operation[] = [
   { name: "timeclock_edit_entry", scope: "owner", readOnly: false, mcp: false, description: "Edit a punch: start, end, job or note. Overlaps are refused.", inputSchema: obj({ id: str("Entry id"), startAt: str("ISO time"), endAt: str("ISO time"), jobId: str("Job id"), note: str("Note") }, ["id"]), run: (c, i) => editEntry(c, i) },
   { name: "timeclock_add_entry", scope: "owner", readOnly: false, mcp: false, description: "Add a missed punch (a finished entry).", inputSchema: obj({ kind: { type: "string", enum: ["job", "break"] }, jobId: str("Job id"), startAt: str("ISO time"), endAt: str("ISO time"), note: str("Note") }, ["startAt", "endAt"]), run: (c, i) => addEntry(c, i) },
   { name: "timeclock_delete_entry", scope: "owner", readOnly: false, mcp: false, description: "Remove a punch from the history (kept in the audit trail).", inputSchema: obj({ id: str("Entry id") }, ["id"]), run: (c, i) => deleteEntry(c, i) },
+  { name: "timeclock_save_schedule", scope: "owner", readOnly: false, mcp: false, description: "The automatic punches: worksite time zone, clock-in and clock-out times, the job, on or off. Runs only on on-rotation days.", inputSchema: obj({ enabled: { type: "boolean" }, timezone: str("Worksite IANA time zone, e.g. America/Edmonton"), startTime: time("Clock-in time HH:MM"), endTime: time("Clock-out time HH:MM"), jobId: str("Job to clock into") }), run: (c, i) => saveSchedule(c, i) },
+  { name: "timeclock_schedule_action", scope: "owner", readOnly: false, mcp: false, description: "Today's one-off choice: skip the automatic clock-in, or work overtime (no automatic clock-out today).", inputSchema: obj({ action: { type: "string", enum: ["skip_in", "overtime"] } }, ["action"]), run: (c, i) => scheduleAction(c, i) },
   { name: "timeclock_save_job", scope: "owner", readOnly: false, mcp: false, description: "Add or change a job: name, number, active, order.", inputSchema: obj({ id: str("Job id; omit to add"), name: str("Name, e.g. REEF"), number: str("Job number, e.g. 928"), active: { type: "boolean" }, sortOrder: num("Order") }), run: (c, i) => saveJob(c, i) },
   // ---- Work shopping list (lightweight trips-into-town checklist, separate from Procurement; Work module only)
   { name: "list_shopping", scope: "tasks:read", readOnly: true, mcp: true, description: "The Work shopping list: open items, checked items and items cleared in the last 7 days, each with optional quantity and job number.", inputSchema: obj({}), run: (c, i) => listShopping(c, i) },

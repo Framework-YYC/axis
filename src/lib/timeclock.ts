@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { nextDay, startOfDay, weekStartOf, type PunchAction, type TimeEntry, type TimeJob } from "../../shared/timeclock";
+import { dayOf, nextDay, startOfDay, weekStartOf, type PunchAction, type TimeEntry, type TimeJob } from "../../shared/timeclock";
+import type { Outcome, ScheduleConfig } from "../../shared/timeSchedule";
 import { api, patch, post } from "./api";
 import { useData } from "./data";
+import { useNow } from "./useNow";
 
-export interface ClockState { jobs: TimeJob[]; entries: Array<TimeEntry & { origStartAt: string | null; origEndAt: string | null; version: number }>; open: (TimeEntry & { version: number }) | null; serverNow: string; timezone: string; weekStart: 0 | 1 }
+export interface ScheduleView { config: ScheduleConfig; today: { date: string; onRotation: boolean; inOutcome: Outcome | null; outOutcome: Outcome | null; inReason: string | null } | null; nextRunDate: string | null; status: { at: string; date: string; action: string; message: string } | null }
+type Labelled = { source?: "manual" | "scheduled"; endSource?: "scheduled" | null };
+export interface ClockState { jobs: TimeJob[]; entries: Array<TimeEntry & Labelled & { origStartAt: string | null; origEndAt: string | null; version: number }>; open: (TimeEntry & Labelled & { version: number }) | null; serverNow: string; timezone: string; weekStart: 0 | 1; schedule: ScheduleView }
 export interface Pending { action: PunchAction; jobId: string | null; punchId: string; at: string; label: string; status: "saving" | "failed"; message?: string; retryable?: boolean }
 
 const KEY = "orbis.timeclock.pending";
@@ -18,11 +22,15 @@ export const useZone = (): string => { const { settings } = useData(); return se
  * 30 seconds and when the app returns to the foreground, and keeps a punch that failed to save visible (and across a reload) until it is retried or discarded.
  */
 export function useTimeclock() {
-  const { today, settings } = useData();
-  const tz = useZone();
+  const { settings } = useData();
+  const deviceZone = useZone();
   const wk: 0 | 1 = settings.week_start === "sunday" ? 0 : 1;
-  const [from, setFrom] = useState(() => { const w = weekStartOf(today, wk); return new Date(startOfDay(w, "UTC") - 14 * 86_400_000).toISOString().slice(0, 10); });
+  const nowMs = useNow(60_000).getTime();
   const [clock, setClock] = useState<ClockState | null>(null);
+  // Punches, days and totals are shown in the worksite's zone once it is set (that is what 06:00 and 17:30 mean); until then in the owner's zone.
+  const tz = clock?.schedule?.config.timezone ?? deviceZone;
+  const today = dayOf(nowMs, tz);
+  const [from, setFrom] = useState(() => { const w = weekStartOf(dayOf(Date.now(), deviceZone), wk); return new Date(startOfDay(w, "UTC") - 14 * 86_400_000).toISOString().slice(0, 10); });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPendingState] = useState<Pending | null>(readPending);
   const [notice, setNotice] = useState<string | null>(null);
@@ -66,6 +74,8 @@ export function useTimeclock() {
     addEntry: (body: Record<string, unknown>) => mutate(() => post<ClockState>("/timeclock/entries", body)),
     deleteEntry: (id: string) => mutate(() => post<ClockState>(`/timeclock/entries/${id}/delete`)),
     saveJob: (body: Record<string, unknown>) => mutate(() => post<ClockState>("/timeclock/jobs", body)),
+    saveSchedule: async (body: Record<string, unknown>) => { try { const r = await post<ScheduleView>("/timeclock/schedule", body); if (r.success) { void load(); return null; } return r.error.message; } catch { return "Orbis could not be reached. Nothing was saved."; } },
+    scheduleAction: async (action: "skip_in" | "overtime") => { try { const r = await post<ScheduleView>("/timeclock/schedule/action", { action }); if (r.success) { void load(); return null; } return r.error.message; } catch { return "Orbis could not be reached. Nothing was saved."; } },
   };
 }
 export const dayBefore = (d: string) => { const [y, m, dd] = d.split("-").map(Number); return new Date(Date.UTC(y, m - 1, dd - 1)).toISOString().slice(0, 10); };

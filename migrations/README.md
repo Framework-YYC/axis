@@ -19,3 +19,6 @@ Rules
 
 ### 0010_time_clock.sql (additive)
 `time_jobs` (seeded with REEF 928 and RIPET 1011) and `time_entries` (punches as UTC intervals; a unique partial index allows at most one running entry; `punch_id` makes a retried save idempotent), both behind the write guard. Owner-only: no assistant scope reads or writes them.
+
+### 0011_time_schedule.sql (additive)
+`time_entries.source` / `end_source` (which entries the schedule started or ended) and `time_schedule_log` (one row per worksite day and action, unique, behind the write guard): what the automatic punches did or why they did nothing. The schedule configuration itself is the `timeclock_schedule` setting.

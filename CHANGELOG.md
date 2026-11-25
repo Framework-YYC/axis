@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+### Work: automatic time clock punches (staging)
+- Orbis clocks you into REEF — 928 at 06:00 and ends the running job or break at 17:30, on on-rotation days only (corrected rotation; nothing on off-rotation days), in the **worksite** time zone you choose (never the device's), configurable in the time clock sheet (migration 0011, additive).
+- Runs on the server (the per-minute Cron Trigger in production; staging has no Cron Trigger, so it runs when the app is opened or polled). Every decision is recorded once per day and action, so retries and overlapping runs cannot duplicate; a manual punch always wins; nothing is backfilled (a clock-in is only made within 15 minutes of its time, otherwise it is recorded as missed); no lunch is deducted. Overtime: "Work overtime today", or simply punch after 17:30. Automatic punches are labelled "scheduled in / scheduled out" and can be edited like any other.
+
 ### Work: time clock, rotation correction, rail logo (staging)
 - **Time clock** on Work Overview (migration 0010, owner-only): punch between REEF 928 and RIPET 1011 (jobs configurable); one tap stops the previous entry and starts the next at the same instant; Break, Resume, End shift; today's total, hours by job, weekly totals, editable punch history (overlaps refused, original punches kept, deletes audited). Server-side timestamps keep tracking while Orbis is closed; nothing is deducted or ended automatically; double taps and retried saves cannot duplicate; failed saves are shown and kept until retried or discarded.
 - **Rotation corrected**: on Nov 19 to Dec 2 2026, fly home Dec 3 (Nov 25 is day 7 of 14, 7 remaining). The early seed value is read as the corrected default; open rotation-dependent recurring tasks are realigned once per rotation setting (history, overdue and non-rotation tasks untouched). Travel dates after the last confirmed date are shown as "to confirm".
