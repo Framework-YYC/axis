@@ -37,6 +37,11 @@ export interface PartView { id: string; kind: "period" | "step"; key: string; la
 export interface ProgressSummary { periodsDone: number; periodsTotal: number; stepsDone: number; stepsTotal: number; percent: number; complete: boolean }
 export interface CycleView { cycle: string; label: string; dueDate: string; parts: PartView[]; progress: ProgressSummary; materialized: boolean }
 export interface TrackView { key: string; module: ModuleId; title: string; stream: string | null; periodLabel: string; steps: Array<{ key: string; title: string }>; startCycle: string; cycles: CycleView[] }
+/** The Work shopping list: a light checklist for trips into town, separate from Procurement. Cleared items are kept for 7 days so they can be restored. */
+export interface ShoppingItem {
+  id: string; title: string; quantity: string | null; job: string | null; status: "open" | "checked"; checkedAt: string | null; notes: string | null; procurementId: string | null; clearedAt: string | null;
+  source: Source; externalId: string | null; demo: boolean; createdAt: string; updatedAt: string; version: number;
+}
 export type Stage = "requested" | "ordered" | "in_transit" | "notified" | "received";
 export interface ProcItem {
   id: string; module: ModuleId; material: string; description: string | null; quantity: number | null; unit: string | null; supplier: string | null; orderRef: string | null;

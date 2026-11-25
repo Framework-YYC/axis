@@ -7,6 +7,8 @@ import { createGoal } from "./goals";
 import { createHabit, logHabit } from "./habits";
 import { resolveToday } from "./prefs";
 import { loadDemoFinance } from "./demoFinance";
+import { loadDemoShopping } from "./demoShopping";
+import { demoTimeEntries } from "./timeclock";
 import { createTask } from "./tasks";
 import { fail, ok, type Ctx, type Result } from "./types";
 import * as v from "./validate";
@@ -16,7 +18,7 @@ export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; go
   if (ctx.actor.type !== "user") return fail("forbidden", "Only the owner can load demonstration data");
   const today = await resolveToday(ctx, {}, v);
   const d = (n: number) => addDays(today, n);
-  const n = { tasks: 0, goals: 0, habits: 0, events: 0, logs: 0, finance: 0 };
+  const n = { tasks: 0, goals: 0, habits: 0, events: 0, logs: 0, finance: 0, shopping: 0, timePunches: 0 };
   const T = async (m: ModuleId, key: string, o: Record<string, unknown>) => { const r = await createTask(ctx, { module: m, demo: true, externalId: `demo:${m}:t:${key}`, ...o }); if (r.ok && !r.duplicate) n.tasks++; };
   const G = async (m: ModuleId, key: string, o: Record<string, unknown>) => { const r = await createGoal(ctx, { module: m, demo: true, externalId: `demo:${m}:g:${key}`, ...o }); if (r.ok && !r.duplicate) n.goals++; };
   const H = async (m: ModuleId, key: string, o: Record<string, unknown>, logs: number[], value = 1) => {
@@ -93,6 +95,8 @@ export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; go
   await E("framework", "3", { title: "Quarterly planning (synthetic)", date: d(6) });
   for (const m of MODULE_IDS) void m;
   const fin = await loadDemoFinance(ctx, today); n.finance = fin.finance; n.tasks += fin.tasks;
+  n.shopping = await loadDemoShopping(ctx, today);
+  n.timePunches = await demoTimeEntries(ctx, today);
   return ok(n);
 }
 
@@ -115,6 +119,7 @@ export async function clearDemoData(ctx: Ctx): Promise<Result<{ removed: Record<
     q("DELETE FROM habits WHERE demo = 1"),
     q("DELETE FROM events WHERE demo = 1"),
     q("DELETE FROM fin_reimbursement_links WHERE txn_id IN (SELECT id FROM fin_transactions WHERE demo = 1)"), q("DELETE FROM fin_txn_history WHERE txn_id IN (SELECT id FROM fin_transactions WHERE demo = 1)"), q("DELETE FROM fin_bill_payments WHERE demo = 1"), q("DELETE FROM fin_transactions WHERE demo = 1"), q("DELETE FROM fin_balances WHERE demo = 1"), q("DELETE FROM fin_budgets WHERE demo = 1"),
+    q("DELETE FROM shopping_items WHERE demo = 1"), q("DELETE FROM time_entries WHERE demo = 1"),
     q("DELETE FROM fin_bills WHERE demo = 1"), q("DELETE FROM fin_income_plans WHERE demo = 1"), q("DELETE FROM fin_reimbursements WHERE demo = 1"), q("DELETE FROM fin_accounts WHERE demo = 1"),
     auditStmt(ctx, "demo.clear", "demo", null),
   ]);

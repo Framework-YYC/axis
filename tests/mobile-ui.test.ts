@@ -85,7 +85,9 @@ describe("shell, header and layout rules", () => {
     const side = shell.slice(shell.indexOf("function SecondaryPanel"), shell.indexOf("function Dock") > 0 ? shell.indexOf("/** The persistent floating dock") : undefined);
     expect(side).not.toMatch(/By Framework|ChevronsUpDown/);
     expect(side.indexOf('aria-label="Search Orbis"')).toBeGreaterThan(-1); expect(side.indexOf('aria-label="Search Orbis"')).toBeLessThan(side.indexOf("<nav")); // opens the global search
-    expect(shell).toContain("<LogoMark size={36} />"); // the logo stays in the rail
+    const rail = shell.slice(shell.indexOf("function Rail()"), shell.indexOf("function NavGroupView"));
+    expect(rail).not.toContain("LogoMark"); expect(rail).not.toContain('aria-label="Orbis home"'); // iPad and desktop: the lime Orbis button is the only Orbis mark; Home is in its menu
+    expect(rail).toContain('<OrbisButton variant="rail" />'); expect(shell).toContain("<LogoMark size={22} />"); // phone staging row unchanged
   });
   it("the page header keeps the notification bell only; creation lives in Quick Add and Settings in the Orbis menu", () => {
     const ui = read("src/components/ui.tsx");

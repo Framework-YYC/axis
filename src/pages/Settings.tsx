@@ -9,6 +9,8 @@ import { Btn, Empty, PageHeader, Status, Widget } from "../components/ui";
 import { post } from "../lib/api";
 import { useData } from "../lib/data";
 import { useTheme, type ThemeMode } from "../lib/theme";
+import { phaseWindow, ROTATION_CONFIRMED_THROUGH, rotationStatus, upcomingTravel } from "../../shared/rotation";
+import { pretty } from "../lib/dates";
 import { useApi } from "../lib/useApi";
 
 const ZONES = ["America/Edmonton", "America/Vancouver", "America/Toronto", "America/Winnipeg", "America/Halifax", "UTC"];
@@ -67,11 +69,16 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
           </div>
         </Widget>
 
-        <Widget id="rotation" title="Work rotation" tag="Drives rotation-aware habits">
+        <Widget id="rotation" title="Work rotation" tag="Drives rotation-aware habits and tasks">
           <div className="grid gap-3.5 md:grid-cols-3">
             <Field label="Rotation start">{(id) => <TextInput id={id} type="date" value={rot.anchorDate} onChange={(v) => setRot((s) => ({ ...s, anchorDate: v }))} />}</Field>
             <Field label="Days on">{(id) => <TextInput id={id} inputMode="numeric" value={rot.onDays} onChange={(v) => setRot((s) => ({ ...s, onDays: v }))} />}</Field>
             <Field label="Days off">{(id) => <TextInput id={id} inputMode="numeric" value={rot.offDays} onChange={(v) => setRot((s) => ({ ...s, offDays: v }))} />}</Field>
+          </div>
+          <div className="mt-3 text-[13px]">
+            <p className="text-muted">{(() => { const st = rotationStatus(today, settings.work_rotation), w = phaseWindow(today, settings.work_rotation); return `Today: ${st.phase === "on" ? "on rotation" : "off rotation"}, day ${st.dayInPhase} of ${st.phaseLength}, ${st.daysRemaining} remaining (${pretty(w.start, { day: "numeric", month: "short" })} to ${pretty(w.end, { day: "numeric", month: "short", year: "numeric" })}).`; })()}</p>
+            <ul className="mt-1.5">{upcomingTravel(today, settings.work_rotation, 3).map((t) => <li key={t.date} className="flex items-baseline justify-between gap-3 border-t border-line py-1.5 first:border-t-0"><span>{t.kind === "fly_home" ? "Fly home" : "Fly out"} {pretty(t.date, { weekday: "long", day: "numeric", month: "long" })}</span><span className="mono !normal-case">{t.confirmed ? "Confirmed in calendar" : `To confirm${t.thursday ? "" : " (not a Thursday)"}`}</span></li>)}</ul>
+            <p className="mono mt-1.5 !normal-case !tracking-normal">Dates after {pretty(ROTATION_CONFIRMED_THROUGH, { day: "numeric", month: "long" })} follow the two-on, one-off pattern. They are not calendar events and are not confirmed.</p>
           </div>
           <div className="mt-3"><Btn variant="primary" onClick={() => void saveRotation()}>Save rotation</Btn></div>
         </Widget>

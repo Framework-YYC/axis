@@ -68,3 +68,7 @@ Done: dedicated D1 `axis-staging` (additive migrations applied), Worker `axis-st
 
 ## Known gaps
 OAuth; rate limiting; settings/export/deletion UIs; field-level encryption; approvals UI (API is live); alerting on repeated denials.
+
+
+## Time clock (owner-only)
+Working hours are the owner's own record. The time clock operations carry the `owner` scope, are not offered over MCP, and `time_jobs` / `time_entries` sit behind the write guard like every core table; no assistant scope reads or writes them. Punch times accepted from the client are limited to the last 48 hours and at most two minutes ahead; older corrections go through the audited history editor.

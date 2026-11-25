@@ -1,4 +1,6 @@
+import { resolveRotation } from "../../shared/rotation";
 import { auditStmt } from "./audit";
+import { ensureRotationAligned } from "./rotation";
 import { write } from "./db";
 import { validTimezone } from "./prefs";
 import { fail, ok, type Ctx, type Result } from "./types";
@@ -24,7 +26,7 @@ export async function getSettings(ctx: Ctx): Promise<Result<Record<string, unkno
   if (ctx.actor.type !== "user") return fail("forbidden", "Only the owner can read settings");
   const { results } = await ctx.db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>();
   const out: Record<string, unknown> = {};
-  for (const r of results) { try { out[r.key] = r.key === "work_rotation" ? JSON.parse(r.value) : r.value; } catch { out[r.key] = r.value; } }
+  for (const r of results) { try { out[r.key] = r.key === "work_rotation" ? resolveRotation(JSON.parse(r.value)) : r.value; } catch { out[r.key] = r.value; } }
   return ok(out);
 }
 
@@ -41,6 +43,7 @@ export async function setSetting(ctx: Ctx, raw: unknown): Promise<Result<{ key: 
       auditStmt(ctx, "settings.update", "setting", key),
     ]);
     ctx.prefs = undefined;
+    if (key === "work_rotation") await ensureRotationAligned(ctx.db, ctx.now()); // dependent recurring tasks follow the new rotation at once
     return ok({ key });
   } catch (e) {
     if (e instanceof v.InvalidInput) return fail("invalid_input", e.message);

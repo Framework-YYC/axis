@@ -294,6 +294,18 @@ Reconciliation, all inside the service layer: the same `key` updates the open ta
 
 **Procurement** (`procurement_items`) tracks materials and equipment from requested through ordered, in transit and notification sent to received, with quantity, unit, supplier, order reference, expected date and the outstanding action. The REEF 24-hour notification task is created from the expected date (arrival time known: the previous day at that time; date only: the end of the day before the previous day; no date: none, and the item says "Confirm the delivery date"), moved on a reschedule, hidden if the item is cancelled, and an existing delivery notification task for the same material is adopted rather than duplicated. When the owner completes that task the item reads "notification sent". Datum files items through `task.create` with a `key` and a `procurement` block (`upsert_procurement`): same key never duplicates, an item with the same order reference (or material and supplier) is adopted, an earlier stage never overwrites a later one, a received item is left alone, `state: cancelled` hides it. REST: `GET/POST /procurement`, `PATCH /procurement/:id`; MCP: `list_procurement`, `upsert_procurement`. No new inbox request names were needed, so the inbox trigger is unchanged and existing connections keep working.
 
+## Work shopping list (migration 0009)
+Datum (the `progressive` assistant, and only it) may add and update items on the Work shopping list. It uses the same inbox request as every other upsert, `task.create` with a stable `key` and a `shopping` block, which Orbis routes to the operation `upsert_shopping_item`; no new request name is needed and the inbox trigger is unchanged.
+
+```json
+{ "key": "work:shopping:cable-ties-300mm", "sourceRef": "<message or thread id>",
+  "shopping": { "item": "Cable ties 300 mm", "quantity": "2 packs", "job": "928", "checked": false, "notes": "black", "cleared": false } }
+```
+- Identity is `key` (no dates in it): repeating never duplicates, and the same key always updates the same item. With no key, an OPEN item with the same normalised name (and the same job, or no job on either side) is updated instead of a second one being added; a key is adopted onto such an item.
+- Only the fields you send change; missing fields never erase what is known. `checked: true` ticks an item off (`false` puts it back), `cleared: true` takes it off the list. A cleared item added again by key is restored, never duplicated. An item the owner sent to Procurement stays there and is not changed.
+- Never invent a quantity or a job number. The list is separate from Procurement: Datum does not promote items (only the owner does, from the app).
+- Other assistants are refused. Results: `outcome` is `created`, `updated`, `unchanged` (an identical repeat, reported as a duplicate) or `restored`. Read the list with `list_shopping` (MCP) or `GET /api/v1/shopping`.
+
 ## Finance (migration 0007)
 
 The Finance module is a personal-finance ledger in CAD. Tables: `fin_accounts` (bank, savings, credit card with limit, statement day and due day, loan with rate and original principal, investment, cash), `fin_balances` (signed snapshots, `confirmed` or `estimate`; money owed is negative), `fin_transactions` (one record per real-world event; kind derived: income, expense, transfer, card payment, loan payment, reimbursement), `fin_categories`, `fin_bills` and `fin_bill_payments` (one payment per bill per due date), `fin_budgets`, `fin_income_plans` (expected income, a plan) and `fin_reimbursements`. All money is integer cents; `tasks.record_ref` ties a financial task to the record it is about (`bill:<id>`). All tables are write-guarded like every core table.

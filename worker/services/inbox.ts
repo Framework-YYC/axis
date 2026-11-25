@@ -1,3 +1,4 @@
+import { ensureRotationAligned } from "./rotation";
 import { isModule, type ModuleId } from "../../shared/modules";
 import { assistantActor } from "./assistants";
 import { changes, write } from "./db";
@@ -76,6 +77,10 @@ export async function processInbox(db: D1Database, opts: { now?: Date; limit?: n
       if (operation === "upsert_action_item" && payload.procurement && typeof payload.procurement === "object" && !Array.isArray(payload.procurement)) {
         const { procurement, ...rest } = payload; operation = "upsert_procurement"; payload = { ...rest, ...(procurement as Record<string, unknown>) };
       }
+      // With a `shopping` block the request is the idempotent shopping-list upsert: {key, sourceRef, shopping:{item, quantity, job, checked, notes}}.
+      if (operation === "upsert_action_item" && payload.shopping && typeof payload.shopping === "object" && !Array.isArray(payload.shopping)) {
+        const { shopping, ...rest } = payload; operation = "upsert_shopping_item"; payload = { ...rest, ...(shopping as Record<string, unknown>) };
+      }
       // With a `finance` block the request is the idempotent finance upsert: {key, sourceRef, finance:{kind, ...fields}}.
       if (operation === "upsert_action_item" && payload.finance && typeof payload.finance === "object" && !Array.isArray(payload.finance)) {
         const { finance, ...rest } = payload; operation = "upsert_finance_record"; payload = { ...rest, ...(finance as Record<string, unknown>) };
@@ -96,6 +101,7 @@ export async function processInbox(db: D1Database, opts: { now?: Date; limit?: n
 
 export async function maintenance(db: D1Database, now = new Date()): Promise<{ processed: number }> {
   const r = await processInbox(db, { now, limit: 50 });
+  await ensureRotationAligned(db, now).catch(() => undefined); // once per rotation setting; never blocks the tick
   await refreshBriefings(db, now); // keeps "today" correct across midnight even when nothing changed
   return r;
 }
@@ -106,6 +112,7 @@ export async function maintenance(db: D1Database, now = new Date()): Promise<{ p
  */
 export async function onOpen(db: D1Database, now = new Date()): Promise<void> {
   await processInbox(db, { now, limit: 25 });
+  await ensureRotationAligned(db, now).catch(() => undefined);
   // Any missing or old briefing triggers a full refresh (a touched module is refreshed by processInbox, which must not hide the others).
   const b = await db.prepare("SELECT COUNT(*) AS n, MIN(generated_at) AS oldest FROM briefings").first<{ n: number; oldest: string | null }>();
   if (!b || b.n < 6 || !b.oldest || new Date(b.oldest).getTime() < now.getTime() - 10 * 60_000) await refreshBriefings(db, now);

@@ -166,7 +166,7 @@ describe("Work recurring responsibilities setup", () => {
     const due = Object.fromEntries(open.map((t) => [t.title, t.dueDate]));
     expect(due).toMatchObject({
       "Send daily headcount": "2026-11-24", // every day while on rotation
-      "Distribute REEF EHS meeting minutes": "2026-12-07", // Mon 30 Nov is in the week off
+      "Distribute REEF EHS meeting minutes": "2026-11-30", // Mon 30 Nov is still on rotation (on Nov 19 to Dec 2; the week off starts Dec 3)
       "Submit top 3 safety observations": "2026-11-26",
       "Invite REEF EHS to safety meeting and site walk-down": "2026-11-28",
       "Prepare next week's toolbox talks": "2026-11-29",
@@ -198,8 +198,9 @@ describe("daily headcount recurs seven days a week while on rotation", () => {
   const rule = { freq: "weekly" as const, interval: 1, byWeekday: [0, 1, 2, 3, 4, 5, 6], rotation: "on" as const };
   it("every day inside an on-rotation block, nothing in the week off", () => {
     expect(nextOccurrence(rule, "2026-11-28", "2026-11-28", DEFAULT_ROTATION)).toBe("2026-11-29"); // Saturday to Sunday, still on rotation
-    expect(nextOccurrence(rule, "2026-11-29", "2026-11-29", DEFAULT_ROTATION)).toBe("2026-12-07"); // 30 Nov to 6 Dec is the week off
-    expect(nextOccurrence(rule, "2026-12-07", "2026-12-07", DEFAULT_ROTATION)).toBe("2026-12-08");
+    expect(nextOccurrence(rule, "2026-11-29", "2026-11-29", DEFAULT_ROTATION)).toBe("2026-11-30"); // still on rotation: on Nov 19 to Dec 2
+    expect(nextOccurrence(rule, "2026-12-02", "2026-12-02", DEFAULT_ROTATION)).toBe("2026-12-10"); // Dec 3 to Dec 9 is the week off (fly home Dec 3)
+    expect(nextOccurrence(rule, "2026-12-10", "2026-12-10", DEFAULT_ROTATION)).toBe("2026-12-11");
     expect(describeRecurrence(rule)).toBe("Every day · on rotation");
   });
 });

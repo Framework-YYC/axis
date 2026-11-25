@@ -3,7 +3,7 @@ import { addDays } from "../../shared/rotation";
 import type { WeekStart } from "../../shared/horizons";
 import { api, ApiUnavailable, patch, post, type Envelope } from "./api";
 import { localToday } from "./dates";
-import type { ActivityRow, Approval, CalEvent, FinanceData, Goal, Habit, InboxRequest, Me, ProcItem, Settings, Task, TrackView } from "./types";
+import type { ActivityRow, Approval, CalEvent, FinanceData, Goal, Habit, InboxRequest, Me, ProcItem, Settings, ShoppingItem, Task, TrackView } from "./types";
 
 /**
  * One shared, polling view of the owner's live data, used by the shell and every page. Assistant changes appear without any manual step
@@ -12,7 +12,7 @@ import type { ActivityRow, Approval, CalEvent, FinanceData, Goal, Habit, InboxRe
  */
 export type Source = "live" | "offline" | "no-api";
 
-const DEFAULT_SETTINGS: Settings = { timezone: "auto", week_start: "monday", unit_system: "metric", currency: "CAD", theme: "system", work_rotation: { anchorDate: "2026-11-16", onDays: 14, offDays: 7 } };
+const DEFAULT_SETTINGS: Settings = { timezone: "auto", week_start: "monday", unit_system: "metric", currency: "CAD", theme: "system", work_rotation: { anchorDate: "2026-11-19", onDays: 14, offDays: 7 } };
 const LOCAL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 
 export interface Data {
@@ -25,6 +25,7 @@ export interface Data {
   events: CalEvent[];
   progress: TrackView[];
   procurement: ProcItem[];
+  shopping: ShoppingItem[];
   finance: FinanceData | null;
   approvals: Approval[];
   inbox: InboxRequest[];
@@ -44,8 +45,8 @@ export interface Data {
 const Ctx = createContext<Data | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Pick<Data, "tasks" | "goals" | "habits" | "events" | "progress" | "procurement" | "finance" | "approvals" | "inbox" | "activity" | "settings" | "me" | "source" | "loading" | "error">>({
-    tasks: [], goals: [], habits: [], events: [], progress: [], procurement: [], finance: null, approvals: [], inbox: [], activity: [], settings: DEFAULT_SETTINGS, me: { label: "…", environment: "", signedIn: false }, source: "live", loading: true, error: null,
+  const [state, setState] = useState<Pick<Data, "tasks" | "goals" | "habits" | "events" | "progress" | "procurement" | "shopping" | "finance" | "approvals" | "inbox" | "activity" | "settings" | "me" | "source" | "loading" | "error">>({
+    tasks: [], goals: [], habits: [], events: [], progress: [], procurement: [], shopping: [], finance: null, approvals: [], inbox: [], activity: [], settings: DEFAULT_SETTINGS, me: { label: "…", environment: "", signedIn: false }, source: "live", loading: true, error: null,
   });
   const [today, setToday] = useState(localToday());
   const tzSynced = useRef(false);
@@ -55,7 +56,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setToday(t);
     try {
       const day = `today=${t}`;
-      const [open, done, goals, habits, events, progress, procurement, finance, approvals, inbox, activity, settings, me] = await Promise.all([
+      const [open, done, goals, habits, events, progress, procurement, finance, approvals, inbox, activity, settings, me, shopping] = await Promise.all([
         api<{ tasks: Task[] }>(`/tasks?limit=500&${day}&status=pending,in_progress,waiting`),
         api<{ tasks: Task[] }>(`/tasks/completed?limit=200&${day}&since=${addDays(t, -13)}`),
         api<{ goals: Goal[] }>(`/goals?${day}&status=active,paused,achieved`),
@@ -69,6 +70,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         api<{ events: ActivityRow[] }>("/activity?limit=20"),
         api<Settings>("/settings"),
         api<{ actor: string; environment: string }>("/me"),
+        api<{ items: ShoppingItem[] }>("/shopping"),
       ]);
       const first = [open, done, goals, habits, events].find((r) => !r.success);
       setState((s) => ({
@@ -79,6 +81,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         events: events.success ? events.data.events : s.events,
         progress: progress.success ? progress.data.tracks : s.progress,
         procurement: procurement.success ? procurement.data.items : s.procurement,
+        shopping: shopping.success ? shopping.data.items : s.shopping,
         finance: finance.success ? finance.data : s.finance,
         approvals: approvals.success ? approvals.data.approvals.filter((a) => a.status === "pending") : s.approvals,
         inbox: inbox.success ? inbox.data.requests : s.inbox,

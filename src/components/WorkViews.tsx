@@ -4,7 +4,7 @@ import { cycleLabel } from "../../shared/progress";
 import { outstandingAction, STAGE_LABEL, STAGES } from "../../shared/procurement";
 import { focusStats } from "../../shared/overview";
 import type { ModuleId } from "../../shared/modules";
-import { addDays, rotationStatus, toDays } from "../../shared/rotation";
+import { addDays, phaseWindow, rotationStatus, upcomingTravel } from "../../shared/rotation";
 import { cx } from "../lib/cx";
 import { post } from "../lib/api";
 import { useData } from "../lib/data";
@@ -16,6 +16,8 @@ import { Card } from "./InstrumentCard";
 import { DueChip } from "./mobile";
 import { Btn, Empty, Status, Widget } from "./ui";
 import { PartsBar, RadialGauge, RotationDial, SplitBar } from "./viz";
+import { ShoppingCard } from "./ShoppingList";
+import { TimeClockCard } from "./TimeClock";
 
 const byDue = (a: Task, b: Task) => (a.dueDate ?? "9").localeCompare(b.dueDate ?? "9") || (a.dueTime ?? "").localeCompare(b.dueTime ?? "") || byUrgency(a, b);
 const STAGE_COLOR: Record<Stage, string> = { requested: "color-mix(in srgb, var(--ink) 22%, transparent)", ordered: "var(--w-butter)", in_transit: "var(--w-blue)", notified: "var(--g-sage)", received: "color-mix(in srgb, var(--g-sage) 45%, var(--tick-off))" };
@@ -45,7 +47,8 @@ export function WorkOverview({ module }: { module: ModuleId }) {
   const [edit, setEdit] = useState<{ task?: Task; item?: ProcItem } | null>(null);
   const f = focusStats(tasks, today), totalToday = f.completed + f.remaining;
   const rot = rotationStatus(today, settings.work_rotation), cfg = settings.work_rotation, cycle = cfg.onDays + cfg.offDays;
-  const dayIndex = ((toDays(today) - toDays(cfg.anchorDate)) % cycle + cycle) % cycle;
+  const dayIndex = rot.phase === "on" ? rot.dayInPhase - 1 : cfg.onDays + rot.dayInPhase - 1; // the same status the schedule and the recurring tasks use
+  const win = phaseWindow(today, cfg), travel = upcomingTravel(today, cfg, 1)[0];
   const open = tasks.filter(isOpen);
   const deadlines = open.filter((t) => t.dueDate && t.dueDate >= today && t.dueDate <= addDays(today, 14)).sort(byDue).slice(0, 6);
   const active = items.filter((i) => i.status !== "received");
@@ -58,6 +61,8 @@ export function WorkOverview({ module }: { module: ModuleId }) {
   return (
     <div className="@container">
       <div className="grid grid-cols-2 gap-2 @[640px]:grid-cols-12 @[640px]:gap-3">
+        <TimeClockCard className="col-span-2 @[640px]:col-span-12 @[1000px]:col-span-8" />
+        <ShoppingCard className="col-span-2 @[640px]:col-span-12 @[1000px]:col-span-4" />
         <Card tone="butter" to="/tasks?module=progressive&h=today" label="Daily completion" aria={`Daily completion: ${f.completed} of ${totalToday} tasks, ${f.pct} percent`} className="min-h-[196px] @[640px]:col-span-6 @[1000px]:col-span-3">
           <RadialGauge pct={f.pct} size={112} ink="var(--w-butter-on)" hatch="var(--w-butter-on)" fill="var(--w-butter-on)" className="mt-3" label={totalToday === 0 ? "No tasks due today" : `${f.pct} percent of today's tasks complete`} />
           <div className="mt-auto pt-2"><p className="num text-[26px] font-light leading-none tracking-tight">{totalToday === 0 ? "—" : <>{f.pct}<span className="text-[0.6em]">%</span></>}</p><p className="mt-1 text-[12.5px] opacity-75">{totalToday === 0 ? "Nothing due today" : `${f.completed} of ${totalToday} done${f.overdue ? ` · ${f.overdue} overdue` : ""}`}</p></div>
@@ -66,7 +71,7 @@ export function WorkOverview({ module }: { module: ModuleId }) {
           <RotationDial cycle={cycle} onDays={cfg.onDays} dayIndex={dayIndex} size={112} ink="var(--w-on-blue)" accent="var(--w-blue-ink)" className="mt-3" label={`Rotation day ${dayIndex + 1} of ${cycle}`}>
             <div><p className="num text-[22px] font-light leading-none">{rot.dayInPhase}<span className="text-[0.55em] opacity-70">/{rot.phaseLength}</span></p></div>
           </RotationDial>
-          <div className="mt-auto pt-2"><p className="text-[15px] font-medium leading-none">{rot.phase === "on" ? "On rotation" : "Off rotation"}</p><p className="mt-1 text-[12.5px] opacity-75">{rot.phase === "on" ? `${rot.daysRemaining} days to go` : `Back ${pretty(rot.nextChange)}`}</p></div>
+          <div className="mt-auto pt-2"><p className="text-[15px] font-medium leading-none">{rot.phase === "on" ? "On rotation" : "Off rotation"} · day {rot.dayInPhase} of {rot.phaseLength}</p><p className="mt-1 text-[12.5px] opacity-75">{rot.daysRemaining} {rot.daysRemaining === 1 ? "day" : "days"} remaining · {pretty(win.start, { day: "numeric", month: "short" })} – {pretty(win.end, { day: "numeric", month: "short" })}</p>{travel && <p className="mt-0.5 text-[12.5px] opacity-75">{travel.kind === "fly_home" ? "Fly home" : "Fly out"} {pretty(travel.date, { weekday: "short", day: "numeric", month: "short" })}{travel.confirmed ? "" : " · to confirm"}</p>}</div>
         </Card>
         {monthly.length === 0 ? (
           <Card tone="charcoal" label="KPI progress" className="col-span-2 min-h-[120px] @[640px]:col-span-12"><Quiet>Set up the REEF and RIPET KPI tracks in Settings to see them here.</Quiet></Card>

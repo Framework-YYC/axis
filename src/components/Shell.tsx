@@ -50,11 +50,6 @@ function ThemeButton({ className }: { className?: string }) {
   );
 }
 
-function RailStagingDot() {
-  const { env } = useEnvironment();
-  return env === "staging" ? <i aria-hidden className="absolute -right-1 -top-1 size-2.5 rounded-full ring-2 ring-[var(--rail)]" style={{ background: "var(--amber)" }} /> : null;
-}
-
 function Rail() {
   const { pathname } = useLocation();
   const active = dockActive(pathname);
@@ -70,8 +65,7 @@ function Rail() {
     <aside aria-label="Primary" className="sticky top-4 z-30 hidden h-[calc(100dvh-2rem)] w-[60px] shrink-0 flex-col gap-3 md:flex">
       <div ref={host} className="glass relative flex flex-col items-center gap-1.5 rounded-[22px] px-1.5 py-3">
         {indicator}
-        <Link to="/" aria-label="Orbis home" className="press relative z-10 mb-1"><LogoMark size={36} /><RailStagingDot /></Link>
-        {env === "staging" && <span className="relative z-10 -mt-0.5 mb-1 font-mono text-[7.5px] font-medium tracking-[0.1em]" style={{ color: "var(--amber)" }}>STAGING</span>}
+        {env === "staging" && <span className="relative z-10 -mt-1 font-mono text-[7.5px] font-medium tracking-[0.1em]" style={{ color: "var(--amber)" }}>STAGING</span>}
         {link(a)}{link(b)}
         <div className="relative z-10 my-1"><OrbisButton variant="rail" /></div>
         {link(c)}{link(d)}

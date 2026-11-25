@@ -330,20 +330,20 @@ describe("habits", () => {
     expect((await run(owner, "create_habit", { title: "x", daysOfWeek: [9] })).error.code).toBe("invalid_input");
   });
   it("on-rotation and off-rotation routines follow the work rotation setting", async () => {
-    // default rotation: on 2026-11-16..11-29, off 2026-11-30..12-06
+    // default rotation (calendar-confirmed): on 2026-11-19..12-02, off 2026-12-03..12-09
     const off = await run(owner, "create_habit", { title: "Gym", module: "health", rotationMode: "off", startDate: "2026-11-16" });
     const on = await run(owner, "create_habit", { title: "Site walk", module: "progressive", rotationMode: "on", startDate: "2026-11-16" });
     const split = await run(owner, "create_habit", { title: "Move", module: "health", rotationMode: "split", targetCount: 1, offTargetCount: 3, startDate: "2026-11-16" });
     const at = async (id: string, today: string) => (await run(owner, "get_habit", { id, today })).data.today;
     expect(await at(off.data.id, "2026-11-24")).toMatchObject({ applies: false });
-    expect(await at(off.data.id, "2026-12-01")).toMatchObject({ applies: true });
+    expect(await at(off.data.id, "2026-12-04")).toMatchObject({ applies: true });
     expect(await at(on.data.id, "2026-11-24")).toMatchObject({ applies: true });
-    expect(await at(on.data.id, "2026-12-01")).toMatchObject({ applies: false });
+    expect(await at(on.data.id, "2026-12-04")).toMatchObject({ applies: false });
     expect(await at(split.data.id, "2026-11-24")).toMatchObject({ target: 1 });
-    expect(await at(split.data.id, "2026-12-01")).toMatchObject({ target: 3 });
+    expect(await at(split.data.id, "2026-12-04")).toMatchObject({ target: 3 });
     expect((await run(owner, "set_setting", { key: "work_rotation", value: { anchorDate: "2026-11-24", onDays: 7, offDays: 7 } })).ok).toBe(true);
     expect(await at(off.data.id, "2026-11-24")).toMatchObject({ applies: false });
-    expect(await at(off.data.id, "2026-12-01")).toMatchObject({ applies: true });
+    expect(await at(off.data.id, "2026-12-04")).toMatchObject({ applies: true });
   });
 });
 
@@ -411,7 +411,7 @@ describe("settings, demo data and integrations", () => {
     expect(a.ok).toBe(true);
     expect(a.data.tasks).toBeGreaterThan(15);
     const again = await run(owner, "load_demo_data", {});
-    expect(again.data).toEqual({ tasks: 0, goals: 0, habits: 0, events: 0, logs: 0, finance: 0 }); // idempotent
+    expect(again.data).toEqual({ tasks: 0, goals: 0, habits: 0, events: 0, logs: 0, finance: 0, shopping: 0, timePunches: 0 }); // idempotent
     const demo = raw.prepare("SELECT COUNT(*) n FROM tasks WHERE demo = 1").get() as any;
     expect(demo.n).toBe(a.data.tasks);
     expect((await run(owner, "list_tasks", { today: TODAY, limit: 500 })).data.tasks.filter((t: any) => t.demo).every((t: any) => /synthetic/.test(t.title))).toBe(true);

@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+### Work: time clock, rotation correction, rail logo (staging)
+- **Time clock** on Work Overview (migration 0010, owner-only): punch between REEF 928 and RIPET 1011 (jobs configurable); one tap stops the previous entry and starts the next at the same instant; Break, Resume, End shift; today's total, hours by job, weekly totals, editable punch history (overlaps refused, original punches kept, deletes audited). Server-side timestamps keep tracking while Orbis is closed; nothing is deducted or ended automatically; double taps and retried saves cannot duplicate; failed saves are shown and kept until retried or discarded.
+- **Rotation corrected**: on Nov 19 to Dec 2 2026, fly home Dec 3 (Nov 25 is day 7 of 14, 7 remaining). The early seed value is read as the corrected default; open rotation-dependent recurring tasks are realigned once per rotation setting (history, overdue and non-rotation tasks untouched). Travel dates after the last confirmed date are shown as "to confirm".
+- iPad and desktop rail: the top-left Orbis logo link is removed; the lime Orbis button (menu, Home inside) is the only mark. Phone navigation unchanged.
+### Work: shopping list (migration 0009)
+- A lightweight checklist for trips into town, reachable from Work Overview and separate from Procurement: quick add (one field), optional quantity and job number, one-tap check-off, collected items below with Restore, Clear checked (soft: cleared items can be restored for 7 days), and a confirmed Send to Procurement per item (owner only, creates one request, never twice). Unchecked items stay for the next trip.
+- Datum adds and updates items through the existing connection (`task.create` with a `key` and a `shopping` block, op `upsert_shopping_item`): the same key always updates the same item, an open item with the same name (and job) is updated instead of re-added, a cleared item added again by key comes back, nothing is ever promoted automatically. Table `shopping_items` (write-guarded, additive migration).
 ### Navigation redesign and Personal (staging)
 - Dock and rail are five evenly spaced positions: Personal, Finance, Orbis, Framework, Work. The central Orbis button (existing orbital mark on brand lime) opens an animated floating glass menu: Home, Quick Add, Calendar, Search, Settings, Switch to Staging/Production.
 - Quick Add is context aware and opens the usual editors; Search (also ⌘K) covers tasks, goals, habits, events and finance records. The header keeps only the notification bell; Settings and Add left the header.
