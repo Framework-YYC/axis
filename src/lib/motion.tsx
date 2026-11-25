@@ -80,36 +80,79 @@ export function Collapse({ open, children, className }: { open: boolean; childre
   return <div className={`expand ${className ?? ""}`} data-open={open} inert={!open}><div>{children}</div></div>;
 }
 
-/** Tweens a number toward its target when it changes (not on first render, so routine data loads do not replay an entrance). */
+/** How long the first sweep to a value takes when a gauge or ring appears with its page; later changes use the shorter `ms`. */
+const ENTRY_MS = 900, ENTRY_DELAY = 220;
+
+/**
+ * Tweens a number to its target. On first appearance (a page was entered) it sweeps up from zero after a short delay so it lands with the card cascade;
+ * afterwards it only moves when the value actually changes, so ordinary data refreshes never replay an entrance. Reduced motion: no animation.
+ */
 export function useTween(target: number, ms = 300): number {
-  const [v, setV] = useState(target);
-  const cur = useRef(target), first = useRef(true), raf = useRef(0);
+  const reduced = prefersReducedMotion();
+  const [v, setV] = useState(reduced ? target : 0);
+  const cur = useRef(reduced ? target : 0), first = useRef(true), raf = useRef(0), timer = useRef(0);
   useEffect(() => {
-    if (first.current) { first.current = false; cur.current = target; return; }
+    const entering = first.current; first.current = false;
     if (prefersReducedMotion() || ms <= 0) { cur.current = target; setV(target); return; }
-    const from = cur.current, t0 = performance.now();
-    cancelAnimationFrame(raf.current);
-    const step = (now: number) => { const e = now - t0; const val = tweenAt(from, target, e, ms); cur.current = val; setV(val); if (e < ms) raf.current = requestAnimationFrame(step); };
-    raf.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf.current);
+    const dur = entering ? Math.max(ENTRY_MS, ms) : ms;
+    const run = () => {
+      const from = cur.current, t0 = performance.now();
+      const step = (now: number) => { const e = now - t0; const val = tweenAt(from, target, e, dur); cur.current = val; setV(val); if (e < dur) raf.current = requestAnimationFrame(step); };
+      raf.current = requestAnimationFrame(step);
+    };
+    cancelAnimationFrame(raf.current); clearTimeout(timer.current);
+    if (entering) timer.current = window.setTimeout(run, ENTRY_DELAY); else run();
+    return () => { cancelAnimationFrame(raf.current); clearTimeout(timer.current); };
   }, [target, ms]);
   return v;
 }
 
-/** Tweens a list of numbers together (one progress for the whole list). */
+/** Tweens a list of numbers together (one progress for the whole list), with the same entrance behaviour as useTween. */
 export function useTweenList(values: readonly number[], ms = 300): number[] {
   const key = values.join(",");
-  const [v, setV] = useState<number[]>(() => [...values]);
-  const cur = useRef<number[]>([...values]), first = useRef(true), raf = useRef(0);
+  const reduced = prefersReducedMotion();
+  const [v, setV] = useState<number[]>(() => (reduced ? [...values] : values.map(() => 0)));
+  const cur = useRef<number[]>(reduced ? [...values] : values.map(() => 0)), first = useRef(true), raf = useRef(0), timer = useRef(0);
   useEffect(() => {
     const target = key === "" ? [] : key.split(",").map(Number);
-    if (first.current) { first.current = false; cur.current = target; return; }
+    const entering = first.current; first.current = false;
     if (prefersReducedMotion() || ms <= 0 || target.length !== cur.current.length) { cur.current = target; setV(target); return; }
-    const from = cur.current, t0 = performance.now();
-    cancelAnimationFrame(raf.current);
-    const step = (now: number) => { const e = now - t0; const next = target.map((t, i) => tweenAt(from[i], t, e, ms)); cur.current = next; setV(next); if (e < ms) raf.current = requestAnimationFrame(step); };
-    raf.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf.current);
+    const dur = entering ? Math.max(ENTRY_MS, ms) : ms;
+    const run = () => {
+      const from = cur.current, t0 = performance.now();
+      const step = (now: number) => { const e = now - t0; const next = target.map((t, i) => tweenAt(from[i], t, e, dur)); cur.current = next; setV(next); if (e < dur) raf.current = requestAnimationFrame(step); };
+      raf.current = requestAnimationFrame(step);
+    };
+    cancelAnimationFrame(raf.current); clearTimeout(timer.current);
+    if (entering) timer.current = window.setTimeout(run, ENTRY_DELAY); else run();
+    return () => { cancelAnimationFrame(raf.current); clearTimeout(timer.current); };
   }, [key, ms]);
   return v;
+}
+
+/**
+ * Page entrance: when a page or tab body mounts, its header, tab bar and cards (anything with data-cascade, and every .panel) rise and fade in one after
+ * another, 80 ms apart. It runs on navigation only (the element is re-created by a key change), never on data refreshes, skips what is below the fold,
+ * and does nothing under reduced motion.
+ */
+export function useCascade(scope: { current: HTMLElement | null }): void {
+  useLayoutEffect(() => {
+    const root = scope.current;
+    if (!root || prefersReducedMotion()) return;
+    const vh = window.innerHeight; let i = 0;
+    for (const el of root.querySelectorAll<HTMLElement>("[data-cascade], .panel")) {
+      if (el.dataset.cascaded || el.closest("[role=dialog]") || el.parentElement?.closest(".cascade")) continue;
+      el.dataset.cascaded = "1";
+      if (el.getBoundingClientRect().top > vh * 1.05) continue; // below the fold: appears as it is scrolled to
+      el.style.setProperty("--cascade-delay", `${Math.min(i, 6) * 80}ms`);
+      el.classList.add("cascade"); i++;
+    }
+  }, [scope]);
+}
+
+/** A page or tab body whose content cascades in when it mounts. Key it by what should replay the entrance (the module, the tab). */
+export function PageFrame({ children, className = "page-in" }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useCascade(ref);
+  return <div ref={ref} className={className}>{children}</div>;
 }

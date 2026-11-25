@@ -24,7 +24,7 @@ export function ModuleTabs({ module, tab, counts }: { module: ModuleId; tab: Tab
   const inMore = more.includes(tab);
   const base = "hit inline-flex items-center gap-1.5 rounded-full px-3 text-[12.5px] whitespace-nowrap transition-colors";
   return (
-    <div ref={ref} className="relative mb-4 flex items-center gap-1.5">
+    <div ref={ref} data-cascade className="relative mb-4 flex items-center gap-1.5">
       <div ref={host} role="tablist" aria-label="Sections" className="no-scrollbar relative flex min-w-0 flex-1 gap-0.5 overflow-x-auto rounded-full p-0.5" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
         {indicator}
         {primary.map((t) => (

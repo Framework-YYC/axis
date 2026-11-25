@@ -16,7 +16,7 @@ describe("module-first navigation", () => {
     for (const gone of ["Assistants", "More"]) expect(read("src/components/Shell.tsx")).not.toMatch(new RegExp(`label="${gone}"`));
   });
   it("each module's contextual tabs match the plan and only name screens that exist", () => {
-    expect(PRIMARY_TABS).toEqual({ daily: ["overview", "tasks", "goals", "calendar"], health: ["overview", "tasks", "goals", "habits"], financial: ["overview", "tasks", "goals"], framework: ["overview", "tasks", "goals"], progressive: ["overview", "tasks", "recurring", "actions"] });
+    expect(PRIMARY_TABS).toEqual({ daily: ["overview", "tasks", "goals", "calendar"], health: ["overview", "tasks", "goals", "habits"], financial: ["overview", "tasks", "goals"], framework: ["overview", "tasks", "goals"], progressive: ["overview", "tasks", "progress", "procurement"] });
     for (const tabs of Object.values(PRIMARY_TABS)) for (const t of tabs) expect(ALL_TABS).toContain(t);
     const page = read("src/pages/ModulePage.tsx");
     for (const t of ALL_TABS) expect(page, `module page renders the ${t} tab`).toContain(`tab === "${t}"`);
@@ -116,9 +116,9 @@ describe("glass and motion", () => {
     expect(css).toMatch(/--dur-fast: 160ms/); expect(css).toMatch(/--dur-base: 240ms/); expect(css).toMatch(/--dur-slow: 340ms/);
     expect(css).toMatch(/prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after \{ animation-duration: 0\.01ms/);
     const shell = read("src/components/Shell.tsx");
-    expect(shell).toContain("key={moduleOf(pathname).to} className=\"page-in\""); // page transition keyed by module, not by data
-    expect(read("src/lib/motion.tsx")).toMatch(/first\.current/); // tweens skip the first render
-    expect(css).toMatch(/\.page-in \{[^}]*backwards/); expect(css).toMatch(/\.rise \{[^}]*backwards/); // never forwards: a filled transform would trap fixed sheets inside the page
+    expect(shell).toContain("<PageFrame key={moduleOf(pathname).to}>"); // page transition keyed by module, not by data
+    expect(read("src/lib/motion.tsx")).toMatch(/first\.current/); // tweens sweep in once when they appear, then only move when the value changes
+    expect(css).toMatch(/\.page-in \{[^}]*backwards/); expect(css).toMatch(/\.cascade \{[^}]*backwards/); // never forwards: a filled transform would trap fixed sheets inside the page
     expect(css).not.toMatch(/^\s*\.collapse \{/m); // would collide with the Tailwind collapse (visibility) utility
     expect(read("src/components/TaskLine.tsx")).toContain("row-leave"); expect(read("src/components/TaskGroups.tsx")).toContain("<Collapse");
   });
@@ -170,11 +170,12 @@ describe("Orbis brand and the Work command centre", () => {
     expect(readdirSync("branding/orbis/png").length).toBe(svgs.length); expect(readdirSync("branding/orbis/pdf").length).toBe(svgs.length);
     expect(svgs.every((f) => !/<text/.test(readFileSync(`branding/orbis/svg/${f}`, "utf8")))).toBe(true); // type is outlined
   });
-  it("Work leads with the command centre and has dedicated Recurring and Action items views", () => {
-    expect(PRIMARY_TABS.progressive.slice(0, 4)).toEqual(["overview", "tasks", "recurring", "actions"]);
+  it("Work has four primary tabs (Overview, Tasks, Progress, Procurement) and a graphical overview", () => {
+    expect(PRIMARY_TABS.progressive).toEqual(["overview", "tasks", "progress", "procurement"]);
     const page = read("src/pages/ModulePage.tsx"), views = read("src/components/WorkViews.tsx");
-    expect(page).toContain('id === "progressive" && <WorkOverview'); expect(page).toContain("<RecurringView"); expect(page).toContain("<ActionItemsView");
-    for (const section of ["Today's responsibilities", "Action items", "Incoming deliveries", "Upcoming recurring", "Manual tasks", "Meetings and events"]) expect(views).toContain(section);
+    expect(page).toContain('id === "progressive" && <WorkOverview'); expect(page).toContain("<ProgressView"); expect(page).toContain("<ProcurementView");
+    for (const section of ["Daily completion", "Work rotation", "Reporting progress", "Procurement pipeline", "Upcoming deadlines", "Delivery notifications"]) expect(views).toContain(section);
+    for (const viz of ["RadialGauge", "RotationDial", "PartsBar", "SplitBar"]) expect(views).toContain(viz);
     expect(views).not.toMatch(/style=\{\{/); expect(views).not.toContain("dangerouslySetInnerHTML");
   });
   it("the task editor exposes rotation awareness and last-day-of-month", () => {
@@ -187,10 +188,10 @@ describe("glass and staggered card entrance are actually applied", () => {
   it("floating chrome uses the glass materials and cards cascade in on navigation only", () => {
     for (const f of ["src/components/Shell.tsx", "src/components/ModuleTabs.tsx", "src/components/forms.tsx", "src/components/EnvSwitch.tsx"]) expect(read(f), f).toMatch(/\bglass(-sheet|-bubble)?\b/);
     const css = read("src/styles/index.css");
-    expect(css).toMatch(/\.glass \{[^}]*backdrop-filter: blur/); expect(css).toContain("prefers-reduced-transparency"); expect(css).toMatch(/\.stagger > \*:nth-child\(2\)/);
-    expect(read("src/pages/Dashboard.tsx")).toContain('className="stagger grid');
-    expect(read("src/components/WorkViews.tsx").match(/stagger/g)!.length).toBeGreaterThanOrEqual(4);
-    expect(css).toMatch(/\.stagger > \* \{ animation: rise [^;]*backwards/); // backwards fill: no trapped fixed sheets, no replay on data refresh
+    expect(css).toMatch(/\.glass \{[^}]*backdrop-filter: blur/); expect(css).toContain("prefers-reduced-transparency"); 
+        expect(read("src/components/InstrumentCard.tsx")).toContain("data-cascade"); expect(read("src/components/ui.tsx")).toContain("data-cascade");
+    expect(read("src/lib/motion.tsx")).toContain("export function useCascade"); expect(css).toMatch(/--cascade-delay/); expect(css).toMatch(/--dur-page: 460ms/);
+    expect(read("src/lib/motion.tsx")).toContain("* 80}ms"); // 80 ms between cards
   });
 });
 
@@ -203,7 +204,7 @@ describe("task rows are minimal: no source references, Datum is a display name o
   it("rows only render a metadata line when there is something to show, and keep recurrence and due dates", () => {
     const row = read("src/components/TaskLine.tsx");
     expect(row).toContain("hasMeta &&"); expect(row).toContain("Repeat size={11}"); expect(row).toContain("<DueChip");
-    expect(read("src/components/WorkViews.tsx")).toContain("describeRecurrence(t.recurrence)");
+    expect(read("src/lib/taskUi.ts")).toContain("describeRecurrence(t.recurrence)");
   });
   it("Datum is the displayed name of the Work assistant; module ids and stored labels are unchanged", async () => {
     const m = await import("../shared/modules");

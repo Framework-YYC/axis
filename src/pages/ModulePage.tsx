@@ -11,7 +11,7 @@ import { SegBar, Spark } from "../components/charts";
 import { isTab, type TabId } from "../components/nav";
 import { ModuleTabs } from "../components/ModuleTabs";
 import { TasksView } from "../components/TasksView";
-import { ActionItemsView, RecurringView, WorkOverview } from "../components/WorkViews";
+import { ProcurementView, ProgressView, WorkOverview } from "../components/WorkViews";
 import { Calendar } from "./Calendar";
 import { GoalList, HabitList } from "../components/compact";
 import { TaskLine } from "../components/TaskLine";
@@ -19,6 +19,7 @@ import { Btn, Empty, PageHeader, StatLine, Status, Widget } from "../components/
 import { useData } from "../lib/data";
 import { pretty } from "../lib/dates";
 import { byUrgency, isOpen } from "../lib/taskUi";
+import { PageFrame } from "../lib/motion";
 import { useApi } from "../lib/useApi";
 import type { ActivityRow, CalEvent, Goal, Habit, Task } from "../lib/types";
 
@@ -55,10 +56,10 @@ function Module({ id }: { id: ModuleId }) {
       <PageHeader crumb={meta.label.toUpperCase()} title={meta.label} subtitle={meta.blurb} onNew={() => setEdit({ kind: "task" })} />
       <ModuleTabs module={id} tab={tab} counts={{ tasks: open.length, goals: mg.length, habits: mh.length }} />
 
-      <div key={tab} className="tab-in">
+      <PageFrame key={tab} className="tab-in">
       {tab === "overview" && id === "progressive" && <WorkOverview module={id} />}
-      {tab === "recurring" && <RecurringView module={id} />}
-      {tab === "actions" && <ActionItemsView module={id} />}
+      {tab === "progress" && <ProgressView module={id} />}
+      {tab === "procurement" && <ProcurementView module={id} />}
 
       {tab === "overview" && id !== "progressive" && (
         <div className="grid gap-3 @[960px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -146,7 +147,7 @@ function Module({ id }: { id: ModuleId }) {
         </div>
       )}
 
-      </div>
+      </PageFrame>
 
       {edit?.kind === "task" && <TaskEditor task={edit.task} defaults={{ module: id }} onClose={() => setEdit(null)} />}
       {edit?.kind === "goal" && <GoalEditor goal={edit.goal} defaultModule={id} onClose={() => setEdit(null)} />}

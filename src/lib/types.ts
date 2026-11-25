@@ -13,7 +13,7 @@ export interface Task {
   priority: Priority; status: TaskStatus; dueDate: string | null; dueTime: string | null; scheduledDate: string | null; recurrence: Recurrence | null; recurrenceParentId: string | null;
   goalId: string | null; completedAt: string | null; archivedAt: string | null; horizon: Horizon | null; source: Source; externalId: string | null; demo: boolean;
   createdAt: string; updatedAt: string; createdBy: string; updatedBy: string; version: number;
-  type: "manual" | "recurring" | "action_item"; topic: string | null; relatedDate: string | null; relatedTime: string | null; supplier: string | null;
+  type: "manual" | "recurring" | "action_item"; trackPart: string | null; topic: string | null; relatedDate: string | null; relatedTime: string | null; supplier: string | null;
 }
 export interface Milestone { id: string; title: string; targetDate: string | null; targetValue: number | null; done: boolean; doneAt: string | null }
 export interface Goal {
@@ -32,3 +32,15 @@ export interface InboxRequest { id: string; assistant: ModuleId; op: string; sta
 export interface ActivityRow { at: string; actor: string; channel: string; via: string | null; action: string; entity: string; entityId: string | null; outcome: string }
 export interface Settings { timezone: string; week_start: "monday" | "sunday"; unit_system: "metric" | "imperial"; currency: string; theme: string; work_rotation: { anchorDate: string; onDays: number; offDays: number } }
 export interface Me { label: string; environment: string; signedIn: boolean }
+
+export interface PartView { id: string; kind: "period" | "step"; key: string; label: string; dueDate: string; done: boolean; doneAt: string | null; viaTask: boolean; state: "done" | "overdue" | "due" | "upcoming"; taskId: string | null }
+export interface ProgressSummary { periodsDone: number; periodsTotal: number; stepsDone: number; stepsTotal: number; percent: number; complete: boolean }
+export interface CycleView { cycle: string; label: string; dueDate: string; parts: PartView[]; progress: ProgressSummary; materialized: boolean }
+export interface TrackView { key: string; module: ModuleId; title: string; stream: string | null; periodLabel: string; steps: Array<{ key: string; title: string }>; startCycle: string; cycles: CycleView[] }
+export type Stage = "requested" | "ordered" | "in_transit" | "notified" | "received";
+export interface ProcItem {
+  id: string; module: ModuleId; material: string; description: string | null; quantity: number | null; unit: string | null; supplier: string | null; orderRef: string | null;
+  status: Stage; storedStatus: string; requestedOn: string | null; orderedOn: string | null; inTransitOn: string | null; notifiedOn: string | null; receivedOn: string | null;
+  expectedDate: string | null; expectedTime: string | null; notificationTaskId: string | null; notification: { status: string; dueDate: string | null; dueTime: string | null } | null;
+  priority: Priority; notes: string | null; source: Source; externalId: string | null; demo: boolean; archivedAt: string | null; createdAt: string; updatedAt: string; version: number;
+}

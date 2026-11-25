@@ -4,13 +4,13 @@ import { useSearchParams } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, type Horizon } from "../../shared/horizons";
 import { isModule, MODULE_IDS, MODULES_META, type ModuleId } from "../../shared/modules";
 import { useData } from "../lib/data";
-import { byUrgency, isOpen } from "../lib/taskUi";
+import { byUrgency, isOpen, taskDetail } from "../lib/taskUi";
 import type { Task } from "../lib/types";
 import { TaskEditor } from "./editors";
 import { Chips, Field, Modal, Select } from "./forms";
-import { TaskGroups } from "./TaskGroups";
+import { TaskGroups, TypeGroups } from "./TaskGroups";
 import { TaskLine } from "./TaskLine";
-import { Btn, Empty } from "./ui";
+import { Btn, Empty, Segmented } from "./ui";
 
 const PRIORITIES = [{ value: "critical", label: "Critical" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }];
 const STATUSES = [{ value: "all", label: "Open, any status" }, { value: "pending", label: "To do" }, { value: "in_progress", label: "In progress" }, { value: "waiting", label: "Waiting" }, { value: "completed", label: "Completed" }];
@@ -43,6 +43,8 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
   const status = legacyDone ? "completed" : sp.get("status") ?? "all";
   const project = sp.get("project") ?? "all";
   const q = sp.get("q") ?? "";
+  const type = (["recurring", "action_item", "manual"] as const).find((x) => x === sp.get("type")) ?? "all";
+  const group = sp.get("group") === "type" ? "type" : "due";
   const [editing, setEditing] = useState<{ task?: Task } | null>(null);
   const [menu, setMenu] = useState(false);
   useEffect(() => { if (sp.get("add")) { setEditing({}); const n = new URLSearchParams(sp); n.delete("add"); setSp(n, { replace: true }); } }, [sp, setSp]);
@@ -56,11 +58,13 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
     return inModule
       .filter((t) => (completed ? t.status === "completed" : isOpen(t)))
       .filter((t) => (completed || status === "all" ? true : t.status === status))
+      .filter((t) => type === "all" || t.type === type)
       .filter((t) => priority === "all" || t.priority === priority)
       .filter((t) => project === "all" || t.project === project)
       .filter((t) => !needle || `${t.title} ${t.description ?? ""} ${t.project ?? ""}`.toLowerCase().includes(needle))
       .sort(completed ? (a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "") : byUrgency);
-  }, [inModule, status, priority, project, q]);
+  }, [inModule, status, type, priority, project, q]);
+  const typeCount = (k: string) => inModule.filter((t) => isOpen(t) && (k === "all" || t.type === k)).length;
   const toggle = (t: Task) => void (t.status === "completed" ? reopenTask(t.id) : completeTask(t.id));
   const secondary = [priority !== "all" && ["priority", `Priority: ${priority}`], status !== "all" && ["status", STATUSES.find((s) => s.value === status)?.label ?? status], project !== "all" && ["project", `Project: ${project}`]].filter(Boolean) as Array<[string, string]>;
   const moduleLabel = module === "all" ? "All modules" : MODULES_META[module].label;
@@ -68,7 +72,7 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
 
   return (
     <div>
-      <div className="mb-2.5 flex items-center gap-2">
+      <div data-cascade className="mb-2.5 flex items-center gap-2">
         <Pick label="Module" value={module} display={moduleLabel} onChange={(v) => set("module", v)}>
           <option value="all">All modules</option>
           {MODULE_IDS.map((m) => <option key={m} value={m}>{MODULES_META[m].label}</option>)}
@@ -82,7 +86,11 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
           {secondary.length > 0 && <span className="num absolute -right-0.5 -top-0.5 grid size-[18px] place-items-center rounded-full bg-[var(--pill-bg)] text-[10.5px] font-medium text-[var(--pill-ink)]">{secondary.length}</span>}
         </button>
       </div>
-      <form role="search" onSubmit={(e) => e.preventDefault()} className="mb-3 flex h-11 items-center gap-2 rounded-full px-3.5 md:h-10" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
+      <div data-cascade className="mb-2.5 flex flex-wrap items-center gap-2">
+        <Segmented label="Task type" value={type} onChange={(v) => set("type", v)} options={[{ value: "all", label: `All ${typeCount("all")}` }, { value: "recurring", label: `Recurring ${typeCount("recurring")}` }, { value: "action_item", label: `Action items ${typeCount("action_item")}` }, { value: "manual", label: `Manual ${typeCount("manual")}` }]} />
+        {status !== "completed" && <Segmented label="Group by" value={group} onChange={(v) => set("group", v === "due" ? "" : v)} options={[{ value: "due", label: "By due date" }, { value: "type", label: "By type" }]} />}
+      </div>
+      <form data-cascade role="search" onSubmit={(e) => e.preventDefault()} className="mb-3 flex h-11 items-center gap-2 rounded-full px-3.5 md:h-10" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
         <Search size={15} strokeWidth={1.4} className="text-muted" aria-hidden />
         <input value={q} onChange={(e) => set("q", e.target.value)} aria-label="Search tasks" placeholder="Search tasks" className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted" />
         {q && <button type="button" onClick={() => set("q", "")} aria-label="Clear search" className="hit -mr-2.5 grid place-items-center text-muted"><X size={15} aria-hidden /></button>}
@@ -97,7 +105,7 @@ export function TasksView({ module: defaultModule }: { module?: ModuleId; embedd
       {loading ? <Empty>Loading…</Empty> : error && tasks.length === 0 ? <Empty>{error}</Empty> : status === "completed" ? (
         shown.length ? <ul>{shown.map((t) => <TaskLine key={t.id} t={t} today={today} onToggle={toggle} onOpen={(x) => setEditing({ task: x })} showModule={module === "all"} />)}</ul> : <Empty>Nothing completed recently.</Empty>
       ) : (
-        <TaskGroups tasks={shown} today={today} weekStart={weekStart} onToggle={toggle} onOpen={(x) => setEditing({ task: x })} only={h} showModule={module === "all"} />
+        group === "type" ? <TypeGroups tasks={shown} today={today} onToggle={toggle} onOpen={(x) => setEditing({ task: x })} showModule={module === "all"} detail={taskDetail} /> : <TaskGroups tasks={shown} today={today} weekStart={weekStart} onToggle={toggle} onOpen={(x) => setEditing({ task: x })} only={h} showModule={module === "all"} detail={taskDetail} />
       )}
 
       {menu && (

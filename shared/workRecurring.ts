@@ -27,3 +27,10 @@ export function sameResponsibility(a: string, b: string): boolean {
   const shared = [...x].filter((w) => y.has(w)).length;
   return shared / Math.min(x.size, y.size) >= 0.8 && shared / Math.max(x.size, y.size) >= 0.6;
 }
+
+/** Work's KPI deliverables: the weekly task completes a reporting period, the monthly task is the submission. The number of periods in a month comes from the calendar. */
+export interface WorkTrack { key: string; title: string; stream: string; periodTitle: string; submitTitle: string }
+export const WORK_TRACKS: WorkTrack[] = [
+  { key: "reef-kpi", title: "REEF KPIs", stream: "REEF", periodTitle: "Complete weekly REEF KPIs", submitTitle: "Finalise monthly REEF KPIs" },
+  { key: "ripet-kpi", title: "RIPET KPIs", stream: "RIPET", periodTitle: "Complete weekly RIPET KPIs", submitTitle: "Finalise monthly RIPET KPIs" },
+];

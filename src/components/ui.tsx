@@ -11,7 +11,7 @@ export { cx };
 
 /** A raised card: the basic layered surface. */
 export function Panel({ children, className, id, tabIndex, onKeyDown, label }: { children: ReactNode; className?: string; id?: string; tabIndex?: number; onKeyDown?: (e: React.KeyboardEvent) => void; label?: string }) {
-  return <section id={id} tabIndex={tabIndex} onKeyDown={onKeyDown} aria-label={label} className={cx("panel rise", className)}>{children}</section>;
+  return <section id={id} tabIndex={tabIndex} onKeyDown={onKeyDown} aria-label={label} className={cx("panel", className)}>{children}</section>;
 }
 
 export function CountBadge({ n }: { n: number }) {
@@ -78,7 +78,7 @@ export function HeaderActions({ onNew }: { onNew?: () => void }) {
 
 export function PageHeader({ crumb, title, subtitle, controls, tag, onNew }: { crumb: string; title: string; subtitle?: string; controls?: ReactNode; tag?: ReactNode; onNew?: () => void }) {
   return (
-    <header className="@container mb-4 md:mb-5">
+    <header data-cascade className="@container mb-4 md:mb-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="mono">ORBIS / {crumb}</p>

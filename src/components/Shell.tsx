@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
-import { useSlidingIndicator } from "../lib/motion";
+import { PageFrame, useSlidingIndicator } from "../lib/motion";
 import { useTheme } from "../lib/theme";
 import { DESTINATIONS, dockActive, moduleOf, UTILITY, useIsActive, useNavModel, type NavGroup } from "./nav";
 import { Btn } from "./ui";
@@ -204,7 +204,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         )}
         <PhoneStagingRow />
-        <div key={moduleOf(pathname).to} className="page-in">{children}</div>
+        <PageFrame key={moduleOf(pathname).to}>{children}</PageFrame>
       </main>
       <Dock />
     </div>

@@ -1,6 +1,10 @@
 import { nextOccurrence } from "../../shared/recurrence";
 import { addDays } from "../../shared/rotation";
-import { sameResponsibility, WORK_RECURRING } from "../../shared/workRecurring";
+import { sameResponsibility, WORK_RECURRING, WORK_TRACKS } from "../../shared/workRecurring";
+import { cycleOf } from "../../shared/progress";
+import { auditStmt } from "./audit";
+import { write } from "./db";
+import { createTrack } from "./progress";
 import { prefsOf, resolveToday } from "./prefs";
 import { completeTask, createTask, type TaskRow } from "./tasks";
 import { fail, ok, type Ctx, type Result } from "./types";
@@ -12,7 +16,7 @@ export interface SetupItem { title: string; outcome: "created" | "would_create" 
  * Introduces the Work module's standing responsibilities. Idempotent and duplicate-safe: a responsibility that already exists in the Work module
  * (same meaningful words, any type, open or completed) is reported and left alone, never recreated. `dryRun` reports what would happen.
  */
-export async function setupWorkRecurring(ctx: Ctx, raw: unknown): Promise<Result<{ items: SetupItem[]; created: number; existing: number }>> {
+export async function setupWorkRecurring(ctx: Ctx, raw: unknown): Promise<Result<{ items: SetupItem[]; created: number; existing: number; tracks: Array<{ key: string; linked: number }> }>> {
   if (ctx.actor.type !== "user") return fail("forbidden", "Owner only");
   const i = v.obj(raw ?? {}, "input");
   const today = await resolveToday(ctx, i, v);
@@ -39,5 +43,23 @@ export async function setupWorkRecurring(ctx: Ctx, raw: unknown): Promise<Result
     }
     items.push({ title: def.title, outcome: "created", dueDate: due });
   }
-  return ok({ items, created: items.filter((x) => x.outcome === "created").length, existing: items.filter((x) => x.outcome === "exists").length });
+  // Progress tracks: the REEF and RIPET weekly tasks complete reporting periods, the monthly tasks are the submissions (idempotent; existing series are linked, nothing is recreated).
+  const tracks: Array<{ key: string; linked: number }> = [];
+  if (!dryRun) {
+    for (const t of WORK_TRACKS) {
+      const made = await createTrack(ctx, { key: t.key, title: t.title, stream: t.stream, module: "progressive", periodRule: { freq: "weekly", interval: 1, byWeekday: [0] }, startCycle: cycleOf(today), today });
+      if (!made.ok) return made as Result<never>;
+      let linked = 0;
+      const { results: series } = await ctx.db.prepare("SELECT id, title, recurrence_parent_id, track_part FROM tasks WHERE module = 'progressive' AND recurrence IS NOT NULL AND archived_at IS NULL").all<{ id: string; title: string; recurrence_parent_id: string | null; track_part: string | null }>();
+      for (const [title, part] of [[t.periodTitle, "period"], [t.submitTitle, "submit"]] as const) {
+        const roots = [...new Set(series.filter((r) => !r.track_part && sameResponsibility(r.title, title)).map((r) => r.recurrence_parent_id ?? r.id))];
+        for (const root of roots) {
+          await write(ctx.db, [ctx.db.prepare("UPDATE tasks SET track_part = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE (id = ? OR recurrence_parent_id = ?) AND track_part IS NULL").bind(`${t.key}:${part}`, ctx.now().toISOString(), ctx.actor.label, root, root), auditStmt(ctx, "task.update", "task", root)]);
+          linked++;
+        }
+      }
+      tracks.push({ key: t.key, linked });
+    }
+  }
+  return ok({ items, created: items.filter((x) => x.outcome === "created").length, existing: items.filter((x) => x.outcome === "exists").length, tracks });
 }

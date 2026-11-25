@@ -20,7 +20,7 @@ export interface TaskRow {
   id: string; title: string; description: string | null; notes: string | null; module: string; category_id: string | null; project: string | null;
   priority: string; status: string; due_date: string | null; due_time: string | null; scheduled_date: string | null; recurrence: string | null; recurrence_parent_id: string | null;
   goal_id: string | null; completed_at: string | null; archived_at: string | null; source_kind: string; source_name: string; source_assistant: string | null; source_ref: string | null;
-  external_id: string | null; task_type: string | null; topic: string | null; related_date: string | null; related_time: string | null; supplier: string | null; demo: number; created_at: string; updated_at: string; created_by: string; updated_by: string; version: number;
+  external_id: string | null; task_type: string | null; track_part: string | null; topic: string | null; related_date: string | null; related_time: string | null; supplier: string | null; demo: number; created_at: string; updated_at: string; created_by: string; updated_by: string; version: number;
 }
 
 export interface Task {
@@ -28,7 +28,7 @@ export interface Task {
   priority: string; status: string; dueDate: string | null; dueTime: string | null; scheduledDate: string | null; recurrence: Recurrence | null; recurrenceParentId: string | null;
   goalId: string | null; completedAt: string | null; archivedAt: string | null; horizon: Horizon | null;
   source: { kind: string; name: string; assistant: string | null; ref: string | null }; externalId: string | null; demo: boolean;
-  type: TaskType; topic: string | null; relatedDate: string | null; relatedTime: string | null; supplier: string | null;
+  type: TaskType; trackPart: string | null; topic: string | null; relatedDate: string | null; relatedTime: string | null; supplier: string | null;
   createdAt: string; updatedAt: string; createdBy: string; updatedBy: string; version: number;
 }
 
@@ -40,7 +40,7 @@ export function toTask(r: TaskRow, horizon: Horizon | null = null): Task {
     dueDate: r.due_date, dueTime: r.due_time, scheduledDate: r.scheduled_date, recurrence, recurrenceParentId: r.recurrence_parent_id, goalId: r.goal_id,
     completedAt: r.completed_at, archivedAt: r.archived_at, horizon,
     source: { kind: r.source_kind, name: r.source_name, assistant: r.source_assistant, ref: r.source_ref }, externalId: r.external_id, demo: r.demo === 1,
-    type: effectiveType(r), topic: r.topic, relatedDate: r.related_date, relatedTime: r.related_time, supplier: r.supplier,
+    type: effectiveType(r), trackPart: r.track_part, topic: r.topic, relatedDate: r.related_date, relatedTime: r.related_time, supplier: r.supplier,
     createdAt: r.created_at, updatedAt: r.updated_at, createdBy: r.created_by, updatedBy: r.updated_by, version: r.version,
   };
 }
@@ -48,7 +48,7 @@ export function toTask(r: TaskRow, horizon: Horizon | null = null): Task {
 const PRIORITY_RANK = "CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END";
 const ORDER = `ORDER BY due_date IS NULL, due_date, due_time IS NULL, due_time, ${PRIORITY_RANK}, created_at`;
 
-async function fetchRow(ctx: Ctx, id: string): Promise<TaskRow | null> {
+export async function fetchRow(ctx: Ctx, id: string): Promise<TaskRow | null> {
   const row = await ctx.db.prepare("SELECT * FROM tasks WHERE id = ?").bind(id).first<TaskRow>();
   if (row && !canAccessModule(ctx.actor, row.module)) throw new Forbidden(`This connection cannot access the ${row.module} module`);
   return row;
@@ -70,13 +70,13 @@ async function checkGoal(ctx: Ctx, goalId: string | null | undefined, module: st
   if (ctx.actor.modules && g.module !== module) throw new Forbidden("A task can only be linked to a goal in its own module");
 }
 
-function eventStmt(ctx: Ctx, taskId: string, event: string, changed: string[]) {
+export function eventStmt(ctx: Ctx, taskId: string, event: string, changed: string[]) {
   return ctx.db
     .prepare("INSERT INTO task_events (task_id, at, event, actor_type, actor_label, channel, changed) VALUES (?,?,?,?,?,?,?)")
     .bind(taskId, ctx.now().toISOString(), event, ctx.actor.type, ctx.actor.label, ctx.actor.channel, JSON.stringify(changed));
 }
 
-function sourceOf(ctx: Ctx) {
+export function sourceOf(ctx: Ctx) {
   // The origin comes from the authenticated actor, never from request content.
   return ctx.actor.type === "integration" ? { kind: ctx.actor.channel === "inbox" ? "assistant" : "integration", name: ctx.actor.label, assistant: ctx.actor.assistant ?? null } : { kind: "manual", name: "Orbis", assistant: null };
 }
@@ -86,8 +86,10 @@ function sourceOf(ctx: Ctx) {
 interface NewTask {
   title: string; description?: string; notes?: string; module: string; category: string | null; project?: string; priority: string; status: string;
   dueDate?: string; dueTime?: string; scheduledDate?: string; recurrence: Recurrence | null; externalId?: string; sourceRef?: string; goalId?: string; demo: boolean;
-  taskType?: TaskType; topic?: string; relatedDate?: string; relatedTime?: string; supplier?: string;
+  taskType?: TaskType; trackPart?: string; topic?: string; relatedDate?: string; relatedTime?: string; supplier?: string;
 }
+
+const trackPart = (x: unknown): string | undefined => { if (x === undefined || x === null) return undefined; if (typeof x !== "string" || !/^[a-z0-9-]{2,40}:(period|submit)$/.test(x)) throw new v.InvalidInput("trackPart must look like reef-kpi:period or reef-kpi:submit"); return x; };
 
 async function parseNew(ctx: Ctx, raw: unknown): Promise<NewTask> {
   const i = v.obj(raw, "task");
@@ -113,6 +115,7 @@ async function parseNew(ctx: Ctx, raw: unknown): Promise<NewTask> {
     goalId: v.text(i.goalId, "goalId", { max: 100, optional: true }),
     demo: v.bool(i.demo, "demo") === true,
     taskType: v.oneOf(i.type, "type", TASK_TYPES),
+    trackPart: trackPart(i.trackPart),
     topic: v.oneOf(i.topic, "topic", TOPICS),
     relatedDate: v.date(i.relatedDate, "relatedDate"),
     relatedTime: v.time(i.relatedTime, "relatedTime"),
@@ -127,11 +130,11 @@ async function parseNew(ctx: Ctx, raw: unknown): Promise<NewTask> {
 function insertStmt(ctx: Ctx, id: string, n: NewTask, parent: string | null, src: ReturnType<typeof sourceOf>, at: string) {
   return ctx.db
     .prepare(
-      "INSERT INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by,task_type,topic,related_date,related_time,supplier) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by,task_type,topic,related_date,related_time,supplier,track_part) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     )
     .bind(id, n.title, n.description ?? null, n.notes ?? null, n.module, n.category, n.project ?? null, n.priority, n.status, n.dueDate ?? null, n.dueTime ?? null, n.scheduledDate ?? null,
       n.recurrence ? JSON.stringify(n.recurrence) : null, parent, n.goalId ?? null, src.kind, src.name, src.assistant, n.sourceRef ?? null, n.externalId ?? null, n.demo ? 1 : 0, at, at, ctx.actor.label, ctx.actor.label,
-      n.recurrence ? "recurring" : (n.taskType === "recurring" ? "manual" : n.taskType ?? (ctx.actor.type === "integration" ? "action_item" : "manual")), n.topic ?? null, n.relatedDate ?? null, n.relatedTime ?? null, n.supplier ?? null);
+      n.recurrence ? "recurring" : (n.taskType === "recurring" ? "manual" : n.taskType ?? (ctx.actor.type === "integration" ? "action_item" : "manual")), n.topic ?? null, n.relatedDate ?? null, n.relatedTime ?? null, n.supplier ?? null, n.trackPart ?? null);
 }
 
 async function insertTask(ctx: Ctx, n: NewTask): Promise<Result<Task>> {
@@ -344,6 +347,7 @@ export const updateTask = (ctx: Ctx, raw: unknown): Promise<Result<Task>> =>
       set("recurrence", "recurrence", r ? JSON.stringify(r) : null);
       if (r && !row.recurrence_parent_id) { sets.push("recurrence_parent_id = ?"); args.push(row.id); }
     }
+    if ("trackPart" in i) set("track_part", "trackPart", trackPart(i.trackPart) ?? null);
     if ("topic" in i) set("topic", "topic", i.topic === null ? null : v.oneOf(i.topic, "topic", TOPICS));
     if ("relatedDate" in i) set("related_date", "relatedDate", v.date(i.relatedDate, "relatedDate"));
     if ("relatedTime" in i) set("related_time", "relatedTime", v.time(i.relatedTime, "relatedTime"));
@@ -380,7 +384,7 @@ async function transition(ctx: Ctx, raw: unknown, kind: "completed" | "reopened"
           const nid = `tsk_${crypto.randomUUID()}`;
           // INSERT OR IGNORE plus the unique index on (series, due date) makes a duplicate occurrence impossible, even if this runs twice.
           stmts.push(ctx.db.prepare(
-            "INSERT OR IGNORE INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by,task_type,topic,supplier) SELECT ?,title,description,notes,module,category_id,project,priority,'pending',?,due_time,NULL,recurrence,?,goal_id,source_kind,source_name,source_assistant,source_ref,NULL,demo,?,?,?,?,task_type,topic,supplier FROM tasks WHERE id = ?",
+            "INSERT OR IGNORE INTO tasks (id,title,description,notes,module,category_id,project,priority,status,due_date,due_time,scheduled_date,recurrence,recurrence_parent_id,goal_id,source_kind,source_name,source_assistant,source_ref,external_id,demo,created_at,updated_at,created_by,updated_by,task_type,topic,supplier,track_part) SELECT ?,title,description,notes,module,category_id,project,priority,'pending',?,due_time,NULL,recurrence,?,goal_id,source_kind,source_name,source_assistant,source_ref,NULL,demo,?,?,?,?,task_type,topic,supplier,track_part FROM tasks WHERE id = ?",
           ).bind(nid, date, parent, at, at, ctx.actor.label, ctx.actor.label, id));
           stmts.push(ctx.db.prepare("INSERT INTO task_events (task_id, at, event, actor_type, actor_label, channel, changed) SELECT ?,?,'created',?,?,?,'[\"recurrence\"]' WHERE EXISTS (SELECT 1 FROM tasks WHERE id = ?)").bind(nid, at, ctx.actor.type, ctx.actor.label, ctx.actor.channel, nid));
           next = { id: nid, dueDate: date };

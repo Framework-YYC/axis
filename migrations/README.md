@@ -10,3 +10,5 @@ Rules
 - Staging and Production use separate databases; Production migrations run only with explicit authorization.
 - From 0004 every core table is write-guarded by triggers (`write_gate`). Seed or repair data through the service layer; a direct SQL write aborts. A new core table needs its guard triggers (a test enumerates the tables). Operator scripts that must write directly wrap the statements between gate-open and gate-close in one batch.
 - 0005 adds task types, topic and delivery columns (nullable, additive). The `assistant_inbox` guard trigger from 0004 allows a fixed set of request names; new assistant behaviour rides on existing names (`task.create` with a `key`) so no DROP/CREATE of that trigger was needed. A first-class request name would need a trigger replacement, which needs the owner's approval.
+
+- 0006 adds `progress_tracks`, `deliverables`, `deliverable_parts`, `procurement_items` (each with its write-guard triggers) and the nullable column `tasks.track_part`. Additive only; no existing row is rewritten.

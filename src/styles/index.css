@@ -62,7 +62,7 @@
   --m-framework: #6a4fb8;
   --m-progressive: #ad5a22;
   /* Glass (floating navigation, menus, sheets): translucent, blurred, with an edge highlight. Cards stay solid. */
-  --glass-bg: rgb(250 250 249 / 0.62);
+  --glass-bg: rgb(250 250 249 / 0.34);
   --glass-solid: #f4f4f2;
   --glass-sheet: rgb(250 250 249 / 0.9);
   --glass-border: rgb(21 23 26 / 0.09);
@@ -73,13 +73,17 @@
   --glass-bubble-shadow: 0 3px 10px -2px rgb(21 23 26 / 0.18), 0 0 0 0.5px rgb(21 23 26 / 0.08);
   --dock-ink: #5d6166;
   --dock-ink-on: #15171a;
-  --glass-blur: 24px;
+  --glass-blur: 26px;
   /* Motion */
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-spring: cubic-bezier(0.32, 1.25, 0.4, 1);
   --dur-fast: 160ms;
   --dur-base: 240ms;
   --dur-slow: 340ms;
+  --dur-page: 460ms;
+  --stagger: 80ms;
+  /* A soft spring: fast out, a small overshoot, settle. linear() where supported, a bezier with overshoot otherwise. */
+  --ease-page: cubic-bezier(0.22, 1.12, 0.36, 1);
   --r-card: 18px;
   color-scheme: light;
 }
@@ -121,7 +125,7 @@
   --m-financial: #86a8f0;
   --m-framework: #b3a0f0;
   --m-progressive: #f0a070;
-  --glass-bg: rgb(38 39 40 / 0.56);
+  --glass-bg: rgb(38 39 40 / 0.30);
   --glass-solid: #232425;
   --glass-sheet: rgb(30 31 32 / 0.88);
   --glass-border: rgb(255 255 255 / 0.1);
@@ -197,15 +201,17 @@
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 450; white-space: nowrap; background: transparent; box-shadow: 0 0 0 1px var(--line); }
   .pill-lime { background: var(--lime); color: var(--lime-ink); box-shadow: none; }
   /* Glass: a translucent, blurred material with a hairline border and a top edge highlight. Falls back to a solid surface. */
-  .glass { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5); backdrop-filter: blur(var(--glass-blur)) saturate(1.5); box-shadow: inset 0 1px 0 var(--glass-edge), 0 0 0 1px var(--glass-border), var(--glass-shadow); }
+  .glass { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7); backdrop-filter: blur(var(--glass-blur)) saturate(1.7); box-shadow: inset 0 1px 0 var(--glass-edge), 0 0 0 1px var(--glass-border), var(--glass-shadow); }
   .glass-sheet { background: var(--glass-sheet); -webkit-backdrop-filter: blur(28px) saturate(1.4); backdrop-filter: blur(28px) saturate(1.4); box-shadow: inset 0 1px 0 var(--glass-edge), 0 0 0 1px var(--glass-border), var(--glass-shadow); }
   .glass-bubble { background: var(--glass-bubble); box-shadow: inset 0 1px 0 var(--glass-bubble-edge), var(--glass-bubble-shadow); -webkit-backdrop-filter: blur(10px) saturate(1.6); backdrop-filter: blur(10px) saturate(1.6); }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass, .glass-sheet { background: var(--glass-solid); } .glass-bubble { background: color-mix(in srgb, var(--ink) 12%, var(--glass-solid)); } }
   @media (prefers-reduced-transparency: reduce) { .glass-sheet { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } .glass-bubble { -webkit-backdrop-filter: none; backdrop-filter: none; } }
   /* Motion: transform and opacity only; durations 160-340 ms; no entrance animation on data refreshes (keys change on navigation only). */
   /* Entrance animations fill backwards only: a forwards-filled transform makes the element a containing block for fixed descendants (sheets, menus). */
-  .page-in { animation: page-in var(--dur-base) var(--ease-out) backwards; }
-  .tab-in { animation: tab-in var(--dur-fast) var(--ease-out) backwards; }
+  .page-in { animation: page-in 240ms ease-out backwards; }
+  /* Cards, headers and tab bars rise and fade in one after another (delay set per element by useCascade, 80 ms apart). Navigation only, never on data refresh. */
+  .cascade { animation: card-in var(--dur-page) var(--ease-page) backwards; animation-delay: var(--cascade-delay, 0ms); will-change: transform, opacity; }
+  .tab-in { animation: tab-in 240ms ease-out backwards; }
   .pop-in { animation: pop-in var(--dur-base) var(--ease-spring) both; transform-origin: top right; }
   .sheet-in { animation: sheet-up var(--dur-slow) var(--ease-out) both; }
   .sheet-out { animation: sheet-down var(--dur-base) var(--ease-out) both; }
@@ -236,7 +242,8 @@
   .safe-t { padding-top: env(safe-area-inset-top); }
 }
 
-@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes card-in { from { opacity: 0; transform: translate3d(0, 30px, 0) scale(0.975); } to { opacity: 1; transform: none; } }
 @keyframes tab-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in { from { opacity: 0; transform: scale(0.96) translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes sheet-up { from { opacity: 0.6; transform: translateY(28px); } to { opacity: 1; transform: none; } }
@@ -247,6 +254,7 @@
 @keyframes check-pop { 0% { transform: scale(0.7); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
 @keyframes check-draw { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@supports (animation-timing-function: linear(0, 1)) { :root { --ease-page: linear(0, 0.1 3%, 0.32 8%, 0.58 15%, 0.8 23%, 0.95 32%, 1.03 41%, 1.05 49%, 1.03 58%, 1.01 68%, 1 80%, 1); } }
 @keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgb(212 250 73 / 0.7); } 50% { box-shadow: 0 0 0 5px rgb(212 250 73 / 0); } }
 .live-dot { animation: pulse-dot 2.4s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) {

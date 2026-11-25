@@ -71,7 +71,11 @@ export async function processInbox(db: D1Database, opts: { now?: Date; limit?: n
       if (row.op === "briefing.refresh") payload = { module: assistant };
       const ctx: Ctx = { db, actor: assistantActor(assistant), requestId: `inbox-${row.id}`, now: () => now };
       // A task.create that carries a `key` is the idempotent action-item upsert (the inbox trigger allows only fixed request names, so no new name is needed).
-      const operation = row.op === "task.create" && typeof payload.key === "string" ? "upsert_action_item" : spec.operation;
+      // With a `procurement` block the same request is the idempotent procurement upsert (material, quantity, supplier, stage, delivery date ...).
+      let operation = row.op === "task.create" && typeof payload.key === "string" ? "upsert_action_item" : spec.operation;
+      if (operation === "upsert_action_item" && payload.procurement && typeof payload.procurement === "object" && !Array.isArray(payload.procurement)) {
+        const { procurement, ...rest } = payload; operation = "upsert_procurement"; payload = { ...rest, ...(procurement as Record<string, unknown>) };
+      }
       const r = await runOperation(ctx, operation, payload, `inbox:${row.id}`);
       outcome = summarize(r);
       touched.add(assistant);

@@ -130,3 +130,34 @@ export function Kpi({ value, caption, size = 28, className }: { value: ReactNode
     </div>
   );
 }
+
+/**
+ * The work rotation as a dial: one tick per day of the whole cycle (on days long, off days short), elapsed days lit, today marked.
+ * `dayIndex` is today's 0-based position in the cycle. Children sit in the hollow.
+ */
+export function RotationDial({ cycle, onDays, dayIndex, size = 132, accent = "var(--g-sage)", ink = "var(--ink)", label, children, className }: { cycle: number; onDays: number; dayIndex: number; size?: number; accent?: string; ink?: string; label: string; children?: ReactNode; className?: string }) {
+  const lit = useTween(dayIndex + 1, 320);
+  return (
+    <div className={cx("relative shrink-0", className)} style={{ width: size, height: size }}>
+      <svg role="img" aria-label={label} viewBox="0 0 160 160" width={size} height={size} className="block">
+        {Array.from({ length: cycle }, (_, i) => {
+          const on = i < onDays, elapsed = i + 1 <= lit, today = i === dayIndex;
+          const r1 = on ? 56 : 62, r2 = 72, [x1, y1] = polar(80, 80, r1, (i / cycle) * 360), [x2, y2] = polar(80, 80, r2, (i / cycle) * 360);
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={elapsed ? accent : ink} strokeWidth={today ? 3.2 : on ? 2 : 1.3} strokeLinecap="round" opacity={elapsed ? 1 : on ? 0.55 : 0.28} />;
+        })}
+        <circle cx="80" cy="80" r="46" fill="none" stroke={ink} strokeWidth="0.8" opacity="0.4" />
+      </svg>
+      {children && <div className="absolute inset-0 grid place-items-center text-center">{children}</div>}
+    </div>
+  );
+}
+
+/** One capsule per part of a deliverable (each reporting period, then the final steps), coloured by state: done, overdue, due today, upcoming. */
+export function PartsBar({ parts, height = 14, label, className }: { parts: ReadonlyArray<{ state: "done" | "overdue" | "due" | "upcoming"; kind?: "period" | "step" }>; height?: number; label: string; className?: string }) {
+  const color = { done: "var(--g-sage)", overdue: "var(--w-terra)", due: "var(--w-butter)", upcoming: "var(--tick-off)" } as const;
+  return (
+    <div role="img" aria-label={label} className={cx("flex items-stretch gap-[3px]", className)} style={{ height }}>
+      {parts.map((p, i) => <i key={i} className={cx("block flex-1 rounded-full", p.kind === "step" && "max-w-[34px]")} style={{ background: color[p.state], transition: "background-color 400ms ease", borderRadius: p.kind === "step" ? 4 : 999 }} />)}
+    </div>
+  );
+}

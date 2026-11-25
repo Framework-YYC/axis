@@ -4,7 +4,8 @@ import { assistantNameOf, byLine, eventLabel } from "../lib/humanize";
 import { api, patch, post } from "../lib/api";
 import { useData } from "../lib/data";
 import { useApi } from "../lib/useApi";
-import type { CalEvent, Goal, Habit, Priority, Recurrence, Task } from "../lib/types";
+import type { CalEvent, Goal, Habit, Priority, ProcItem, Recurrence, Stage, Task } from "../lib/types";
+import { outstandingAction, STAGE_LABEL, STAGES } from "../../shared/procurement";
 import { Chips, Field, FormError, Modal, ModalActions, Select, TextArea, TextInput } from "./forms";
 import { Btn } from "./ui";
 
@@ -17,7 +18,7 @@ const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 const n = (v: string): number | undefined => (v.trim() === "" || !Number.isFinite(Number(v)) ? undefined : Number(v));
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
-function useSave(onDone: () => void) {
+export function useSave(onDone: () => void) {
   const { mutate, today } = useData();
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -201,3 +202,39 @@ export function EventEditor({ event, defaultModule, defaultDate, onClose }: { ev
   );
 }
 export { api, DOW_NAMES };
+
+const STAGE_OPTS = STAGES.map((x) => ({ value: x, label: STAGE_LABEL[x] }));
+/** One material or equipment request. The stage follows the item from request to receipt; the REEF notification task follows the delivery date. */
+export function ProcurementEditor({ item, onClose }: { item?: ProcItem; onClose: () => void }) {
+  const { err, saving, run, today } = useSave(onClose);
+  const [f, setF] = useState({
+    material: item?.material ?? "", quantity: item?.quantity != null ? String(item.quantity) : "", unit: item?.unit ?? "", supplier: item?.supplier ?? "", orderRef: item?.orderRef ?? "",
+    status: (item?.storedStatus ?? "requested") as Stage, expectedDate: item?.expectedDate ?? "", expectedTime: item?.expectedTime ?? "", priority: (item?.priority ?? "medium") as Priority, notes: item?.notes ?? "",
+  });
+  const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+  const next = outstandingAction({ status: f.status, expectedDate: f.expectedDate || null, expectedTime: f.expectedTime || null, supplier: f.supplier || null, orderRef: f.orderRef || null }, f.status, today);
+  const save = () => {
+    if (!f.material.trim()) return;
+    const body = { material: f.material.trim(), quantity: n(f.quantity) ?? null, unit: f.unit || null, supplier: f.supplier || null, orderRef: f.orderRef || null, status: f.status, expectedDate: f.expectedDate || null, expectedTime: f.expectedDate ? f.expectedTime || null : null, priority: f.priority, notes: f.notes || null, module: "progressive" };
+    void run(() => (item ? patch(`/procurement/${item.id}`, { ...body, expectedVersion: item.version }) : post("/procurement", body)));
+  };
+  return (
+    <Modal title={item ? "Edit procurement item" : "New procurement request"} onClose={onClose} wide footer={<ModalActions onClose={onClose} onSave={save} saving={saving} left={item && <Btn variant="ghost" onClick={() => void run(() => patch(`/procurement/${item.id}`, { archived: true }))}>Cancel request</Btn>} />}>
+      <FormError message={err} />
+      {next && <p className="mono mb-3 !normal-case !tracking-normal">Next: {next.text}</p>}
+      <div className="grid gap-3.5 md:grid-cols-2">
+        <Field label="Material or equipment" className="md:col-span-2">{(id) => <TextInput id={id} value={f.material} onChange={set("material")} maxLength={200} />}</Field>
+        <Field label="Quantity">{(id) => <TextInput id={id} inputMode="decimal" value={f.quantity} onChange={set("quantity")} />}</Field>
+        <Field label="Unit">{(id) => <TextInput id={id} value={f.unit} onChange={set("unit")} maxLength={30} placeholder="pcs, m, bags" />}</Field>
+        <Field label="Supplier">{(id) => <TextInput id={id} value={f.supplier} onChange={set("supplier")} maxLength={200} />}</Field>
+        <Field label="Order reference">{(id) => <TextInput id={id} value={f.orderRef} onChange={set("orderRef")} maxLength={100} />}</Field>
+        <Field label="Stage">{(id) => <Select id={id} value={f.status} onChange={set("status")} options={STAGE_OPTS} />}</Field>
+        <Field label="Priority">{(id) => <Select id={id} value={f.priority} onChange={set("priority")} options={PRIORITIES} />}</Field>
+        <Field label="Expected delivery date" hint="Sets the REEF notification deadline: 24 hours before arrival.">{(id) => <TextInput id={id} type="date" value={f.expectedDate} onChange={set("expectedDate")} />}</Field>
+        <Field label="Expected time (optional)">{(id) => <TextInput id={id} type="time" value={f.expectedTime} onChange={set("expectedTime")} disabled={!f.expectedDate} />}</Field>
+        <Field label="Notes" className="md:col-span-2">{(id) => <TextArea id={id} value={f.notes} onChange={set("notes")} rows={2} />}</Field>
+      </div>
+      {item && <p className="mono mt-4 !normal-case !tracking-normal">{item.source.kind === "assistant" ? `Filed via ${assistantNameOf(item.source.assistant ?? "") || "an assistant"}` : "Added by you"}{item.receivedOn ? ` · received ${item.receivedOn}` : ""}</p>}
+    </Modal>
+  );
+}

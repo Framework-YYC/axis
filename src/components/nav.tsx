@@ -2,7 +2,7 @@ import { CalendarDays, CheckSquare, LayoutDashboard, type LucideIcon, Settings, 
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { HORIZONS, HORIZON_LABELS, horizonOf } from "../../shared/horizons";
-import { ALL_TABS, MODULE_IDS, MODULES_META, PRIMARY_TABS, type ModuleId, type TabId } from "../../shared/modules";
+import { ALL_TABS, MODULE_IDS, MODULE_ONLY_TABS, MODULES_META, PRIMARY_TABS, type ModuleId, type TabId } from "../../shared/modules";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
 import { ASSISTANT_ICONS } from "../lib/moduleStyle";
@@ -27,11 +27,11 @@ export interface NavItem { to: string; label: string; count?: number; hot?: bool
 export interface NavGroup { label: string; items: NavItem[] }
 
 export type { TabId };
-export const TAB_LABEL: Record<TabId, string> = { overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", recurring: "Recurring", actions: "Action items", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
+export const TAB_LABEL: Record<TabId, string> = { overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", progress: "Progress", procurement: "Procurement", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
 export { ALL_TABS };
 export const primaryTabs = (m: ModuleId): TabId[] => [...PRIMARY_TABS[m]];
 /** Everything else stays reachable from the tab bar's More menu. */
-export const moreTabs = (m: ModuleId): TabId[] => ALL_TABS.filter((t) => !PRIMARY_TABS[m].includes(t));
+export const moreTabs = (m: ModuleId): TabId[] => ALL_TABS.filter((t) => !PRIMARY_TABS[m].includes(t) && (!MODULE_ONLY_TABS[t] || MODULE_ONLY_TABS[t] === m));
 export const isTab = (v: string | null): v is TabId => !!v && (ALL_TABS as string[]).includes(v);
 
 const hashItems = (base: string, items: Array<[string, string]>): NavItem[] => items.map(([id, label]) => ({ to: `${base}#${id}`, label }));

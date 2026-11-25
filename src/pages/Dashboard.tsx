@@ -1,5 +1,5 @@
-import { ArrowUpRight, Bell, CalendarDays, ChevronDown, Plus } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Bell, CalendarDays, ChevronDown, Plus } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ACTIVITY_PERIODS, activityBars, localDay, type ActivityPeriod } from "../../shared/gauges";
 import { MODULE_IDS, MODULES_META } from "../../shared/modules";
@@ -10,6 +10,7 @@ import { HabitTile } from "../components/compact";
 import { TaskEditor } from "../components/editors";
 import { ModuleIcon } from "../components/mobile";
 import { TaskLine } from "../components/TaskLine";
+import { Card } from "../components/InstrumentCard";
 import { DotMatrixBars, FanGauge, Kpi, RadialGauge, SplitBar, TickRing } from "../components/viz";
 import { cx } from "../lib/cx";
 import { useData } from "../lib/data";
@@ -17,32 +18,6 @@ import { pretty } from "../lib/dates";
 import { byUrgency, isOpen } from "../lib/taskUi";
 import type { Task } from "../lib/types";
 
-/** One widget surface. `tone` picks the instrument colour; pastel cards keep dark text in both themes. */
-const TONE = {
-  charcoal: { bg: "var(--w-charcoal)", fg: "var(--ink)", ring: "0 0 0 1px var(--line)" },
-  blue: { bg: "var(--w-blue)", fg: "var(--w-on-blue)", ring: "none" },
-  butter: { bg: "var(--w-butter)", fg: "var(--w-butter-on)", ring: "none" },
-} as const;
-function Card({ tone, to, headTo, label, className, children, aria }: { tone: keyof typeof TONE; to?: string; headTo?: string; label?: string; className?: string; children: ReactNode; aria?: string }) {
-  const t = TONE[tone];
-  const cls = cx("relative flex min-w-0 flex-col rounded-[20px] p-3.5", className);
-  const style = { background: t.bg, color: t.fg, boxShadow: t.ring };
-  const head = label ? <p className="self-start text-[15px] font-normal leading-tight tracking-tight opacity-80">{label}</p> : null;
-  if (to) return (
-    <Link to={to} aria-label={aria} className={cx(cls, "hit press")} style={style}>
-      {head}
-      <ArrowUpRight size={15} strokeWidth={1.5} aria-hidden className="absolute right-3.5 top-3.5 opacity-60" />
-      {children}
-    </Link>
-  );
-  return (
-    <section aria-label={aria ?? label} className={cls} style={style}>
-      {head}
-      {headTo && <Link to={headTo} aria-label={`Open ${label}`} className="hit press absolute right-1 top-1 grid place-items-center opacity-60 hover:opacity-100"><ArrowUpRight size={15} strokeWidth={1.5} aria-hidden /></Link>}
-      {children}
-    </section>
-  );
-}
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** Home: five instrument widgets and nothing else. Detail lives on the dedicated screens. */
@@ -107,7 +82,7 @@ export default function Overview() {
 
       {source !== "live" && error && <p role="alert" className="mt-3 rounded-2xl p-3.5 text-[13px]" style={{ boxShadow: "0 0 0 1px var(--line)" }}>{error}</p>}
 
-      <div className="@container mt-3.5"><div className="stagger grid grid-cols-2 gap-2 @[640px]:grid-cols-12 @[640px]:gap-3">
+      <div className="@container mt-3.5"><div className="grid grid-cols-2 gap-2 @[640px]:grid-cols-12 @[640px]:gap-3">
         <Card tone="charcoal" to="/tasks?h=today" label="Daily completion" aria={`Daily completion: ${f.completed} of ${totalToday} tasks, ${f.pct} percent. Open today's tasks`} className="min-h-[232px] items-center @[640px]:order-1 @[640px]:col-span-4 @[1000px]:col-span-3">
           <RadialGauge pct={f.pct} size={122} className="mt-3.5" label={totalToday === 0 ? "No tasks due today" : `${f.pct} percent of today's tasks complete`} />
           <div className="mt-auto text-center">
