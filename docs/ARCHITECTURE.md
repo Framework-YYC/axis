@@ -62,3 +62,6 @@ Five modules (Daily, Health, Financial, Framework, Progressive), one database, o
 
 ## Work: progress and procurement (migration 0006)
 Four primary Work tabs: Overview (a graphical dashboard: daily completion gauge, rotation dial, REEF and RIPET rings, reporting segments, procurement pipeline, deadlines, delivery notifications), Tasks (recurring, action items and manual in one filtered view, grouped by due date or type), Progress (deliverable tracks, `worker/services/progress.ts`, `shared/progress.ts`) and Procurement (`worker/services/procurement.ts`, `shared/procurement.ts`). Progress is derived from tasks wherever a part is linked, so there is one source of truth.
+
+## Finance (migration 0007)
+Finance has four primary tabs (Overview, Transactions, Bills, Accounts) with Tasks, Goals, Budgets, Habits, Calendar and Reports under More. `get_finance` returns everything in one read and the app derives every figure with the shared, tested rules in `shared/finance.ts` (`src/lib/finance.ts`, `src/components/FinanceViews.tsx`, `FinanceEditors.tsx`), so the dashboard, the assistant and the tests agree. The Overview is graphical (income and spending capsule bars, bills-paid gauge, debt dot grid, cash flow, next payday and projected cash, upcoming bills, reimbursements, savings, net worth with history) with a month selector; estimates are labelled.

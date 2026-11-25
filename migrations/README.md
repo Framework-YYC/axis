@@ -12,3 +12,5 @@ Rules
 - 0005 adds task types, topic and delivery columns (nullable, additive). The `assistant_inbox` guard trigger from 0004 allows a fixed set of request names; new assistant behaviour rides on existing names (`task.create` with a `key`) so no DROP/CREATE of that trigger was needed. A first-class request name would need a trigger replacement, which needs the owner's approval.
 
 - 0006 adds `progress_tracks`, `deliverables`, `deliverable_parts`, `procurement_items` (each with its write-guard triggers) and the nullable column `tasks.track_part`. Additive only; no existing row is rewritten.
+
+- 0007 adds the Finance tables (`fin_categories` with default categories, `fin_accounts`, `fin_balances`, `fin_transactions`, `fin_bills`, `fin_bill_payments`, `fin_budgets`, `fin_income_plans`, `fin_reimbursements`), each with its write-guard triggers, and the nullable column `tasks.record_ref`. Additive only; no existing row is rewritten.

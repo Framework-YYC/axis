@@ -161,3 +161,24 @@ export function PartsBar({ parts, height = 14, label, className }: { parts: Read
     </div>
   );
 }
+
+/** Vertical capsule bars, one per bin, growing to their values (relative to the tallest). Instrument-style income and spending histograms. */
+export function CapsuleBars({ values, ink = "var(--ink)", height = 84, label, className }: { values: readonly number[]; ink?: string; height?: number; label: string; className?: string }) {
+  const shown = useTweenList(values, 320);
+  const max = Math.max(1, ...shown);
+  return (
+    <div role="img" aria-label={label} className={cx("flex items-end gap-[3px]", className)} style={{ height }}>
+      {shown.map((x, i) => <i key={i} className="block flex-1 rounded-full" style={{ height: `${Math.max(x <= 0 ? 6 : 12, (x / max) * 100)}%`, background: ink, opacity: x <= 0 ? 0.28 : 0.55 + 0.45 * (x / max) }} />)}
+    </div>
+  );
+}
+
+/** A grid of small squares, the first `pct` percent lit: a compact progress read-out (debt repaid, savings). */
+export function DotGrid({ pct, total = 20, cols = 10, on = "var(--g-sage)", off = "var(--tick-off)", size = 14, label, className }: { pct: number; total?: number; cols?: number; on?: string; off?: string; size?: number; label: string; className?: string }) {
+  const lit = Math.round((Math.max(0, Math.min(100, useTween(pct, 320))) / 100) * total);
+  return (
+    <div role="img" aria-label={label} className={cx("grid gap-[5px]", className)} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      {Array.from({ length: total }, (_, i) => <i key={i} className="block rounded-[4px]" style={{ aspectRatio: "1", maxHeight: size, background: i < lit ? on : off }} />)}
+    </div>
+  );
+}

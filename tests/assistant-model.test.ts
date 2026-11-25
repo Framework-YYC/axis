@@ -411,7 +411,7 @@ describe("settings, demo data and integrations", () => {
     expect(a.ok).toBe(true);
     expect(a.data.tasks).toBeGreaterThan(15);
     const again = await run(owner, "load_demo_data", {});
-    expect(again.data).toEqual({ tasks: 0, goals: 0, habits: 0, events: 0, logs: 0 }); // idempotent
+    expect(again.data).toEqual({ tasks: 0, goals: 0, habits: 0, events: 0, logs: 0, finance: 0 }); // idempotent
     const demo = raw.prepare("SELECT COUNT(*) n FROM tasks WHERE demo = 1").get() as any;
     expect(demo.n).toBe(a.data.tasks);
     expect((await run(owner, "list_tasks", { today: TODAY, limit: 500 })).data.tasks.filter((t: any) => t.demo).every((t: any) => /synthetic/.test(t.title))).toBe(true);

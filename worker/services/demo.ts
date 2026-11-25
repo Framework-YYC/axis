@@ -6,16 +6,17 @@ import { createEvent } from "./events";
 import { createGoal } from "./goals";
 import { createHabit, logHabit } from "./habits";
 import { resolveToday } from "./prefs";
+import { loadDemoFinance } from "./demoFinance";
 import { createTask } from "./tasks";
 import { fail, ok, type Ctx, type Result } from "./types";
 import * as v from "./validate";
 
 /** Synthetic demonstration records. Every one carries demo = 1 so it is labelled in the app and can be removed in one action. */
-export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; goals: number; habits: number; events: number; logs: number }>> {
+export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; goals: number; habits: number; events: number; logs: number; finance: number }>> {
   if (ctx.actor.type !== "user") return fail("forbidden", "Only the owner can load demonstration data");
   const today = await resolveToday(ctx, {}, v);
   const d = (n: number) => addDays(today, n);
-  const n = { tasks: 0, goals: 0, habits: 0, events: 0, logs: 0 };
+  const n = { tasks: 0, goals: 0, habits: 0, events: 0, logs: 0, finance: 0 };
   const T = async (m: ModuleId, key: string, o: Record<string, unknown>) => { const r = await createTask(ctx, { module: m, demo: true, externalId: `demo:${m}:t:${key}`, ...o }); if (r.ok && !r.duplicate) n.tasks++; };
   const G = async (m: ModuleId, key: string, o: Record<string, unknown>) => { const r = await createGoal(ctx, { module: m, demo: true, externalId: `demo:${m}:g:${key}`, ...o }); if (r.ok && !r.duplicate) n.goals++; };
   const H = async (m: ModuleId, key: string, o: Record<string, unknown>, logs: number[], value = 1) => {
@@ -91,6 +92,7 @@ export async function loadDemoData(ctx: Ctx): Promise<Result<{ tasks: number; go
   await E("health", "2", { title: "Physio appointment (synthetic)", date: d(4), startTime: "09:30", endTime: "10:15" });
   await E("framework", "3", { title: "Quarterly planning (synthetic)", date: d(6) });
   for (const m of MODULE_IDS) void m;
+  const fin = await loadDemoFinance(ctx, today); n.finance = fin.finance; n.tasks += fin.tasks;
   return ok(n);
 }
 
@@ -100,7 +102,7 @@ export async function clearDemoData(ctx: Ctx): Promise<Result<{ removed: Record<
   const count = async (sql: string) => (await ctx.db.prepare(sql).first<{ n: number }>())?.n ?? 0;
   const removed = {
     tasks: await count("SELECT COUNT(*) AS n FROM tasks WHERE demo = 1"), goals: await count("SELECT COUNT(*) AS n FROM goals WHERE demo = 1"),
-    habits: await count("SELECT COUNT(*) AS n FROM habits WHERE demo = 1"), events: await count("SELECT COUNT(*) AS n FROM events WHERE demo = 1"),
+    habits: await count("SELECT COUNT(*) AS n FROM habits WHERE demo = 1"), events: await count("SELECT COUNT(*) AS n FROM events WHERE demo = 1"), finance: await count("SELECT (SELECT COUNT(*) FROM fin_accounts WHERE demo = 1) + (SELECT COUNT(*) FROM fin_transactions WHERE demo = 1) + (SELECT COUNT(*) FROM fin_bills WHERE demo = 1) AS n"),
   };
   const q = (s: string) => ctx.db.prepare(s);
   await write(ctx.db, [
@@ -112,6 +114,8 @@ export async function clearDemoData(ctx: Ctx): Promise<Result<{ removed: Record<
     q("DELETE FROM habit_logs WHERE habit_id IN (SELECT id FROM habits WHERE demo = 1)"),
     q("DELETE FROM habits WHERE demo = 1"),
     q("DELETE FROM events WHERE demo = 1"),
+    q("DELETE FROM fin_bill_payments WHERE demo = 1"), q("DELETE FROM fin_transactions WHERE demo = 1"), q("DELETE FROM fin_balances WHERE demo = 1"), q("DELETE FROM fin_budgets WHERE demo = 1"),
+    q("DELETE FROM fin_bills WHERE demo = 1"), q("DELETE FROM fin_income_plans WHERE demo = 1"), q("DELETE FROM fin_reimbursements WHERE demo = 1"), q("DELETE FROM fin_accounts WHERE demo = 1"),
     auditStmt(ctx, "demo.clear", "demo", null),
   ]);
   return ok({ removed });

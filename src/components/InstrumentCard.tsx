@@ -5,6 +5,7 @@ import { cx } from "../lib/cx";
 
 /** One widget surface. `tone` picks the instrument colour; pastel cards keep dark text in both themes. */
 export const TONE = {
+  sage: { bg: "var(--w-sage)", fg: "var(--w-on)", ring: "none" },
   charcoal: { bg: "var(--w-charcoal)", fg: "var(--ink)", ring: "0 0 0 1px var(--line)" },
   blue: { bg: "var(--w-blue)", fg: "var(--w-on-blue)", ring: "none" },
   butter: { bg: "var(--w-butter)", fg: "var(--w-butter-on)", ring: "none" },

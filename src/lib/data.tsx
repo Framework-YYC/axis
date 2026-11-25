@@ -3,7 +3,7 @@ import { addDays } from "../../shared/rotation";
 import type { WeekStart } from "../../shared/horizons";
 import { api, ApiUnavailable, patch, post, type Envelope } from "./api";
 import { localToday } from "./dates";
-import type { ActivityRow, Approval, CalEvent, Goal, Habit, InboxRequest, Me, ProcItem, Settings, Task, TrackView } from "./types";
+import type { ActivityRow, Approval, CalEvent, FinanceData, Goal, Habit, InboxRequest, Me, ProcItem, Settings, Task, TrackView } from "./types";
 
 /**
  * One shared, polling view of the owner's live data, used by the shell and every page. Assistant changes appear without any manual step
@@ -25,6 +25,7 @@ export interface Data {
   events: CalEvent[];
   progress: TrackView[];
   procurement: ProcItem[];
+  finance: FinanceData | null;
   approvals: Approval[];
   inbox: InboxRequest[];
   activity: ActivityRow[];
@@ -43,8 +44,8 @@ export interface Data {
 const Ctx = createContext<Data | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Pick<Data, "tasks" | "goals" | "habits" | "events" | "progress" | "procurement" | "approvals" | "inbox" | "activity" | "settings" | "me" | "source" | "loading" | "error">>({
-    tasks: [], goals: [], habits: [], events: [], progress: [], procurement: [], approvals: [], inbox: [], activity: [], settings: DEFAULT_SETTINGS, me: { label: "…", environment: "", signedIn: false }, source: "live", loading: true, error: null,
+  const [state, setState] = useState<Pick<Data, "tasks" | "goals" | "habits" | "events" | "progress" | "procurement" | "finance" | "approvals" | "inbox" | "activity" | "settings" | "me" | "source" | "loading" | "error">>({
+    tasks: [], goals: [], habits: [], events: [], progress: [], procurement: [], finance: null, approvals: [], inbox: [], activity: [], settings: DEFAULT_SETTINGS, me: { label: "…", environment: "", signedIn: false }, source: "live", loading: true, error: null,
   });
   const [today, setToday] = useState(localToday());
   const tzSynced = useRef(false);
@@ -54,7 +55,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setToday(t);
     try {
       const day = `today=${t}`;
-      const [open, done, goals, habits, events, progress, procurement, approvals, inbox, activity, settings, me] = await Promise.all([
+      const [open, done, goals, habits, events, progress, procurement, finance, approvals, inbox, activity, settings, me] = await Promise.all([
         api<{ tasks: Task[] }>(`/tasks?limit=500&${day}&status=pending,in_progress,waiting`),
         api<{ tasks: Task[] }>(`/tasks/completed?limit=200&${day}&since=${addDays(t, -13)}`),
         api<{ goals: Goal[] }>(`/goals?${day}&status=active,paused,achieved`),
@@ -62,6 +63,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         api<{ events: CalEvent[] }>(`/events?${day}&from=${addDays(t, -35)}&to=${addDays(t, 120)}`),
         api<{ tracks: TrackView[] }>(`/progress?${day}`),
         api<{ items: ProcItem[] }>(`/procurement?includeReceived=true&limit=300`),
+        api<FinanceData>(`/finance?${day}`),
         api<{ approvals: Approval[] }>("/approvals"),
         api<{ requests: InboxRequest[] }>("/inbox?limit=30"),
         api<{ events: ActivityRow[] }>("/activity?limit=20"),
@@ -77,6 +79,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         events: events.success ? events.data.events : s.events,
         progress: progress.success ? progress.data.tracks : s.progress,
         procurement: procurement.success ? procurement.data.items : s.procurement,
+        finance: finance.success ? finance.data : s.finance,
         approvals: approvals.success ? approvals.data.approvals.filter((a) => a.status === "pending") : s.approvals,
         inbox: inbox.success ? inbox.data.requests : s.inbox,
         activity: activity.success ? activity.data.events : s.activity,

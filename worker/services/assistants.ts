@@ -14,7 +14,8 @@ export function assistantActor(assistant: ModuleId): Actor {
     channel: "inbox",
     assistant,
     modules: new Set([assistant]),
-    scopes: new Set(["tasks:read", "tasks:write", "goals:read", "goals:write", "habits:read", "habits:write", "calendar:read", "calendar:write", "briefing:read"]),
+    // Only the Financial assistant may use the finance operations (every finance operation also refuses any other module).
+    scopes: new Set(["tasks:read", "tasks:write", "goals:read", "goals:write", "habits:read", "habits:write", "calendar:read", "calendar:write", "briefing:read", ...(assistant === "financial" ? ["finance:read", "finance:write"] : [])]),
   };
 }
 

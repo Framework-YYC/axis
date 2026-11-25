@@ -12,6 +12,8 @@ import { isTab, type TabId } from "../components/nav";
 import { ModuleTabs } from "../components/ModuleTabs";
 import { TasksView } from "../components/TasksView";
 import { ProcurementView, ProgressView, WorkOverview } from "../components/WorkViews";
+import { AccountsView, BillsView, BudgetsView, FinanceOverview, ReportsView, TransactionsView } from "../components/FinanceViews";
+import { TransactionEditor } from "../components/FinanceEditors";
 import { Calendar } from "./Calendar";
 import { GoalList, HabitList } from "../components/compact";
 import { TaskLine } from "../components/TaskLine";
@@ -23,7 +25,7 @@ import { PageFrame } from "../lib/motion";
 import { useApi } from "../lib/useApi";
 import type { ActivityRow, CalEvent, Goal, Habit, Task } from "../lib/types";
 
-type Editing = { kind: "task"; task?: Task } | { kind: "goal"; goal?: Goal } | { kind: "habit"; habit?: Habit } | { kind: "event"; event?: CalEvent } | null;
+type Editing = { kind: "txn" } | { kind: "task"; task?: Task } | { kind: "goal"; goal?: Goal } | { kind: "habit"; habit?: Habit } | { kind: "event"; event?: CalEvent } | null;
 type Briefing = { asOf: string; counts: Record<string, number>; tasks: Record<string, Array<{ id: string; title: string; priority: string; dueDate: string | null; dueTime: string | null }>>; events: Array<{ title: string; date: string; startTime: string | null }>; goals: Array<{ title: string; progress: number }>; habits: Array<{ title: string; applies: boolean; done: boolean; value: number; target: number; streak: number }>; attention: Record<string, number> };
 
 export default function ModulePage() {
@@ -53,7 +55,7 @@ function Module({ id }: { id: ModuleId }) {
   const mine = inbox.filter((r) => r.assistant === id);
   return (
     <div className="@container">
-      <PageHeader crumb={meta.label.toUpperCase()} title={meta.label} subtitle={meta.blurb} onNew={() => setEdit({ kind: "task" })} />
+      <PageHeader crumb={meta.label.toUpperCase()} title={meta.label} subtitle={meta.blurb} onNew={() => setEdit(id === "financial" ? { kind: "txn" } : { kind: "task" })} newLabel={id === "financial" ? "New transaction" : undefined} />
       <ModuleTabs module={id} tab={tab} counts={{ tasks: open.length, goals: mg.length, habits: mh.length }} />
 
       <PageFrame key={tab} className="tab-in">
@@ -61,7 +63,14 @@ function Module({ id }: { id: ModuleId }) {
       {tab === "progress" && <ProgressView module={id} />}
       {tab === "procurement" && <ProcurementView module={id} />}
 
-      {tab === "overview" && id !== "progressive" && (
+      {tab === "overview" && id === "financial" && <FinanceOverview />}
+      {tab === "transactions" && <TransactionsView />}
+      {tab === "bills" && <BillsView />}
+      {tab === "accounts" && <AccountsView />}
+      {tab === "budgets" && <BudgetsView />}
+      {tab === "reports" && <ReportsView />}
+
+      {tab === "overview" && id !== "progressive" && id !== "financial" && (
         <div className="grid gap-3 @[960px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
@@ -149,6 +158,7 @@ function Module({ id }: { id: ModuleId }) {
 
       </PageFrame>
 
+      {edit?.kind === "txn" && <TransactionEditor onClose={() => setEdit(null)} />}
       {edit?.kind === "task" && <TaskEditor task={edit.task} defaults={{ module: id }} onClose={() => setEdit(null)} />}
       {edit?.kind === "goal" && <GoalEditor goal={edit.goal} defaultModule={id} onClose={() => setEdit(null)} />}
       {edit?.kind === "habit" && <HabitEditor habit={edit.habit} defaultModule={id} onClose={() => setEdit(null)} />}

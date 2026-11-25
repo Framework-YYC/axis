@@ -28,16 +28,16 @@ export const assistantDisplayLabel = (id: ModuleId) => `ChatGPT: ${assistantShor
 export const shownActor = (label: string): string => { for (const id of Object.keys(ASSISTANT_DISPLAY) as ModuleId[]) if (label === assistantLabel(id)) return assistantDisplayLabel(id); return label; };
 
 /** Every screen a module can show, and the ones each module leads with. Only screens that exist and work. The rest sit under the tab bar's More menu. */
-export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "progress" | "procurement" | "briefing" | "activity" | "metrics";
-export const ALL_TABS: readonly TabId[] = ["overview", "tasks", "progress", "procurement", "goals", "habits", "calendar", "briefing", "activity", "metrics"];
+export type TabId = "overview" | "tasks" | "goals" | "habits" | "calendar" | "progress" | "procurement" | "transactions" | "bills" | "accounts" | "budgets" | "reports" | "briefing" | "activity" | "metrics";
+export const ALL_TABS: readonly TabId[] = ["overview", "tasks", "progress", "procurement", "transactions", "bills", "accounts", "goals", "budgets", "habits", "calendar", "reports", "briefing", "activity", "metrics"];
 export const PRIMARY_TABS: Record<ModuleId, readonly TabId[]> = {
   daily: ["overview", "tasks", "goals", "calendar"],
   health: ["overview", "tasks", "goals", "habits"],
-  financial: ["overview", "tasks", "goals"],
+  financial: ["overview", "transactions", "bills", "accounts"],
   framework: ["overview", "tasks", "goals"],
   progressive: ["overview", "tasks", "progress", "procurement"],
 };
 /** Screens that exist only for some modules (Work tracks deliverables and procurement). */
-export const MODULE_ONLY_TABS: Partial<Record<TabId, ModuleId>> = { progress: "progressive", procurement: "progressive" };
+export const MODULE_ONLY_TABS: Partial<Record<TabId, ModuleId>> = { progress: "progressive", procurement: "progressive", transactions: "financial", bills: "financial", accounts: "financial", budgets: "financial", reports: "financial" };
 /** The permanent navigation order: Home, then the five modules. */
 export const DESTINATION_ORDER = ["home", "daily", "health", "financial", "framework", "progressive"] as const;

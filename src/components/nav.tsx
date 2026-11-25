@@ -27,7 +27,7 @@ export interface NavItem { to: string; label: string; count?: number; hot?: bool
 export interface NavGroup { label: string; items: NavItem[] }
 
 export type { TabId };
-export const TAB_LABEL: Record<TabId, string> = { overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", progress: "Progress", procurement: "Procurement", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
+export const TAB_LABEL: Record<TabId, string> = { overview: "Overview", tasks: "Tasks", goals: "Goals", habits: "Habits", calendar: "Calendar", progress: "Progress", procurement: "Procurement", transactions: "Transactions", bills: "Bills", accounts: "Accounts", budgets: "Budgets", reports: "Reports", briefing: "Briefing", activity: "Activity", metrics: "Metrics" };
 export { ALL_TABS };
 export const primaryTabs = (m: ModuleId): TabId[] => [...PRIMARY_TABS[m]];
 /** Everything else stays reachable from the tab bar's More menu. */

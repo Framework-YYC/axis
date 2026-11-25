@@ -16,7 +16,7 @@ describe("module-first navigation", () => {
     for (const gone of ["Assistants", "More"]) expect(read("src/components/Shell.tsx")).not.toMatch(new RegExp(`label="${gone}"`));
   });
   it("each module's contextual tabs match the plan and only name screens that exist", () => {
-    expect(PRIMARY_TABS).toEqual({ daily: ["overview", "tasks", "goals", "calendar"], health: ["overview", "tasks", "goals", "habits"], financial: ["overview", "tasks", "goals"], framework: ["overview", "tasks", "goals"], progressive: ["overview", "tasks", "progress", "procurement"] });
+    expect(PRIMARY_TABS).toEqual({ daily: ["overview", "tasks", "goals", "calendar"], health: ["overview", "tasks", "goals", "habits"], financial: ["overview", "transactions", "bills", "accounts"], framework: ["overview", "tasks", "goals"], progressive: ["overview", "tasks", "progress", "procurement"] });
     for (const tabs of Object.values(PRIMARY_TABS)) for (const t of tabs) expect(ALL_TABS).toContain(t);
     const page = read("src/pages/ModulePage.tsx");
     for (const t of ALL_TABS) expect(page, `module page renders the ${t} tab`).toContain(`tab === "${t}"`);
@@ -231,4 +231,29 @@ describe("no raw integration identifiers in the normal interface", () => {
     expect(h.byLine("ChatGPT: Progressive assistant")).toBe("via Datum"); expect(h.byLine("ChatGPT: Daily assistant")).toBe("via Daily"); expect(h.byLine("Owner")).toBe("by you"); expect(h.byLine("Owner", "inbox")).toBe("by you");
     expect(h.whoName("ChatGPT: Progressive assistant")).toBe("Datum"); expect(h.eventLabel("completed")).toBe("Completed");
   });
+});
+
+describe("Finance module", () => {
+  it("four primary tabs, the rest under More, and every tab renders", () => {
+    expect(PRIMARY_TABS.financial).toEqual(["overview", "transactions", "bills", "accounts"]);
+    const page = read("src/pages/ModulePage.tsx");
+    for (const v of ["<FinanceOverview", "<TransactionsView", "<BillsView", "<AccountsView", "<BudgetsView", "<ReportsView"]) expect(page).toContain(v);
+    expect(page).toContain('newLabel={id === "financial" ? "New transaction"');
+  });
+  it("the Overview is graphical, has a month selector, labels estimates and never shows a non-CAD currency", () => {
+    const v = read("src/components/FinanceViews.tsx");
+    for (const w of ["Monthly income", "Bills paid", "Monthly spending", "Debt repayment", "Monthly cash flow", "Next payday", "Upcoming bills", "Reimbursements", "Savings progress", "Net worth"]) expect(v, w).toContain(w);
+    for (const viz of ["CapsuleBars", "RadialGauge", "DotGrid", "SegmentedProgress", "SplitBar"]) expect(v).toContain(viz);
+    expect(v).toContain("MonthSelect"); expect(v).toContain("<Tag>Estimate</Tag>"); expect(v).not.toMatch(/USD|EUR|GBP/); expect(v).not.toContain("dangerouslySetInnerHTML");
+    expect(read("src/lib/finance.ts")).toContain('currency: "CAD"');
+  });
+  it("the editors cover transactions, bills (with a payment dialog), accounts, balances, budgets, income and reimbursements and never assume an amount", () => {
+    const e = read("src/components/FinanceEditors.tsx");
+    for (const c of ["TransactionEditor", "BillEditor", "PayBillDialog", "AccountEditor", "BalanceEditor", "BudgetEditor", "IncomePlanEditor", "ReimbursementEditor"]) expect(e, c).toContain(`function ${c}`);
+    expect(e).toContain("Not known"); expect(e).toContain("Nothing is assumed");
+  });
+  it("Financial connections created in Settings carry the finance permissions", () => {
+    expect(read("src/pages/Settings.tsx")).toContain('"finance:read", "finance:write"');
+  });
+  it("cards are part of the page cascade", () => { expect(read("src/components/InstrumentCard.tsx")).toContain("data-cascade"); });
 });

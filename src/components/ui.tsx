@@ -59,11 +59,11 @@ export function Btn({ children, onClick, variant = "soft", icon: Icon, kbd, disa
  * The page header's actions, one instance that adapts to the header's own width: [account menu on phones] [bell] [New task].
  * "New task" is an icon on narrow headers and gains its label when there is room. One creation control per page.
  */
-export function HeaderActions({ onNew }: { onNew?: () => void }) {
+export function HeaderActions({ onNew, newLabel = "New task" }: { onNew?: () => void; newLabel?: string }) {
   const { approvals, tasks, today } = useData();
   const attention = approvals.length + tasks.filter((t) => t.status !== "completed" && !t.archivedAt && t.dueDate && t.dueDate < today).length;
   const cls = "btn btn-primary press !min-h-11 !w-11 !px-0 md:!min-h-10 @[560px]:!w-auto @[560px]:!px-[18px]";
-  const inner = <><Plus size={17} strokeWidth={1.6} aria-hidden /><span className="sr-only @[560px]:not-sr-only">New task</span></>;
+  const inner = <><Plus size={17} strokeWidth={1.6} aria-hidden /><span className="sr-only @[560px]:not-sr-only">{newLabel}</span></>;
   return (
     <div className="flex items-center gap-2">
       <AccountMenuButton className="md:hidden" />
@@ -71,12 +71,12 @@ export function HeaderActions({ onNew }: { onNew?: () => void }) {
         <Bell size={16} strokeWidth={1.5} aria-hidden />
         {attention > 0 && <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full" style={{ background: "var(--w-terra)" }} />}
       </Link>
-      {onNew ? <button onClick={onNew} aria-label="New task" className={cls}>{inner}</button> : <Link to="/tasks?add=1" aria-label="New task" className={cls}>{inner}</Link>}
+      {onNew ? <button onClick={onNew} aria-label={newLabel} className={cls}>{inner}</button> : <Link to="/tasks?add=1" aria-label={newLabel} className={cls}>{inner}</Link>}
     </div>
   );
 }
 
-export function PageHeader({ crumb, title, subtitle, controls, tag, onNew }: { crumb: string; title: string; subtitle?: string; controls?: ReactNode; tag?: ReactNode; onNew?: () => void }) {
+export function PageHeader({ crumb, title, subtitle, controls, tag, onNew, newLabel }: { crumb: string; title: string; subtitle?: string; controls?: ReactNode; tag?: ReactNode; onNew?: () => void; newLabel?: string }) {
   return (
     <header data-cascade className="@container mb-4 md:mb-5">
       <div className="flex items-start justify-between gap-3">
@@ -85,7 +85,7 @@ export function PageHeader({ crumb, title, subtitle, controls, tag, onNew }: { c
           <h1 className="mt-1 text-[30px] font-[350] leading-none tracking-[-0.025em] md:text-[40px]">{title}</h1>
           {subtitle && <p className="mt-2 max-w-[60ch] text-[13px] leading-snug text-muted">{subtitle}</p>}
         </div>
-        <div className="shrink-0"><HeaderActions onNew={onNew} /></div>
+        <div className="shrink-0"><HeaderActions onNew={onNew} newLabel={newLabel} /></div>
       </div>
       {controls && <div className="mt-3 flex flex-wrap items-center gap-2">{controls}</div>}
       {tag && <div className="mt-3">{tag}</div>}

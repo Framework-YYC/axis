@@ -36,7 +36,7 @@ export default function Settings({ who, environment, signedIn }: { who: string; 
   const WRITE = ["tasks:write", "goals:write", "habits:write", "calendar:write"];
   const createConn = async () => {
     const name = conn.name.trim() || `${MODULES_META[conn.module].label} assistant`;
-    const r = await post<{ token: string }>("/integrations", { name, kind: "chatgpt", modules: [conn.module], scopes: conn.access === "write" ? [...READ, ...WRITE] : READ, expiresInDays: Number(conn.days) || 30 });
+    const r = await post<{ token: string }>("/integrations", { name, kind: "chatgpt", modules: [conn.module], scopes: [...(conn.access === "write" ? [...READ, ...WRITE] : READ), ...(conn.module === "financial" ? (conn.access === "write" ? ["finance:read", "finance:write"] : ["finance:read"]) : [])], expiresInDays: Number(conn.days) || 30 });
     if (r.success) { setFresh({ name, token: r.data.token }); setRev((n) => n + 1); setMsg(null); } else setMsg(r.error.message);
   };
   const revoke = async (id: string) => { const r = await post(`/integrations/${id}/revoke`, {}); setMsg(r.success ? "Connection revoked. Its token stops working immediately." : r.error.message); setRev((n) => n + 1); };

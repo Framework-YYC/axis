@@ -32,7 +32,7 @@ function summarize(r: Result<unknown>): { status: InboxStatus; result: Record<st
   if (r.ok) {
     const d = (r.data ?? {}) as Record<string, unknown>;
     const items = Array.isArray(d.items) ? (d.items as Array<Record<string, unknown>>) : null;
-    const entity = (d.task ?? d) as Record<string, unknown>;
+    const entity = (d.task ?? d.record ?? d) as Record<string, unknown>;
     const result: Record<string, unknown> = { ok: true, duplicate: !!r.duplicate };
     if (items) Object.assign(result, { created: d.created, duplicates: d.duplicates, failed: d.failed, ids: items.filter((x) => x.ok).map((x) => (x.task as { id?: string } | undefined)?.id), errors: items.filter((x) => !x.ok).map((x) => ({ index: x.index, error: x.error })) });
     else Object.assign(result, { id: entity.id ?? null, outcome: (d as { outcome?: unknown }).outcome ?? null, needsNewNotification: (d as { needsNewNotification?: unknown }).needsNewNotification ?? undefined, version: entity.version ?? null, status: entity.status ?? null, next: (d as { next?: unknown }).next ?? null });
@@ -75,6 +75,10 @@ export async function processInbox(db: D1Database, opts: { now?: Date; limit?: n
       let operation = row.op === "task.create" && typeof payload.key === "string" ? "upsert_action_item" : spec.operation;
       if (operation === "upsert_action_item" && payload.procurement && typeof payload.procurement === "object" && !Array.isArray(payload.procurement)) {
         const { procurement, ...rest } = payload; operation = "upsert_procurement"; payload = { ...rest, ...(procurement as Record<string, unknown>) };
+      }
+      // With a `finance` block the request is the idempotent finance upsert: {key, sourceRef, finance:{kind, ...fields}}.
+      if (operation === "upsert_action_item" && payload.finance && typeof payload.finance === "object" && !Array.isArray(payload.finance)) {
+        const { finance, ...rest } = payload; operation = "upsert_finance_record"; payload = { ...rest, ...(finance as Record<string, unknown>) };
       }
       const r = await runOperation(ctx, operation, payload, `inbox:${row.id}`);
       outcome = summarize(r);
